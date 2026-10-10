@@ -29,6 +29,8 @@ export const STREET_KINDS = new Set(['motorway', 'trunk', 'primary', 'secondary'
 
 export interface GroundResult {
   mesh: THREE.Mesh | null;
+  /** Visual-only ground beyond the play area (kept out of physics: huge triangles slow queries). */
+  surroundings: THREE.Mesh | null;
   markings: THREE.Mesh | null;
   collider: THREE.Mesh | null;
 }
@@ -174,13 +176,16 @@ export function buildGround(data: CampusDataExt, outerHole: CampusDataExt['bound
   }
   curbs(B, data.surfaces.road, data.bounds, 0, CURB_H, 'concrete', true);
   curbs(B, data.surfaces.water, data.bounds, CURB_H - 0.1, CURB_H, 'concreteDark', true);
-  surroundings(B, data.bounds, outerHole);
   const mesh = B.toMesh('campus-ground');
   if (mesh) { mesh.receiveShadow = true; mesh.castShadow = false; }
+  const S = new Batcher();
+  surroundings(S, data.bounds, outerHole);
+  const sur = S.toMesh('campus-ground-surroundings');
+  if (sur) { sur.receiveShadow = true; sur.castShadow = false; }
 
   const M = new Batcher();
   markings(M, data.roadLines, findIntersections(data.roadLines));
   const mk = M.toMesh('campus-road-markings');
   if (mk) { mk.receiveShadow = true; mk.castShadow = false; }
-  return { mesh, markings: mk, collider: mesh };
+  return { mesh, surroundings: sur, markings: mk, collider: mesh };
 }

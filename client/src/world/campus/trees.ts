@@ -12,7 +12,8 @@ import { CURB_H } from './ground';
  *    - ~100 irregular leaf cards (alpha-tested `foliage`) grouped in clumps at the ends of the
  *      main branches, facing outward,
  *    - trunk + main branches (`bark`).
- *  FAR: a solid, lumpy crown (one smooth mass + a few clump blobs) in the same silhouette.
+ *  FAR: a lumpy crown shell (one mass + a few clump blobs) in `foliage`, over an opaque dark core
+ *    so the cut-out leaves never show sky.
  *
  * Instances are re-assigned between NEAR and FAR from `world.focus` (camera or player) whenever it
  * moves more than a few meters. All prototypes are modeled at height 1 and scaled per instance to
@@ -204,6 +205,7 @@ interface Proto {
   cards: THREE.BufferGeometry;
   core: THREE.BufferGeometry;
   far: THREE.BufferGeometry;
+  farCore: THREE.BufferGeometry;
   trunk: THREE.BufferGeometry;
 }
 
@@ -217,10 +219,12 @@ function buildProto(sp: Species, variant: number): Proto {
   const core = withUv(mergeGeometries(coreParts)!);
   // far: one silhouette-matching mass + the most outward clumps as blobs
   const farParts = [blob(crownC, e.rx * 0.8, e.ry * 0.82, 1, variant * 7 + 3, crownC)];
-  const outward = [...clumps].sort((a, b) => b.c.distanceTo(crownC) - a.c.distanceTo(crownC)).slice(0, 6);
+  const outward = [...clumps].sort((a, b) => b.c.distanceTo(crownC) - a.c.distanceTo(crownC)).slice(0, 4);
   for (const cl of outward) farParts.push(blob(cl.c, cl.r * 1.25, cl.r * 1.1, 0, variant * 17 + 4, crownC));
   const far = withUv(mergeGeometries(farParts)!);
-  return { cards: leafCards(sp, clumps, rng), core, far, trunk: trunkGeometry(sp, clumps, rng) };
+  // far core: opaque dark mass just inside the far shell, so the alpha-cut leaves never show sky
+  const farCore = withUv(blob(crownC, e.rx * 0.7, e.ry * 0.72, 0, variant * 7 + 5, crownC));
+  return { cards: leafCards(sp, clumps, rng), core, far, farCore, trunk: trunkGeometry(sp, clumps, rng) };
 }
 
 export interface TreeInput { p: [number, number]; height: number }
@@ -240,6 +244,7 @@ interface Group {
   cards: THREE.InstancedMesh;
   core: THREE.InstancedMesh;
   far: THREE.InstancedMesh;
+  farCore: THREE.InstancedMesh;
 }
 
 export function buildTrees(trees: TreeInput[]): TreesResult {
@@ -268,13 +273,14 @@ export function buildTrees(trees: TreeInput[]): TreesResult {
     const n = list.length;
     const cards = new THREE.InstancedMesh(proto.cards, getMaterial(MAT_CARDS), n);
     const core = new THREE.InstancedMesh(proto.core, getMaterial(MAT_SOLID), n);
-    const far = new THREE.InstancedMesh(proto.far, getMaterial(MAT_SOLID), n);
+    const far = new THREE.InstancedMesh(proto.far, getMaterial(MAT_CARDS), n);
+    const farCore = new THREE.InstancedMesh(proto.farCore, getMaterial(MAT_SOLID), n);
     const trunk = new THREE.InstancedMesh(proto.trunk, getMaterial(MAT_BARK), n);
     const tag = `campus-trees-${sp.name}-${pi % VARIANTS}`;
-    setup(cards, `${tag}-cards`); setup(core, `${tag}-core`); setup(far, `${tag}-far`); setup(trunk, `${tag}-trunks`);
-    const g: Group = { idx: list, crown: [], tint: [], cards, core, far };
+    setup(cards, `${tag}-cards`); setup(core, `${tag}-core`); setup(far, `${tag}-far`); setup(farCore, `${tag}-far-core`); setup(trunk, `${tag}-trunks`);
+    const g: Group = { idx: list, crown: [], tint: [], cards, core, far, farCore };
     const white = new THREE.Color(1, 1, 1);
-    for (let i = 0; i < n; i++) for (const im of [cards, core, far]) im.setColorAt(i, white);
+    for (let i = 0; i < n; i++) for (const im of [cards, core, far, farCore]) im.setColorAt(i, white);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), col = new THREE.Color();
     list.forEach((ti, i) => {
       const t = trees[ti]!;
@@ -302,7 +308,6 @@ export function buildTrees(trees: TreeInput[]): TreesResult {
 
   // Solid stand-in material is lawn `grass`: pull it toward the darker, olive foliage color.
   const CORE_TINT = new THREE.Color(0.13, 0.15, 0.09);
-  const FAR_TINT = new THREE.Color(0.34, 0.37, 0.25);
   const last = new THREE.Vector3(Infinity, 0, 0);
   let near = 0;
   const tmp = new THREE.Color();
@@ -325,12 +330,14 @@ export function buildTrees(trees: TreeInput[]): TreesResult {
           nn++;
         } else {
           g.far.setMatrixAt(nf, g.crown[i]!);
-          g.far.setColorAt(nf, tmp.copy(tint).multiply(FAR_TINT));
+          g.far.setColorAt(nf, tint);
+          g.farCore.setMatrixAt(nf, g.crown[i]!);
+          g.farCore.setColorAt(nf, tmp.copy(tint).multiply(CORE_TINT));
           nf++;
         }
       });
-      g.cards.count = nn; g.core.count = nn; g.far.count = nf;
-      for (const im of [g.cards, g.core, g.far]) {
+      g.cards.count = nn; g.core.count = nn; g.far.count = nf; g.farCore.count = nf;
+      for (const im of [g.cards, g.core, g.far, g.farCore]) {
         im.instanceMatrix.needsUpdate = true;
         if (im.instanceColor) im.instanceColor.needsUpdate = true;
       }

@@ -225,7 +225,7 @@ export async function buildCampus(world: World, rawData: CampusData): Promise<vo
       drawGroups += (o as THREE.Mesh).geometry.groups.length || 1;
     }
   }
-  for (const m of [ground.mesh, ground.markings]) if (m) { root.add(m); drawGroups += m.geometry.groups.length; vertices += m.geometry.getAttribute('position').count; }
+  for (const m of [ground.mesh, ground.surroundings, ground.markings]) if (m) { root.add(m); drawGroups += m.geometry.groups.length; vertices += m.geometry.getAttribute('position').count; }
   if (ground.collider) world.addCollider(ground.collider);
 
   // --- trees & props (never inside a building: 1 m margin, landmarks by their full rectangle) ----
