@@ -1,0 +1,18 @@
+{
+  "name": "uic-campus-game",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": ["client"],
+  "engines": { "node": ">=22.12" },
+  "scripts": {
+    "dev": "npm run dev -w client",
+    "build": "npm run build -w client",
+    "typecheck": "npm run typecheck -w client",
+    "test": "npm run test -w client",
+    "screenshot": "node tools/screenshot/shoot.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.64.0"
+  }
+}
