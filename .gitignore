@@ -6,3 +6,4 @@ __pycache__/
 tools/map-pipeline/cache/
 screenshots/tmp/
 .DS_Store
+.claude/worktrees/
