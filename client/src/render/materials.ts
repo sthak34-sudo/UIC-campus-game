@@ -108,7 +108,8 @@ function std(p: THREE.MeshStandardMaterialParameters): THREE.MeshStandardMateria
   return new THREE.MeshStandardMaterial(p);
 }
 
-const EXTERIOR_WALL: SurfaceFx = { macroScale: 37, macroAmp: 0.09, macroAmp2: 0.06, roughAmp: 0.04, streaks: 0.3, baseGrime: 0.3, topDirt: 0.25 };
+// board-form rows are 1/16 of the concrete tile tall, so shift by whole rows to keep them aligned
+const EXTERIOR_WALL: SurfaceFx = { macroScale: 37, macroAmp: 0.09, macroAmp2: 0.06, roughAmp: 0.04, streaks: 0.3, baseGrime: 0.3, topDirt: 0.25, antiTileShift: [0.4137, 0.3125] };
 
 function build(name: MaterialName): THREE.Material {
   let m: THREE.MeshStandardMaterial;
@@ -131,7 +132,8 @@ function build(name: MaterialName): THREE.Material {
     case 'brick':
       m = std({ name, roughness: 1 });
       textured(m, { dir: 'brick' }, 1, 1);
-      applySurfaceFx(m, { macroScale: 31, macroAmp: 0.08, macroAmp2: 0.05, streaks: 0.15, baseGrime: 0.3, topDirt: 0.2 }, name);
+      // shift by whole bricks / an even number of courses so the running bond stays intact
+      applySurfaceFx(m, { macroScale: 31, macroAmp: 0.08, macroAmp2: 0.05, streaks: 0.15, baseGrime: 0.3, topDirt: 0.2, antiTileShift: [0.375, 0.375] }, name);
       return m;
     case 'glass': {
       const g = new THREE.MeshPhysicalMaterial({
@@ -155,7 +157,7 @@ function build(name: MaterialName): THREE.Material {
       applySurfaceFx(m, { macroAmp: 0.1, roughAmp: 0.08 }, name);
       return m;
     case 'metal':
-      m = std({ name, color: new THREE.Color(0.42, 0.43, 0.44), metalness: 1, roughness: 1.5 }); // galvanized: ~0.55 rough
+      m = std({ name, color: new THREE.Color(0.4, 0.41, 0.42), metalness: 0.7, roughness: 1.7 }); // weathered galvanized / painted steel: ~0.65 rough
       m.roughnessMap = loadTexture('metal/orm.jpg', { tile: TILE.metal });
       applySurfaceFx(m, { macroAmp: 0.12, macroAmp2: 0.08, roughAmp: 0.1, topDirt: 0.2 }, name);
       return m;

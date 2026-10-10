@@ -30,6 +30,8 @@ export interface SurfaceFx {
   topDirt?: number;
   /** Blend a rotated second sample of the albedo to hide tiling (ground cover). */
   antiTile?: boolean;
+  /** Like antiTile but with a pure offset (in texture tiles), for patterns that must stay aligned (board-form rows). */
+  antiTileShift?: [number, number];
   /** Patchy straw-colored areas (lawns in October). */
   dryTint?: number;
   /** Fake rooms behind opaque window glass. */
@@ -61,6 +63,7 @@ export function applySurfaceFx(mat: THREE.MeshStandardMaterial, fx: SurfaceFx, k
     defs.push(`#define GFX_TOP ${f(fx.topDirt ?? 0)}`);
   }
   if (fx.antiTile) defs.push('#define GFX_ANTITILE');
+  if (fx.antiTileShift) defs.push(`#define GFX_ANTITILE_SHIFT vec2( ${f(fx.antiTileShift[0])}, ${f(fx.antiTileShift[1])} )`);
   if (fx.dryTint) defs.push(`#define GFX_DRY ${f(fx.dryTint)}`);
   if (fx.interior) defs.push('#define GFX_INTERIOR');
   if (fx.clearGlass) defs.push('#define GFX_CLEAR_GLASS');
@@ -116,6 +119,10 @@ vec3 gfxMac2 = texture2D( gfxMacro, gfxMuv / ( GFX_MACRO_SCALE * 0.21 ) + vec2( 
 	vec2 gfxUvB = mat2( 0.8, 0.6, -0.6, 0.8 ) * vMapUv * 0.71 + vec2( 0.31, 0.57 );
 	vec4 gfxB = texture2D( map, gfxUvB );
 	diffuseColor *= mix( gfxA, gfxB, smoothstep( 0.38, 0.62, gfxMac2.b ) );
+#elif defined( GFX_ANTITILE_SHIFT ) && defined( USE_MAP )
+	vec4 gfxA = texture2D( map, vMapUv );
+	vec4 gfxB = texture2D( map, vMapUv + GFX_ANTITILE_SHIFT );
+	diffuseColor *= mix( gfxA, gfxB, smoothstep( 0.35, 0.65, gfxMac2.b ) );
 #else
 	#include <map_fragment>
 #endif

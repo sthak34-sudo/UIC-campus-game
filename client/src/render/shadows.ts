@@ -48,7 +48,11 @@ export class ShadowFollower {
     this.sun.shadow.bias = -0.00004;
   }
 
-  update(camera: THREE.Camera): void {
+  /**
+   * @param focus the player position (from setFocus). At street level the box is centered on it,
+   *   pushed forward along the camera's view so most of the box is on screen.
+   */
+  update(camera: THREE.Camera, focus?: THREE.Vector3): void {
     const pos = camera.getWorldPosition(this.tmp).clone();
     const fwd = camera.getWorldDirection(new THREE.Vector3());
     const height = Math.max(pos.y, 0);
@@ -58,8 +62,9 @@ export class ShadowFollower {
       // street level: shift the box forward so more of it is in view
       const h = new THREE.Vector3(fwd.x, 0, fwd.z);
       if (h.lengthSq() > 1e-6) h.normalize();
-      c.copy(pos).addScaledVector(h, extent * 0.3);
-      c.y = Math.min(pos.y, 20);
+      const base = focus && focus.distanceToSquared(pos) < 60 * 60 ? focus : pos;
+      c.copy(base).addScaledVector(h, extent * 0.3);
+      c.y = Math.min(base.y, 20);
     } else {
       const t = Math.min(-pos.y / fwd.y, 2500);
       c.copy(pos).addScaledVector(fwd, t * 0.85);

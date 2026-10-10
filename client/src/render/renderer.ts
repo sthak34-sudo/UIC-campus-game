@@ -200,7 +200,7 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
     sky.position.copy(camera.position);
     // drifting clouds (frozen for fixed viewpoints so screenshots are repeatable)
     skyU.time.value = frozenClouds ? 0 : elapsed;
-    shadows.update(camera);
+    shadows.update(camera, firstFocus ? undefined : focus);
     updateMaterials(elapsed);
 
     scene.environmentIntensity = 1 - 0.75 * insideAmt;
