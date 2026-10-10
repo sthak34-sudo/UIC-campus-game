@@ -261,7 +261,7 @@ export class Furnisher {
   /** Display case (Special Collections): wooden base with a glass vitrine. */
   displayCase(p: Pose, w = 1.6, d = 0.8): void {
     this.part(p, 'wood', 0, 0.45, 0, w, 0.9, d);
-    this.part(p, 'glass', 0, 1.1, 0, w - 0.04, 0.4, d - 0.04);
+    this.part(p, 'glassClear', 0, 1.1, 0, w - 0.04, 0.4, d - 0.04);
     this.part(p, 'metal', 0, 1.31, 0, w, 0.02, d);
     this.solid(p, 0, 0.66, 0, w, 1.32, d);
   }

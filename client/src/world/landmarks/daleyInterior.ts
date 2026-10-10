@@ -156,8 +156,8 @@ export function furnishLibrary(ctx: LibraryCtx): void {
     [0, 3, 0, 0.8],
   ];
   for (const [x, fi, z, k] of lights) {
-    const L = new THREE.PointLight(0xfff1dc, 45 * k, 26, 2);
-    L.position.set(x, ctx.ceilY(fi) - 0.4, z);
+    const L = new THREE.PointLight(0xfff1dc, 12 * k, 24, 2);
+    L.position.set(x, ctx.ceilY(fi) - 1.3, z);
     L.castShadow = false;
     L.name = `library-light-${fi + 1}`;
     ctx.group.add(L);
@@ -190,13 +190,13 @@ function floor1(ctx: LibraryCtx, fp: FloorPlan): void {
   buildWall(ctx.struct, col, { a: [rr.x0, rr.z0], b: [rr.x1, rr.z0], y0: y, y1: top, thickness: 0.15, mat: 'interiorWall' });
   buildWall(ctx.struct, col, {
     a: [rr.x0, rr.z1], b: [rr.x0, rr.z0], y0: y, y1: top, thickness: 0.15, mat: 'interiorWall',
-    openings: evenOpenings(1.0, rr.z1 - rr.z0 - 1.0, 4, 2.6, y + 0.9, y + 2.6, { glass: 'glass', frame: 'windowFrame' }).filter((o) => Math.abs(o.at - (rr.z1 - rr.z0) / 2) > 3),
+    openings: evenOpenings(1.0, rr.z1 - rr.z0 - 1.0, 4, 2.6, y + 0.9, y + 2.6, { glass: 'glassClear', frame: 'windowFrame' }).filter((o) => Math.abs(o.at - (rr.z1 - rr.z0) / 2) > 3),
   });
   buildWall(ctx.struct, col, {
     a: [rr.x1, rr.z1], b: [rr.x0, rr.z1], y0: y, y1: top, thickness: 0.15, mat: 'interiorWall',
     openings: [
       { at: ix - 8.6, width: 1.8, bottom: y, top: y + 2.4, door: true },
-      { at: 3.6, width: 4.5, bottom: y + 0.9, top: y + 2.6, glass: 'glass', frame: 'windowFrame' },
+      { at: 3.6, width: 4.5, bottom: y + 0.9, top: y + 2.6, glass: 'glassClear', frame: 'windowFrame' },
     ],
   });
   fp.claim(inflate(rect(rr.x0, rr.x1, rr.z0, rr.z0), 0.2));
@@ -295,9 +295,9 @@ function floor1(ctx: LibraryCtx, fp: FloorPlan): void {
   buildWall(ctx.struct, col, {
     a: [-ix, ml], b: [5.0, ml], y0: y, y1: top, thickness: 0.12, mat: 'windowFrame',
     openings: [
-      ...evenOpenings(0.2, 14.0, 7, 1.85, y + 0.1, y + 2.9, { glass: 'glass' }),
+      ...evenOpenings(0.2, 14.0, 7, 1.85, y + 0.1, y + 2.9, { glass: 'glassClear' }),
       { at: 15.5, width: 1.6, bottom: y, top: y + 2.4, door: true },
-      ...evenOpenings(16.5, 24.1, 4, 1.75, y + 0.1, y + 2.9, { glass: 'glass' }),
+      ...evenOpenings(16.5, 24.1, 4, 1.75, y + 0.1, y + 2.9, { glass: 'glassClear' }),
     ],
   });
   buildWall(ctx.struct, col, { a: [5.0, ml], b: [5.0, iz], y0: y, y1: top, thickness: 0.12, mat: 'interiorWall' });
@@ -328,7 +328,7 @@ function floor2(ctx: LibraryCtx, fp: FloorPlan): void {
     a: [rx, rz0], b: [rx, rz1], y0: y, y1: top, thickness: 0.12, mat: 'windowFrame',
     openings: Array.from({ length: n }, (_, i) => [
       { at: rw * i + 0.9, width: 1.2, bottom: y, top: y + 2.4, door: true },
-      { at: rw * i + rw / 2 + 0.9, width: rw - 2.4, bottom: y + 0.1, top: y + 2.9, glass: 'glass' as const },
+      { at: rw * i + rw / 2 + 0.9, width: rw - 2.4, bottom: y + 0.1, top: y + 2.9, glass: 'glassClear' as const },
     ]).flat(),
   });
   for (let i = 0; i <= n; i++) {
@@ -373,9 +373,9 @@ function floor3(ctx: LibraryCtx, fp: FloorPlan): void {
   buildWall(ctx.struct, ctx.col, {
     a: [-ix, sz], b: [ix, sz], y0: y, y1: top, thickness: 0.12, mat: 'windowFrame',
     openings: [
-      ...evenOpenings(0.3, ix + 1.3, 9, 1.9, y + 0.1, y + 2.9, { glass: 'glass' }),
+      ...evenOpenings(0.3, ix + 1.3, 9, 1.9, y + 0.1, y + 2.9, { glass: 'glassClear' }),
       { at: ix + 2.5, width: 1.8, bottom: y, top: y + 2.4, door: true },
-      ...evenOpenings(ix + 3.7, 2 * ix - 0.3, 7, 1.9, y + 0.1, y + 2.9, { glass: 'glass' }),
+      ...evenOpenings(ix + 3.7, 2 * ix - 0.3, 7, 1.9, y + 0.1, y + 2.9, { glass: 'glassClear' }),
     ],
   });
   fp.claim(rect(-ix, ix, sz - 0.3, sz + 0.3));

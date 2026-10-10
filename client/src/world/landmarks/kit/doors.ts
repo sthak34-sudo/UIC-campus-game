@@ -36,7 +36,7 @@ export interface SlidingDoor {
  * automatic doors. (Static colliders cannot move, and a locked/closed door must never trap players.)
  */
 export function slidingDoors(world: World, parent: THREE.Object3D, o: SlidingDoorOpts): SlidingDoor {
-  const glass = o.glass ?? 'glass';
+  const glass = o.glass ?? 'glassClear';
   const frame = o.frame ?? 'windowFrame';
   const hole = o.holeWidth ?? o.clearWidth;
   const leafW = hole / 2 + 0.04;

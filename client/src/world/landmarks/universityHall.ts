@@ -103,8 +103,10 @@ export function buildUniversityHall(world: World, b: CampusBuilding): University
     const wh = y1 - ws; // window strip height
     // spandrel band (wraps all four faces) - outward, top (sill) and bottom (head) faces only
     for (const s of [1, -1]) {
-      ext.box('concrete', s * (hx - D / 2), y0 + UH.spandrelH / 2, 0, D, UH.spandrelH, 2 * hz, { faces: (s > 0 ? FACE.PX : FACE.NX) | FACE.PY | FACE.NY });
-      ext.box('concrete', 0, y0 + UH.spandrelH / 2, s * (hz - D / 2), 2 * hx - 2 * D, UH.spandrelH, D, { faces: (s > 0 ? FACE.PZ : FACE.NZ) | FACE.PY | FACE.NY });
+      // (stops at the solid corner columns to avoid coplanar faces with a different material)
+      const cw = UH.cornerW;
+      ext.box('concreteSmooth', s * (hx - D / 2), y0 + UH.spandrelH / 2, 0, D, UH.spandrelH, 2 * (hz - cw), { faces: (s > 0 ? FACE.PX : FACE.NX) | FACE.PY | FACE.NY });
+      ext.box('concreteSmooth', 0, y0 + UH.spandrelH / 2, s * (hz - D / 2), 2 * (hx - cw), UH.spandrelH, D, { faces: (s > 0 ? FACE.PZ : FACE.NZ) | FACE.PY | FACE.NY });
     }
     // piers on the long faces (x = ±hx)
     const nL = UH.tierBays[t];
@@ -191,18 +193,18 @@ export function buildUniversityHall(world: World, b: CampusBuilding): University
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
     const panes = (s0: number, s1: number) => {
       const n = Math.max(1, Math.round((s1 - s0) / 1.6));
-      return evenOpenings(s0, s1, n, (s1 - s0) / n - 0.08, yF + 0.1, lobbyTop - 0.1, { glass: 'glass' });
+      return evenOpenings(s0, s1, n, (s1 - s0) / n - 0.08, yF + 0.1, lobbyTop - 0.1, { glass: 'glassClear' });
     };
     const dw = UH.doorWidth + 0.2;
     const ops = doorAt !== null ? [...panes(0, doorAt - dw / 2 - 0.04), ...panes(doorAt + dw / 2 + 0.04, len)] : panes(0, len);
-    if (doorAt !== null) ops.push({ at: doorAt, width: dw, bottom: yF, top: yF + UH.doorHeight, door: true });
+    if (doorAt !== null) ops.push({ at: doorAt, width: dw, bottom: yF, top: lobbyTop - 0.1, door: true });
     buildWall(ext, col, { a, b, y0: yF, y1: lobbyTop, thickness: 0.1, mat: 'windowFrame', openings: ops });
     if (doorAt !== null) {
       // transom glass + header above the doors
       const t = doorAt / len;
       const mx = a[0] + (b[0] - a[0]) * t;
       const mz = a[1] + (b[1] - a[1]) * t;
-      ext.box('glass', mx, (yF + UH.doorHeight + lobbyTop) / 2, mz, 0.03, lobbyTop - yF - UH.doorHeight - 0.15, UH.doorWidth + 0.2);
+      ext.box('glassClear', mx, (yF + UH.doorHeight + lobbyTop) / 2, mz, 0.03, lobbyTop - yF - UH.doorHeight - 0.15, UH.doorWidth + 0.2);
       ext.box('windowFrame', mx, yF + UH.doorHeight + 0.08, mz, 0.12, 0.16, UH.doorWidth + 0.4);
     }
   };
@@ -214,7 +216,7 @@ export function buildUniversityHall(world: World, b: CampusBuilding): University
     slidingDoors(world, group, { center: [s * gx, doorZ], y: yF, rotY: Math.PI / 2, clearWidth: UH.doorWidth, holeWidth: UH.doorWidth + 0.2, height: UH.doorHeight });
 
   // lobby floor, ceiling, elevator core, desk
-  inner.boxMinMax('interiorFloor', -gx, 0, -gz, gx, yF, gz, FACE.PY);
+  inner.boxMinMax('interiorFloorHard', -gx, 0, -gz, gx, yF, gz, FACE.PY);
   inner.boxMinMax('interiorCeiling', -gx, lobbyTop - 0.02, -gz, gx, lobbyTop, gz, FACE.NY);
   const core = rect(-4.2, 4.2, -8.5, 8.5);
   inner.boxMinMax('interiorWall', core.x0, yF, core.z0, core.x1, lobbyTop, core.z1, FACE.PX | FACE.NX | FACE.PZ | FACE.NZ);

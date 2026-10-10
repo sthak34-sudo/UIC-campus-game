@@ -85,7 +85,7 @@ doors and up every stair.
 | Library shell + structure | about 12 draw calls |
 | Library furniture | about 8 draw calls per floor (one per material) plus 1 for books. **Hidden** when you are outside, except the glazed ground floor within 70 m. Inside, only your floor and the floors above and below are drawn. |
 | Books | about 75k instances on 4 floors (4 triangles each) |
-| Lights | 6 PointLights without shadows |
+| Lights | 6 PointLights without shadows, 1.3 m below the ceiling at 10 to 12 cd; the renderer's bounce light does the rest |
 
 ## Research findings
 
@@ -151,11 +151,23 @@ Each of these is one constant or a few lines to change.
     plausible reconstruction, not a survey. The main stair is a switchback just south-west of the main
     lobby. The elevator and restroom core is on the west side, north of the lobby.
 
+11. **Entrance street furniture** on the east apron (benches, bike racks, planters, litter bins and two
+    plain fabric banners) is generic. Move or remove it to match photos. Keep the straight path from
+    the spawn point to the main doors clear.
+
+## Materials used
+
+- **`glassClear`** for every pane that has an interior behind it: the library's windows, curtain
+  wall, doors and interior glass partitions, and the University Hall lobby. Opaque **`glass`** is used
+  only on University Hall's sealed upper floors.
+- **`concrete`** (exposed aggregate) for the structural frame: columns, beams and the University Hall
+  piers. **`concreteSmooth`** for precast panels, sills, University Hall spandrels and the canopy
+  soffit. **`concreteDark`** for weathered column bases, beam drip lines and panel joints.
+- **`interiorFloorHard`** for the library's ground-floor lobby band and the University Hall lobby.
+  **`interiorFloor`** (carpet) everywhere else.
+- **`lightFixture`** for the ceiling panels and canopy downlights.
+
 ## Requests to other owners
 
-- **Graphics:** please add the materials `books` (white base so instance colors show unmodified),
-  `lightPanel` (emissive) and `fire` (emissive). They replace `kit/materials.ts`. Interiors currently
-  look dark because ceilings only get hemisphere ground light. Please brighten interior exposure or
-  ambient light when `world.interiorAt(focus)` is set, and consider light probes for the library.
-- **Tech Lead:** please add `world.focus: THREE.Vector3` (the player position), updated each frame.
-  `kit/focus.ts` already uses it if present. Until then, doors and LOD follow the camera.
+- **Graphics:** please add the materials `books` (white base so instance colors show unmodified) and
+  `fire` (emissive). They would replace the last local materials in `kit/materials.ts`.

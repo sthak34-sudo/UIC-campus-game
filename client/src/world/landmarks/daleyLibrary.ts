@@ -10,6 +10,8 @@ import { rect, rectMinusHoles, type Rect } from './kit/rects';
 import { switchbackStair, type SwitchbackResult } from './kit/stairs';
 import { buildWall, evenOpenings, type Opening } from './kit/walls';
 import { addInteriorVolume } from './kit/zones';
+import { Furnisher } from './kit/furniture';
+import { lightPanelMaterial } from './kit/materials';
 import { furnishLibrary } from './daleyInterior';
 
 /**
@@ -62,6 +64,8 @@ export const LIB = {
   /** Bay index (0 = north) of each entrance. */
   mainDoorBay: 7,
   ideaDoorBay: 10,
+  /** North edge (local z) of the hard-floored lobby band on L1. */
+  lobbyZ0: -17.6,
   westDoorBay: 7,
   apronEast: 9,
   apronWest: 3,
@@ -159,12 +163,18 @@ export function buildDaleyLibrary(world: World, b: CampusBuilding): LibraryInfo 
     const z = THREE.MathUtils.clamp(zk(k), -hz + LIB.colW / 2, hz - LIB.colW / 2);
     for (const s of [1, -1]) {
       ext.box('concrete', s * (hx - LIB.colDepth / 2), LIB.parapetY / 2, z, LIB.colDepth, LIB.parapetY, LIB.colW);
+      // exposed-aggregate face: a slightly proud centre strip gives the column two vertical shadow lines
+      ext.box('concrete', s * (hx + 0.03), LIB.parapetY / 2, z, 0.06, LIB.parapetY - 0.4, LIB.colW - 0.22, { faces: (s > 0 ? FACE.PX : FACE.NX) | FACE.PZ | FACE.NZ });
+      // darker, splash-stained base
+      ext.box('concreteDark', s * (hx - LIB.colDepth / 2 + 0.02), 0.35, z, LIB.colDepth + 0.1, 0.7, LIB.colW + 0.06);
       col.box(s * (hx - LIB.colDepth / 2), LIB.parapetY / 2, z, LIB.colDepth, LIB.parapetY, LIB.colW, 'column');
     }
   }
   for (const x of colX) {
     for (const s of [1, -1]) {
       ext.box('concrete', x, LIB.parapetY / 2, s * (hz - LIB.colDepth / 2), LIB.colW, LIB.parapetY, LIB.colDepth);
+      ext.box('concrete', x, LIB.parapetY / 2, s * (hz + 0.03), LIB.colW - 0.22, LIB.parapetY - 0.4, 0.06, { faces: (s > 0 ? FACE.PZ : FACE.NZ) | FACE.PX | FACE.NX });
+      ext.box('concreteDark', x, 0.35, s * (hz - LIB.colDepth / 2 + 0.02), LIB.colW + 0.06, 0.7, LIB.colDepth + 0.1);
       col.box(x, LIB.parapetY / 2, s * (hz - LIB.colDepth / 2), LIB.colW, LIB.parapetY, LIB.colDepth, 'column');
     }
   }
@@ -172,9 +182,13 @@ export function buildDaleyLibrary(world: World, b: CampusBuilding): LibraryInfo 
   const band = (y0: number, y1: number) => {
     const ox = hx - 0.1; // beam face sits just behind the column faces
     const oz = hz - 0.1;
+    const drip = 0.16; // recessed shadow line along the underside of each beam
+    const ya = y0 + drip;
     for (const s of [1, -1]) {
-      ext.box('concrete', s * (ix + ox) / 2, (y0 + y1) / 2, 0, ox - ix, y1 - y0, 2 * oz);
-      ext.box('concrete', 0, (y0 + y1) / 2, s * (iz + oz) / 2, 2 * ox, y1 - y0, oz - iz);
+      ext.box('concrete', s * (ix + ox) / 2, (ya + y1) / 2, 0, ox - ix, y1 - ya, 2 * oz);
+      ext.box('concrete', 0, (ya + y1) / 2, s * (iz + oz) / 2, 2 * ox, y1 - ya, oz - iz);
+      ext.box('concreteDark', s * (ix + ox - 0.12) / 2, (y0 + ya) / 2, 0, ox - 0.12 - ix, drip, 2 * (oz - 0.12));
+      ext.box('concreteDark', 0, (y0 + ya) / 2, s * (iz + oz - 0.12) / 2, 2 * (ox - 0.12), drip, oz - 0.12 - iz);
     }
   };
   for (let i = 1; i < F.length; i++) band(F[i] - LIB.beamBelow, F[i] + LIB.beamAbove);
@@ -182,9 +196,34 @@ export function buildDaleyLibrary(world: World, b: CampusBuilding): LibraryInfo 
 
   // ------------------------------------------------------------------ infill walls per bay & floor
   const winOps = (len: number, n: number, y: number): Opening[] =>
-    evenOpenings(0.25, len - 0.25, n, LIB.windowW, y + LIB.windowSill, y + LIB.windowHead, { glass: 'glass' });
-  const infill = (a: [number, number], b2: [number, number], y0: number, y1: number, mat: MatKey, ops: Opening[]) =>
+    evenOpenings(0.25, len - 0.25, n, LIB.windowW, y + LIB.windowSill, y + LIB.windowHead, { glass: 'glassClear', frame: 'windowFrame' });
+  const infill = (a: [number, number], b2: [number, number], y0: number, y1: number, mat: MatKey, ops: Opening[]) => {
     buildWall(ext, col, { a, b: b2, y0, y1, thickness: LIB.wallT, mat, skin: { mat: 'interiorWall', side: 1 }, openings: ops });
+    // outward normal = right of a->b (the skin is on the left/inside)
+    const len = Math.hypot(b2[0] - a[0], b2[1] - a[1]);
+    const dx = (b2[0] - a[0]) / len;
+    const dz = (b2[1] - a[1]) / len;
+    const nx = dz;
+    const nz = -dx;
+    const rotY = Math.atan2(-dz, dx);
+    const face = LIB.wallT / 2;
+    const at = (u: number, off: number): [number, number] => [a[0] + dx * u + nx * off, a[1] + dz * u + nz * off];
+    // projecting precast sills under the windows
+    for (const o of ops) {
+      if (o.door || o.bottom <= y0 + 0.05) continue;
+      const [x, z] = at(o.at, face + 0.05);
+      ext.box('concreteSmooth', x, o.bottom - 0.04, z, o.width + 0.16, 0.08, 0.14, { rotY });
+    }
+    // vertical panel joints half-way between windows (precast panels only)
+    if (mat === 'concreteSmooth') {
+      const sorted = [...ops].sort((p, q) => p.at - q.at);
+      for (let i = 0; i + 1 < sorted.length; i++) {
+        const u = (sorted[i].at + sorted[i + 1].at) / 2;
+        const [x, z] = at(u, face + 0.004);
+        ext.box('concreteDark', x, (y0 + y1) / 2, z, 0.03, y1 - y0, 0.01, { rotY });
+      }
+    }
+  };
 
   for (let fi = 0; fi < F.length; fi++) {
     const yb = fi === 0 ? 0 : F[fi] + LIB.beamAbove;
@@ -195,22 +234,22 @@ export function buildDaleyLibrary(world: World, b: CampusBuilding): LibraryInfo 
       const zb = zk(k + 1) - LIB.colW / 2;
       const len = zb - za;
       const brick = isBrick(k);
-      const mat: MatKey = brick ? 'brick' : 'concrete';
+      const mat: MatKey = brick ? 'brick' : 'concreteSmooth';
       const nWin = brick ? LIB.brickWindowsPerBay : LIB.windowsPerBay;
       // EAST (Quad side): L1 is the glass curtain wall except the brick end bays
       if (fi === 0 && !brick) {
         curtainBay(ext, col, hx - LIB.curtainInset, za, zb, fy, yt, k === LIB.mainDoorBay || k === LIB.ideaDoorBay);
       } else {
-        const ops = fi === 0 ? evenOpenings(0.25, len - 0.25, nWin, LIB.windowW, fy + 0.9, fy + 3.3, { glass: 'glass' }) : winOps(len, nWin, fy);
+        const ops = fi === 0 ? evenOpenings(0.25, len - 0.25, nWin, LIB.windowW, fy + 0.9, fy + 3.3, { glass: 'glassClear', frame: 'windowFrame' }) : winOps(len, nWin, fy);
         infill([wx, za], [wx, zb], yb, yt, mat, ops);
       }
       // WEST (Morgan St)
-      let opsW = fi === 0 ? evenOpenings(0.25, len - 0.25, nWin, LIB.windowW, fy + 0.9, fy + 3.3, { glass: 'glass' }) : winOps(len, nWin, fy);
+      let opsW = fi === 0 ? evenOpenings(0.25, len - 0.25, nWin, LIB.windowW, fy + 0.9, fy + 3.3, { glass: 'glassClear', frame: 'windowFrame' }) : winOps(len, nWin, fy);
       if (fi === 0 && k === LIB.westDoorBay) {
         opsW = [
           { at: len / 2, width: LIB.doorW + 0.2, bottom: fy, top: fy + LIB.doorH, door: true },
-          { at: len / 2 - 2.4, width: 1.6, bottom: fy, top: fy + LIB.doorH, glass: 'glass', frame: 'windowFrame' },
-          { at: len / 2 + 2.4, width: 1.6, bottom: fy, top: fy + LIB.doorH, glass: 'glass', frame: 'windowFrame' },
+          { at: len / 2 - 2.4, width: 1.6, bottom: fy, top: fy + LIB.doorH, glass: 'glassClear', frame: 'windowFrame' },
+          { at: len / 2 + 2.4, width: 1.6, bottom: fy, top: fy + LIB.doorH, glass: 'glassClear', frame: 'windowFrame' },
         ];
       }
       infill([-wx, zb], [-wx, za], yb, yt, mat, opsW);
@@ -220,7 +259,7 @@ export function buildDaleyLibrary(world: World, b: CampusBuilding): LibraryInfo 
       const xa = -hx + (j * 2 * hx) / LIB.acrossBays + LIB.colW / 2;
       const xb = -hx + ((j + 1) * 2 * hx) / LIB.acrossBays - LIB.colW / 2;
       const len = xb - xa;
-      const ops = evenOpenings(0.5, len - 0.5, 2, LIB.windowW, fy + (fi === 0 ? 0.9 : LIB.windowSill), fy + (fi === 0 ? 3.3 : LIB.windowHead), { glass: 'glass' });
+      const ops = evenOpenings(0.5, len - 0.5, 2, LIB.windowW, fy + (fi === 0 ? 0.9 : LIB.windowSill), fy + (fi === 0 ? 3.3 : LIB.windowHead), { glass: 'glassClear', frame: 'windowFrame' });
       const wz = hz - LIB.colDepth + LIB.wallT / 2;
       infill([xa, -wz], [xb, -wz], yb, yt, 'brick', ops);
       infill([xb, wz], [xa, wz], yb, yt, 'brick', ops);
@@ -256,9 +295,16 @@ export function buildDaleyLibrary(world: World, b: CampusBuilding): LibraryInfo 
     // butterfly-ish support columns
     for (const s of [1, -1]) {
       ext.box('concrete', hx + 5.6, (y - 0.75) / 2, z + s * 2.6, 0.6, y - 0.75, 0.6);
+      ext.box('concreteDark', hx + 5.6, 0.3, z + s * 2.6, 0.68, 0.6, 0.68);
       col.box(hx + 5.6, (y - 0.75) / 2, z + s * 2.6, 0.6, y - 0.75, 0.6, 'column');
     }
+    // smooth soffit with recessed downlights, and a drip groove along the deck edge
+    ext.boxMinMax('concreteSmooth', hx, y - 0.78, z - 3.15, hx + 6.45, y - 0.75, z + 3.15, FACE.NY);
+    for (const dx of [1.6, 3.6]) for (const dz of [-1.6, 0, 1.6]) ext.box(lightPanelMaterial(), hx + dx, y - 0.785, z + dz, 0.35, 0.01, 0.35, { faces: FACE.NY });
+    ext.boxMinMax('concreteDark', hx + 6.5, y - 0.75, z - 3.2, hx + 6.53, y - 0.6, z + 3.2);
   }
+
+  entranceProps(ext, col, hx, doorSets[0][1], doorSets[1][1], bayLen);
 
   // ------------------------------------------------------------------ annexes (2-storey brick blocks)
   for (const a of annexes) {
@@ -308,8 +354,11 @@ export function buildDaleyLibrary(world: World, b: CampusBuilding): LibraryInfo 
   for (let i = 0; i < F.length; i++) {
     const holes = i > 0 ? [stairs[i - 1].hole] : [];
     const y = F[i];
+    // finish: hard terrazzo-like floor in the ground-floor lobby band (doors -> desk -> stair), carpet elsewhere
+    const lobby = rect(-ix, ix, LIB.lobbyZ0, zk(LIB.mainDoorBay + 1));
+    for (const r of rectMinusHoles(inner, i === 0 ? [lobby] : holes)) struct.boxMinMax('interiorFloor', r.x0, y - 0.05, r.z0, r.x1, y, r.z1, FACE.PY);
+    if (i === 0) struct.boxMinMax('interiorFloorHard', lobby.x0, y - 0.05, lobby.z0, lobby.x1, y, lobby.z1, FACE.PY);
     for (const r of rectMinusHoles(inner, holes)) {
-      struct.boxMinMax('interiorFloor', r.x0, y - 0.05, r.z0, r.x1, y, r.z1, FACE.PY);
       struct.boxMinMax('concrete', r.x0, y - LIB.slab, r.z0, r.x1, y - 0.05, r.z1, i > 0 ? FACE.PX | FACE.NX | FACE.PZ | FACE.NZ : 0);
       if (i > 0) struct.boxMinMax('interiorCeiling', r.x0, y - LIB.slab, r.z0, r.x1, y - LIB.slab + 0.01, r.z1, FACE.NY);
       col.boxMinMax(r.x0, y - (i === 0 ? 0.4 : LIB.slab), r.z0, r.x1, y, r.z1, 'floor');
@@ -317,12 +366,12 @@ export function buildDaleyLibrary(world: World, b: CampusBuilding): LibraryInfo 
     // guard rails around the stair opening in this floor
     if (i > 0) {
       const h = stairs[i - 1].hole;
-      railing(struct, col, { a: [h.x0 - 0.05, h.z0], b: [h.x0 - 0.05, h.z1], yA: y, yB: y, mat: 'metal', panel: 'glass' });
-      railing(struct, col, { a: [h.x1 + 0.05, h.z0], b: [h.x1 + 0.05, h.z1], yA: y, yB: y, mat: 'metal', panel: 'glass' });
+      railing(struct, col, { a: [h.x0 - 0.05, h.z0], b: [h.x0 - 0.05, h.z1], yA: y, yB: y, mat: 'metal', panel: 'glassClear' });
+      railing(struct, col, { a: [h.x1 + 0.05, h.z0], b: [h.x1 + 0.05, h.z1], yA: y, yB: y, mat: 'metal', panel: 'glassClear' });
       if (i === F.length - 1) {
         // top floor: no flight continues upward, close the start edge over flight A
         const fa = stairs[i - 1].flightA;
-        railing(struct, col, { a: [fa[0], h.z0 + 0.05], b: [fa[1] + S.gap, h.z0 + 0.05], yA: y, yB: y, mat: 'metal', panel: 'glass' });
+        railing(struct, col, { a: [fa[0], h.z0 + 0.05], b: [fa[1] + S.gap, h.z0 + 0.05], yA: y, yB: y, mat: 'metal', panel: 'glassClear' });
       }
     }
   }
@@ -387,13 +436,66 @@ function curtainBay(b: MeshBatch, col: ColliderSet, x: number, za: number, zb: n
   const len = zb - za;
   const panes = (s0: number, s1: number) => {
     const n = Math.max(1, Math.round((s1 - s0) / LIB.mullion));
-    return evenOpenings(s0, s1, n, (s1 - s0) / n - 0.07, y0 + 0.12, y1 - 0.1, { glass: 'glass' });
+    return evenOpenings(s0, s1, n, (s1 - s0) / n - 0.07, y0 + 0.12, y1 - 0.1, { glass: 'glassClear' });
   };
   const dw = LIB.doorW + 0.2;
   const ops: Opening[] = door ? [...panes(0, len / 2 - dw / 2 - 0.035), ...panes(len / 2 + dw / 2 + 0.035, len)] : panes(0, len);
-  if (door) ops.push({ at: len / 2, width: dw, bottom: y0, top: y0 + LIB.doorH, door: true });
+  // door opening runs full height: transom bar + transom glass above the sliding leaves
+  if (door) ops.push({ at: len / 2, width: dw, bottom: y0, top: y1 - 0.1, door: true });
   buildWall(b, col, { a: [x, za], b: [x, zb], y0, y1, thickness: 0.12, mat: 'windowFrame', openings: ops });
   // transom bar at 3.0 m and glass above the doors
   b.box('windowFrame', x, y0 + 3.0, (za + zb) / 2, 0.1, 0.08, len);
-  if (door) b.box('glass', x, (y0 + LIB.doorH + y1) / 2 + 0.05, (za + zb) / 2, 0.024, y1 - y0 - LIB.doorH - 0.2, dw);
+  if (door) {
+    b.box('windowFrame', x, y0 + LIB.doorH + 0.07, (za + zb) / 2, 0.14, 0.14, dw + 0.02);
+    b.box('glassClear', x, (y0 + LIB.doorH + 0.14 + y1 - 0.1) / 2, (za + zb) / 2, 0.024, y1 - 0.1 - (y0 + LIB.doorH + 0.14), dw);
+  }
+}
+
+/**
+ * Street furniture on the east apron (signage-free): benches, bike racks, planters with shrubs,
+ * litter bins and plain fabric banners on the columns either side of the main doors.
+ * The straight path from the spawn point to the main doors (|z - doorZ| < 2.6) is kept clear.
+ */
+function entranceProps(b: MeshBatch, col: ColliderSet, hx: number, doorZ: number, ideaZ: number, bayLen: number): void {
+  const f = new Furnisher(b, col);
+  const y = LIB.floorY[0];
+  // benches facing the Quad, backs to the library
+  for (const dz of [-7.5, 7.5, -16]) {
+    const p = { x: hx + 3.4, y, z: doorZ + dz, rotY: Math.PI / 2 };
+    f.part(p, 'wood', 0, 0.44, 0, 1.9, 0.05, 0.45);
+    f.part(p, 'wood', 0, 0.68, 0.2, 1.9, 0.3, 0.04);
+    for (const lx of [-0.75, 0.75]) f.part(p, 'concreteSmooth', lx, 0.21, 0, 0.12, 0.42, 0.45);
+    f.solid(p, 0, 0.35, 0, 1.9, 0.7, 0.5);
+  }
+  // planters with shrubs flanking the door approach
+  for (const dz of [-4.6, 4.6]) {
+    const p = { x: hx + 7.6, y, z: doorZ + dz, rotY: 0 };
+    f.part(p, 'concreteSmooth', 0, 0.3, 0, 1.6, 0.6, 1.6);
+    f.part(p, 'soil', 0, 0.58, 0, 1.44, 0.04, 1.44);
+    f.part(p, 'foliage', 0, 0.95, 0, 1.2, 0.7, 1.2);
+    f.solid(p, 0, 0.3, 0, 1.6, 0.6, 1.6);
+  }
+  // bike racks (inverted-U hoops) between the main and IDEA doors
+  for (let i = 0; i < 6; i++) {
+    const p = { x: hx + 4.2, y, z: doorZ + 10.5 + i * 0.9, rotY: 0 };
+    f.part(p, 'metal', -0.3, 0.42, 0, 0.05, 0.84, 0.05);
+    f.part(p, 'metal', 0.3, 0.42, 0, 0.05, 0.84, 0.05);
+    f.part(p, 'metal', 0, 0.84, 0, 0.65, 0.05, 0.05);
+  }
+  col.boxMinMax(hx + 3.8, y, doorZ + 10.2, hx + 4.6, y + 0.9, doorZ + 15.3, 'furniture');
+  // litter bins
+  for (const z of [doorZ - 9.6, ideaZ - 5]) {
+    const p = { x: hx + 3.4, y, z, rotY: 0 };
+    f.part(p, 'metal', 0, 0.45, 0, 0.5, 0.9, 0.5);
+    f.part(p, 'windowFrame', 0, 0.92, 0, 0.56, 0.05, 0.56);
+    f.solid(p, 0, 0.45, 0, 0.5, 0.9, 0.5);
+  }
+  // plain banners hung from brackets on the columns either side of the main doors
+  for (const s of [-1, 1]) {
+    const z = doorZ + (s * bayLen) / 2;
+    const y0 = LIB.floorY[1] + 0.7;
+    const y1 = LIB.floorY[2] - 0.2;
+    for (const yy of [y0, y1]) b.box('metal', hx + 0.35, yy, z, 0.7, 0.05, 0.05);
+    b.box('fabric', hx + 0.64, (y0 + y1) / 2, z, 0.02, y1 - y0 - 0.1, 0.6);
+  }
 }
