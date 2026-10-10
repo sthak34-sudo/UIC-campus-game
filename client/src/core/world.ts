@@ -35,6 +35,8 @@ export class World {
   readonly interiors: InteriorZone[] = [];
   /** Where the player starts (world coords). */
   spawn = new THREE.Vector3(0, 2, 0);
+  /** Optional facing direction at spawn (radians, three.js yaw around +Y; 0 = looking toward -Z / north). */
+  spawnYaw?: number;
   private updates: UpdateFn[] = [];
 
   addCollider(mesh: THREE.Mesh): void {

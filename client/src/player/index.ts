@@ -261,6 +261,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
 /** Face the nearest registered interior (e.g. the library entrance) if one is close to the spawn. */
 function initialYaw(world: World, feet: THREE.Vector3, testCourse: boolean): number {
   if (testCourse) return 0;
+  if (world.spawnYaw !== undefined) return world.spawnYaw;
   let best: THREE.Vector3 | null = null;
   let bestD = 120;
   const c = new THREE.Vector3();
