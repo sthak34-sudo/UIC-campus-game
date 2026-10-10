@@ -39,7 +39,9 @@ export interface GameRenderer {
 }
 
 /** Ground-level haze extinction per meter (≈ 15 km visibility; hazy autumn afternoon). */
-const FOG_DENSITY = 0.00026;
+const FOG_DENSITY = 0.00032;
+/** Target log-average scene luminance × exposure indoors (a bright but unclipped interior photo). */
+const INTERIOR_KEY = 0.2;
 
 function patchSky(sky: Sky, saturation: number): void {
   const m = sky.material as THREE.ShaderMaterial;
@@ -66,6 +68,85 @@ function patchSky(sky: Sky, saturation: number): void {
     u.cloudDensity.value = 0.45;
     u.cloudElevation.value = 0.55;
   }
+}
+
+/** A plain office/library room: off-white ceiling with light panels, pale walls, darker floor. */
+function makeRoomEnvScene(): THREE.Scene {
+  const sc = new THREE.Scene();
+  const box = (w: number, h: number, d: number, color: THREE.ColorRepresentation, pos: [number, number, number]) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ color, side: THREE.BackSide }));
+    m.position.set(...pos);
+    sc.add(m);
+  };
+  box(24, 4, 24, new THREE.Color(0.75, 0.73, 0.68), [0, 1.0, 0]); // walls + ceiling
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(24, 24), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.32, 0.31, 0.3) }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -0.99;
+  sc.add(floor);
+  for (let x = -9; x <= 9; x += 3) {
+    for (let z = -9; z <= 9; z += 3) {
+      const p = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.6), new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 4.9, 4.6) }));
+      p.rotation.x = Math.PI / 2;
+      p.position.set(x, 2.98, z);
+      sc.add(p);
+    }
+  }
+  // a couple of darker window/door openings so reflections aren't uniform
+  for (const [x, z, ry] of [[0, -11.9, 0], [11.9, 3, Math.PI / 2]] as const) {
+    const w = new THREE.Mesh(new THREE.PlaneGeometry(6, 2.2), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 0.95, 1.0) }));
+    w.position.set(x, 0.6, z);
+    w.rotation.y = ry;
+    sc.add(w);
+  }
+  return sc;
+}
+
+/** Procedural skyline strip (buildings of varied height/material with window grids) for the env map. */
+function makeSkylineTexture(): THREE.Texture {
+  const W = 1024;
+  const H = 128;
+  const cv = document.createElement('canvas');
+  cv.width = W;
+  cv.height = H;
+  const g = cv.getContext('2d')!;
+  g.clearRect(0, 0, W, H);
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const pal = ['#a8a59e', '#8f8c86', '#b8b2a6', '#7a4a3c', '#6e3f34', '#5d6670', '#9a958c', '#c2bdb2'];
+  let x = 0;
+  while (x < W) {
+    const w = 18 + rnd() * 70;
+    const h = H * (0.25 + rnd() * 0.75) * (rnd() < 0.15 ? 1 : 0.7);
+    const col = pal[Math.floor(rnd() * pal.length)];
+    g.fillStyle = col;
+    g.fillRect(x, H - h, w, h);
+    // window grid
+    const dark = rnd() < 0.5;
+    g.fillStyle = dark ? 'rgba(25,30,38,0.75)' : 'rgba(60,70,80,0.55)';
+    const fh = 5 + rnd() * 3;
+    const ww = 3 + rnd() * 4;
+    for (let yy = H - h + 4; yy < H - 6; yy += fh) {
+      if (rnd() < 0.3) g.fillRect(x + 2, yy, w - 4, fh * 0.5);
+      else for (let xx = x + 3; xx < x + w - ww; xx += ww * 1.8) g.fillRect(xx, yy, ww, fh * 0.55);
+    }
+    // sunlit / shaded side
+    g.fillStyle = rnd() < 0.5 ? 'rgba(0,0,0,0.25)' : 'rgba(255,240,220,0.12)';
+    g.fillRect(x, H - h, w * (0.3 + rnd() * 0.4), h);
+    x += w + (rnd() < 0.25 ? 6 + rnd() * 25 : 0);
+  }
+  // street-level band: trees and parked cars as a dark, varied strip
+  for (let i = 0; i < 160; i++) {
+    g.fillStyle = rnd() < 0.6 ? `rgba(40,${60 + rnd() * 30},35,0.9)` : `rgba(${60 + rnd() * 80},${60 + rnd() * 60},${60 + rnd() * 60},0.9)`;
+    const cx = rnd() * W;
+    const r = 4 + rnd() * 10;
+    g.beginPath();
+    g.ellipse(cx, H - r * 0.6, r * 1.3, r, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = THREE.RepeatWrapping;
+  return t;
 }
 
 const rgb = (c: RGB) => new THREE.Color(c[0], c[1], c[2]);
@@ -119,13 +200,18 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
   envScene.add(envSky);
   const groundMat = new THREE.MeshBasicMaterial({ side: THREE.BackSide });
   envScene.add(new THREE.Mesh(new THREE.SphereGeometry(8, 32, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), groundMat));
-  const bandH = 8 * Math.tan((4.5 * Math.PI) / 180);
-  const bandMat = new THREE.MeshBasicMaterial({ side: THREE.BackSide });
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(7.9, 7.9, bandH, 48, 1, true), bandMat);
+  // a ring of city buildings around the horizon so glass at eye level reflects a street, not a void
+  const bandH = 7.9 * Math.tan((13 * Math.PI) / 180);
+  const bandMat = new THREE.MeshBasicMaterial({ side: THREE.BackSide, map: makeSkylineTexture(), alphaTest: 0.5 });
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(7.9, 7.9, bandH, 64, 1, true), bandMat);
   band.position.y = bandH / 2 - 0.01;
   envScene.add(band);
   const pmrem = new THREE.PMREMGenerator(renderer);
+  // Generic lit-room environment used indoors (reflections in screens/floors show a room, not the sky).
+  // Its average radiance is ~1, so environmentIntensity = metered scene luminance keeps it consistent.
+  const roomEnv = pmrem.fromScene(makeRoomEnvScene(), 0, 0.1, 100, { size: 128 }).texture;
   let envRT: THREE.WebGLRenderTarget | null = null;
+  let skyEnv: THREE.Texture | null = null;
 
   scene.fog = new THREE.FogExp2(0xbfc8d0, FOG_DENSITY);
 
@@ -150,11 +236,12 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
     // environment
     groundMat.color.copy(rgb(lighting.groundRadiance));
     const h = lighting.horizonColor;
-    const g = lighting.groundRadiance;
-    bandMat.color.setRGB(g[0] * 1.3 * 0.6 + h[0] * 0.4, g[1] * 1.3 * 0.6 + h[1] * 0.4, g[2] * 1.3 * 0.6 + h[2] * 0.4);
+    // facades: ~0.3 albedo, about half in sun, seen through some haze
+    const facade = (0.3 * (0.55 * lighting.totalHorizontal + 0.12 * lighting.sunIntensity)) / Math.PI / 0.45;
+    bandMat.color.setRGB(facade * 0.75 + h[0] * 0.25, facade * 0.75 + h[1] * 0.25, facade * 0.75 + h[2] * 0.25);
     const old = envRT;
     envRT = pmrem.fromScene(envScene, 0, 0.1, 100, { size: q.envSize });
-    scene.environment = envRT.texture;
+    skyEnv = envRT.texture;
     old?.dispose();
     // haze
     const fog = scene.fog as THREE.FogExp2;
@@ -186,6 +273,13 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
   const grade: GradeParams = { ...DEFAULT_GRADE };
   const timer = new THREE.Timer();
   let readyFrames = 0;
+  let isReady = false;
+  let frameNo = 0;
+  /** Interior exposure from metering the rendered image (null = not measured yet). */
+  let interiorExp: number | null = null;
+  let roomFill = 0.2;
+  let meterCount = 0;
+  let settled = false;
   let resolveReady: () => void = () => {};
   const ready = new Promise<void>((r) => (resolveReady = r));
 
@@ -203,9 +297,44 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
     shadows.update(camera, firstFocus ? undefined : focus);
     updateMaterials(elapsed);
 
-    scene.environmentIntensity = 1 - 0.75 * insideAmt;
-    fill.intensity = 0.25 * insideAmt * Math.min(1, lighting.totalHorizontal + 0.3);
-    grade.exposure = lighting.exposure * (1 + (INTERIOR_EXPOSURE_BOOST - 1) * insideAmt);
+    // Exposure: outdoors it follows the sun/sky model. Indoors the image is metered (like an eye adapting)
+    // and a generic "room" environment supplies the soft bounce light real rooms have; its strength is
+    // adjusted until the room's average brightness reaches a photographic target. That keeps interiors
+    // right whatever lights a building has, instead of a few hot spots in a dark room.
+    const outdoorExp = lighting.exposure;
+    const indoors = insideTarget > 0 || insideAmt > 0;
+    const inBase = outdoorExp * INTERIOR_EXPOSURE_BOOST;
+    const T = INTERIOR_KEY / inBase;
+    if (!indoors) {
+      interiorExp = null;
+      roomFill = T / 0.4;
+      meterCount = 0;
+      settled = false;
+    } else {
+      const L = post?.takeMeasurement() ?? null;
+      if (L != null) {
+        meterCount++;
+        const ratio = T / L;
+        roomFill = Math.min((3 * T) / 0.4, Math.max(0, roomFill * Math.min(2, Math.max(0.5, Math.pow(ratio, 0.8)))));
+        const target = Math.min(inBase * 1.3, Math.max(inBase * 0.5, INTERIOR_KEY / L));
+        interiorExp = interiorExp === null || !isReady ? target : interiorExp + (target - interiorExp) * (1 - Math.exp(-dt * 1.5));
+        settled = settled || Math.abs(Math.log(ratio)) < 0.15 || meterCount >= 8;
+      }
+    }
+    if (insideAmt > 0.5 && indoors) {
+      scene.environment = roomEnv;
+      scene.environmentIntensity = roomFill;
+      fill.intensity = 0;
+    } else {
+      scene.environment = skyEnv;
+      scene.environmentIntensity = 1 - 0.75 * insideAmt;
+      fill.intensity = 0.25 * insideAmt * Math.min(1, lighting.totalHorizontal + 0.3);
+    }
+    const inExp = interiorExp ?? inBase;
+    grade.exposure = outdoorExp + (inExp - outdoorExp) * insideAmt;
+    grade.bloom = DEFAULT_GRADE.bloom * (1 - 0.4 * insideAmt);
+    if (post) post.meterNext = indoors && (!isReady || frameNo % 6 === 0);
+    frameNo++;
     grade.aoAmount = DEFAULT_GRADE.aoAmount;
 
     if (q.post) {
@@ -221,8 +350,12 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
       renderer.render(scene, camera);
     }
 
-    if (pendingTextures() === 0) {
-      if (++readyFrames === 3) resolveReady();
+    const interiorReady = !(insideTarget > 0 || insideAmt > 0) || !q.post || settled;
+    if (pendingTextures() === 0 && interiorReady) {
+      if (++readyFrames === 3) {
+        isReady = true;
+        resolveReady();
+      }
     }
   }
 
@@ -236,7 +369,7 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
   if (params.get('gfxtest') === '1') buildGfxTestScene(world);
 
   const api: GameRenderer = { renderer, render, resize, setFocus, setTimeOfDay, ready, quality: q };
-  (window as unknown as { __gfx?: unknown }).__gfx = { ...api, scene, getLighting: () => lighting, grade };
+  (window as unknown as { __gfx?: unknown }).__gfx = { ...api, scene, getLighting: () => lighting, grade, getRoomFill: () => roomFill };
   return api;
 }
 
