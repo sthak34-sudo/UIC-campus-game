@@ -19,7 +19,7 @@ const CHROME = process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium';
 
 fs.mkdirSync(outDir, { recursive: true });
 const server = spawn('npx', ['vite', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
-  cwd: path.resolve('client'), stdio: ['ignore', 'pipe', 'pipe'],
+  cwd: path.resolve('client'), stdio: ['ignore', 'pipe', 'pipe'], detached: true,
 });
 await new Promise((resolve, reject) => {
   const t = setTimeout(() => reject(new Error('vite did not start')), 60000);
@@ -51,7 +51,7 @@ try {
     try {
       await page.waitForFunction(() => window.__ready === true, null, { timeout: 600000 });
       const file = path.join(outDir, `${name}.png`);
-      await page.screenshot({ path: file });
+      await page.screenshot({ path: file, timeout: 300000 });
       console.log(`saved ${file} (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
     } catch (e) {
       failed++;
@@ -62,6 +62,6 @@ try {
   }
 } finally {
   await browser.close();
-  server.kill();
+  try { process.kill(-server.pid, 'SIGTERM'); } catch { server.kill(); }
 }
 process.exit(failed ? 1 : 0);

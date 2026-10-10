@@ -23,6 +23,12 @@ export interface FittedRect extends LocalFrame {
   local: [number, number][];
 }
 
+/**
+ * Height of a landmark's local y = 0 in the world. The campus ground (sidewalks, grass, plazas) is
+ * raised to the curb height (world/campus/ground.ts CURB_H = 0.15 m), so landmarks sit on that level.
+ */
+export const LANDMARK_BASE_Y = 0.15;
+
 /** Convert plan (x east, y north) to the frame's local (x, z). */
 export function planToLocal(f: LocalFrame, p: PlanPoint): [number, number] {
   const [wx, , wz] = planToWorld(p);
@@ -82,7 +88,7 @@ export function fitFootprint(ring: PlanPoint[]): FittedRect {
   }
   const c = Math.cos(a);
   const s = Math.sin(a);
-  const origin = new THREE.Vector3(clx * c + clz * s, 0, -clx * s + clz * c);
+  const origin = new THREE.Vector3(clx * c + clz * s, LANDMARK_BASE_Y, -clx * s + clz * c);
   const frame: LocalFrame = { origin, rotY: a, halfX: hx, halfZ: hz };
   return { ...frame, local: ring.map((p) => planToLocal(frame, p)) };
 }

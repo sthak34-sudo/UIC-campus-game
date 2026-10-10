@@ -61,6 +61,8 @@ async function start(): Promise<void> {
     gfx.setFocus(focus, !!world.interiorAt(focus));
     gfx.render(camera);
     if (++frames === 3) window.__ready = true;
+    // Screenshot mode: stop after the ready frame so the headless (software) renderer is idle for the capture.
+    if (view && frames >= 3) return;
     requestAnimationFrame(loop);
   };
   loop();

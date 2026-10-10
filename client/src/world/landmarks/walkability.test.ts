@@ -4,6 +4,7 @@ import type { CampusData } from '../../core/campusData';
 import { World } from '../../core/world';
 import { LIB } from './daleyLibrary';
 import { buildLandmarks } from './index';
+import { LANDMARK_BASE_Y } from './kit/frame';
 
 const data = Object.values(import.meta.glob('../../../public/data/campus.json', { eager: true, import: 'default' }))[0] as CampusData;
 
@@ -73,7 +74,7 @@ describe('walkability (ray probes against colliders)', () => {
       path.push(toWorld(xa, 0, S.z0 - 0.6), toWorld(xa, 0, zLand), toWorld(xb, 0, zLand), toWorld(xb, 0, S.z0 - 0.8), toWorld(xa, 0, S.z0 - 0.8));
     const r = walk(world, path);
     expect(r.problems).toEqual([]);
-    expect(r.y).toBeCloseTo(F[F.length - 1], 1);
+    expect(r.y).toBeCloseTo(F[F.length - 1] + LANDMARK_BASE_Y, 1);
   });
 
   it('enters through the IDEA Commons and West doors', async () => {

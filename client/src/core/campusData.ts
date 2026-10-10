@@ -25,6 +25,17 @@ export interface CampusBuilding {
   footprint: Polygon2D;
   /** If a hand-built landmark replaces this building, its landmark id (see world/landmarks). */
   landmark?: string;
+  /** Overture building id shared by all volumes (tiers/parts) of one building. */
+  buildingId?: string;
+  /** Overture roof shape: "flat" | "gabled" | "hipped" | "pyramidal" | "skillion" | … */
+  roofShape?: string;
+  /** Height of the pitched roof part (ridge minus eaves), meters. */
+  roofHeight?: number;
+  /** Overture facade material: "brick" | "concrete" | "glass" | "stone" | "metal" | … */
+  facadeMaterial?: string;
+  facadeColor?: string;
+  roofMaterial?: string;
+  roofColor?: string;
 }
 
 export interface CampusData {
@@ -44,8 +55,8 @@ export interface CampusData {
     water: Polygon2D[];
     parking: Polygon2D[];
   };
-  /** Road center lines with class, for lane markings / curbs. */
-  roadLines: { kind: string; width: number; points: PlanPoint[] }[];
+  /** Road center lines with class (and street name when known), for lane markings / curbs. */
+  roadLines: { kind: string; width: number; points: PlanPoint[]; name?: string }[];
   trees: { p: PlanPoint; height: number }[];
   props: {
     bench: PlanPoint[];

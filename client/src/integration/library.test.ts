@@ -6,6 +6,7 @@ import { PLAYER_CONFIG } from '../player/config';
 import { initRapier, PlayerPhysics } from '../player/physics';
 import { LIB } from '../world/landmarks/daleyLibrary';
 import { buildLandmarks } from '../world/landmarks';
+import { buildCampus } from '../world/campus';
 
 // Integration test (Tech Lead): the REAL player physics walks from the spawn point on the Quad,
 // through the library's main doors, and up the real staircase to the top floor.
@@ -34,20 +35,17 @@ function follow(phys: PlayerPhysics, pts: THREE.Vector3[], speed: number) {
 }
 
 describe('integration: walk into Daley Library and upstairs', () => {
+  const world = new World();
+  let res: Awaited<ReturnType<typeof buildLandmarks>>;
   beforeAll(async () => {
     await initRapier();
-  });
+    await buildCampus(world, data);
+    res = await buildLandmarks(world, data);
+    world.scene.updateMatrixWorld(true);
+  }, 300000);
 
   for (const [label, speed] of [['walking', PLAYER_CONFIG.walkSpeed], ['running', PLAYER_CONFIG.runSpeed]] as const) {
     it(`reaches the top floor ${label}`, async () => {
-      const world = new World();
-      const res = await buildLandmarks(world, data);
-      // stand-in for the campus ground (the Map module provides the real one)
-      const ground = new THREE.Mesh(new THREE.BoxGeometry(400, 1, 400));
-      ground.position.set(0, -0.5, 0);
-      world.addCollider(ground);
-      world.scene.updateMatrixWorld(true);
-
       const phys = new PlayerPhysics(world.spawn.clone());
       phys.syncColliders(world.colliders);
       for (let i = 0; i < 30; i++) phys.step(0, 0, 0, false);
@@ -68,6 +66,6 @@ describe('integration: walk into Daley Library and upstairs', () => {
       expect(stuck).toEqual([]);
       expect(phys.feet.y).toBeGreaterThan(F[F.length - 1] - 0.3);
       expect(world.interiorAt(phys.feet.clone().add(new THREE.Vector3(0, 0.5, 0)))?.id).toBe('daley-library');
-    }, 60000);
+    }, 120000);
   }
 });
