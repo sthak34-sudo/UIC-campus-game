@@ -34,6 +34,7 @@ We build in **5 milestones**. Each one ends with something you can actually try:
 | Players | **Multiplayer from day one** | The game is designed for many players from the very first line of code. You'll see other players by Milestone 2. |
 | Realism (decided Oct 10) | **Browser + photo landmarks** | As realistic as a browser allows: exact building shapes from laser scans, real concrete/brick materials, good lighting and trees. The owner's own photos make the landmarks look like the real buildings. This is honestly *not* GTA 6 level, which no option here can reach. See [`docs/research/realism-options.md`](docs/research/realism-options.md). |
 | Map data source | **Overture Maps + USGS laser scans** | Overture (which includes OpenStreetMap data) works from our cloud computer today. Laser scans (LiDAR) correct wrong heights. |
+| Interiors (decided Oct 10) | **Buildings can be entered** | Daley Library first, with a full walkable interior. Every building we work on later gets an interior too. Interiors follow public information and the owner's photos, because exact floor plans aren't published. |
 | Owner photos | **Yes** | The owner photographs key buildings using [`docs/photo-guide.md`](docs/photo-guide.md). |
 
 ## 2. The team (how the "game studio" works)
