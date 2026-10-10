@@ -115,9 +115,11 @@ function build(name: MaterialName): THREE.Material {
   let m: THREE.MeshStandardMaterial;
   switch (name) {
     case 'concrete':
-      m = std({ name, roughness: 1 });
+      // weathered: a bit darker than fresh concrete, with stronger large-scale blotching so tall
+      // facades (University Hall) still read as aged concrete from across the Quad
+      m = std({ name, color: new THREE.Color(0.8, 0.8, 0.79), roughness: 1 });
       textured(m, { dir: 'concrete' }, 1, 1);
-      applySurfaceFx(m, EXTERIOR_WALL, name);
+      applySurfaceFx(m, { ...EXTERIOR_WALL, macroAmp: 0.13, macroAmp2: 0.08, streaks: 0.34 }, name);
       return m;
     case 'concreteDark':
       m = std({ name, color: new THREE.Color(0.7, 0.69, 0.67), roughness: 1 });
@@ -177,7 +179,7 @@ function build(name: MaterialName): THREE.Material {
       applySurfaceFx(m, { macroScale: 33, macroAmp: 0.08, macroAmp2: 0.05, roughAmp: 0.05 }, name);
       return m;
     case 'grass':
-      m = std({ name, color: new THREE.Color(1.4, 1.6, 1.3), roughness: 1 });
+      m = std({ name, color: new THREE.Color(1.2, 1.42, 1.1), roughness: 1 });
       textured(m, { dir: 'grass' }, 1, 1);
       applySurfaceFx(m, { macroScale: 43, macroAmp: 0.16, macroAmp2: 0.1, antiTile: true, dryTint: 0.3 }, name);
       return m;
@@ -244,7 +246,8 @@ function build(name: MaterialName): THREE.Material {
       textured(m, { dir: 'fabric' }, 1, 1);
       return m;
     case 'screen':
-      return std({ name, color: 0x050607, emissive: new THREE.Color(0.55, 0.66, 0.8), emissiveIntensity: 0.55, roughness: 0.25 });
+      // dark glossy panel with a dim desktop glow; reflections of the room do most of the work
+      return std({ name, color: 0x07090b, emissive: new THREE.Color(0.016, 0.024, 0.036), emissiveIntensity: 1, roughness: 0.12, metalness: 0 });
     case 'foliage':
       m = std({ name, color: new THREE.Color(0.58, 0.62, 0.42), roughness: 1, side: THREE.DoubleSide, alphaTest: 0.5 });
       textured(m, { dir: 'foliage', albedoFile: 'albedo.png' }, 1, 1);

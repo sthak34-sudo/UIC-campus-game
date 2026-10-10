@@ -10,7 +10,7 @@ import path from 'node:path';
 import { chromium } from 'playwright-core';
 
 const args = process.argv.slice(2);
-const opt = Object.fromEntries(args.filter((a) => a.startsWith('--')).map((a) => a.slice(2).split('=')));
+const opt = Object.fromEntries(args.filter((a) => a.startsWith('--')).map((a) => a.slice(2).split(/=(.*)/s).slice(0, 2)));
 let names = args.filter((a) => !a.startsWith('--'));
 const outDir = path.resolve(opt.out ?? 'screenshots');
 const [w, h] = (opt.size ?? '1600x900').split('x').map(Number);
