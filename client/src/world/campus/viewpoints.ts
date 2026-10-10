@@ -62,6 +62,25 @@ function sidewalkFrom(data: CampusDataExt, p: PlanPoint, side: PlanPoint): PlanP
   return [p[0] + side[0] * 8, p[1] + side[1] * 8];
 }
 
+/**
+ * Slide a street-level camera along the street (±dir) until no tree trunk stands in the first
+ * 25 m of its view corridor, so screenshots are not blocked by a trunk right in front of the lens.
+ */
+function clearOfTrees(data: CampusDataExt, p: PlanPoint, look: PlanPoint, along: PlanPoint): PlanPoint {
+  const l = Math.hypot(look[0], look[1]) || 1;
+  const fx = look[0] / l, fy = look[1] / l;
+  const blocked = (q: PlanPoint) => data.trees.some((t) => {
+    const dx = t.p[0] - q[0], dy = t.p[1] - q[1];
+    const f = dx * fx + dy * fy;
+    return f > -0.5 && f < 7 && Math.abs(dx * -fy + dy * fx) < Math.min(2.4, 1.0 + 0.45 * Math.max(0, f));
+  });
+  for (const k of [0, 3, -3, 6, -6, 9, -9, 12, -12, 15, -15]) {
+    const q: PlanPoint = [p[0] + along[0] * k, p[1] + along[1] * k];
+    if (!blocked(q)) return q;
+  }
+  return p;
+}
+
 export function addCampusViewpoints(world: World, data: CampusDataExt): void {
   // The Quad: the lawn ringed by Stevenson, Grant, Douglass, Jefferson and Henry Halls.
   const ring = ['Stevenson Hall', 'Grant Hall', 'Douglass Hall', 'Jefferson Hall', 'Henry Hall'].map((n) => buildingCenter(data, n)).filter((p): p is PlanPoint => !!p);
@@ -86,14 +105,14 @@ export function addCampusViewpoints(world: World, data: CampusDataExt): void {
   const sce = buildingCenter(data, 'Student Center East') ?? [212, -31];
   const hal = streetPoint(data, 'South Halsted Street', 'y', sce[1] - 170);
   if (hal) {
-    const p = sidewalkFrom(data, hal.p, [-1, 0]);
+    const p = clearOfTrees(data, sidewalkFrom(data, hal.p, [-1, 0]), [0.03, 1], [0, 1]);
     world.addViewpoint('map-halsted', { position: W(p, CURB_H + EYE), target: W([p[0] + 6, p[1] + 200], 12), fov: 65 });
   }
 
   // Harrison St at eye level: south sidewalk west of Morgan, looking east (ARC left, University Hall right).
   const har = streetPoint(data, 'West Harrison Street', 'x', uh[0] - 140);
   if (har) {
-    const p = sidewalkFrom(data, har.p, [0, -1]);
+    const p = clearOfTrees(data, sidewalkFrom(data, har.p, [0, -1]), [1, 0.015], [1, 0]);
     world.addViewpoint('map-harrison', { position: W(p, CURB_H + EYE), target: W([p[0] + 200, p[1] + 3], 10), fov: 65 });
   }
 
@@ -114,7 +133,7 @@ export function addCampusViewpoints(world: World, data: CampusDataExt): void {
   // Taylor St in Little Italy: south sidewalk, looking west along the rowhouses.
   const tay = streetPoint(data, 'West Taylor Street', 'x', -200);
   if (tay) {
-    const p = sidewalkFrom(data, tay.p, [0, -1]);
+    const p = clearOfTrees(data, sidewalkFrom(data, tay.p, [0, -1]), [-1, 0.02], [1, 0]);
     world.addViewpoint('map-taylor-street', { position: W(p, CURB_H + EYE), target: W([p[0] - 200, p[1] + 4], 8), fov: 65 });
   }
 }

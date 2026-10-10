@@ -72,16 +72,21 @@ export function makeStyle(name: StyleName, rng: Rng, b: CampusBuildingExt): Faca
   const fm = b.facadeMaterial;
   switch (name) {
     case 'brutalist': {
-      const variant = rng.pick(['bands', 'bands', 'fins', 'slits'] as const);
+      const variant = rng.pick(['bands', 'bands', 'grid', 'fins', 'slits'] as const);
       const bay = variant === 'slits' ? rng.range(2.0, 2.6) : rng.range(2.9, 3.6);
+      const lecture = /Lecture Center/i.test(b.name ?? '');
+      const brickInfill = !lecture && rng.chance(0.3);
       return {
-        ...BASE, name, wall: 'concrete', base: 'concreteDark', plinth: rng.range(0.6, 1.2), reveal: 'concrete',
+        ...BASE, name, wall: brickInfill ? 'brick' : 'concrete', base: 'concreteDark', plinth: rng.range(0.6, 1.2), reveal: 'concrete',
         floorH: rng.range(3.7, 4.2), groundH: rng.range(4.4, 5.0), bay,
         winW: variant === 'slits' ? rng.range(0.7, 0.95) : bay - rng.range(0.9, 1.3),
         winH: variant === 'slits' ? rng.range(2.2, 2.6) : rng.range(1.8, 2.2), sill: rng.range(0.9, 1.1),
         groundWinH: rng.range(2.8, 3.3), groundSill: rng.range(0.4, 0.9), recess: rng.range(0.32, 0.5), corner: rng.range(1.6, 3.2),
-        bandH: variant === 'bands' ? rng.range(0.5, 0.75) : 0, bandD: variant === 'bands' ? rng.range(0.1, 0.2) : 0, bandMat: 'concrete',
-        parapet: rng.range(0.9, 1.4), mullions: variant === 'slits' ? 0 : 1, fins: variant === 'fins', blankBays: rng.range(0.0, 0.15),
+        bandH: variant === 'bands' || variant === 'grid' ? rng.range(0.55, 0.8) : 0,
+        bandD: variant === 'bands' || variant === 'grid' ? rng.range(0.12, 0.22) : 0, bandMat: 'concrete',
+        corniceH: rng.range(0.9, 1.5), corniceD: rng.range(0.15, 0.3), corniceMat: 'concrete',
+        parapet: rng.range(0.9, 1.4), mullions: variant === 'slits' ? 0 : 1, fins: variant === 'fins' || variant === 'grid',
+        blankBays: lecture ? 0.7 : rng.range(0.0, 0.15),
       };
     }
     case 'campusBrick':

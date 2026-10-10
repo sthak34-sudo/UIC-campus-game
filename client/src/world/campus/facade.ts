@@ -287,7 +287,7 @@ function facadeEdge(
       const isDoor = ground && k === doorBay;
       let o0 = sill, o1 = head;
       if (isDoor) { o0 = yb; o1 = Math.min(yb + (st.name === 'rowhouse' ? 2.4 : 2.7), yt - 0.3); }
-      if (partial || blank[k] || o1 - o0 < 0.6 || o0 < yStart) { wall(s0, s1, Math.max(yb, yStart), yt); continue; }
+      if (partial || (blank[k] && !isDoor) || o1 - o0 < 0.6 || o0 < yStart) { wall(s0, s1, Math.max(yb, yStart), yt); continue; }
       wall(s0, s1, yb, o0);
       wall(s0, s1, o1, yt);
       if (isDoor) {
