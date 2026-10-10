@@ -29,6 +29,8 @@ export const STREET_KINDS = new Set(['motorway', 'trunk', 'primary', 'secondary'
 
 export interface GroundResult {
   mesh: THREE.Mesh | null;
+  /** Visual-only ground beyond the play area (kept out of physics: huge triangles slow queries). */
+  surroundings: THREE.Mesh | null;
   markings: THREE.Mesh | null;
   collider: THREE.Mesh | null;
 }
@@ -54,15 +56,18 @@ function curbs(B: Batcher, polys: Polygon2D[], bounds: CampusDataExt['bounds'], 
   }
 }
 
-/** Ground plane beyond the mapped area so the horizon is not empty. */
-function surroundings(B: Batcher, bounds: CampusDataExt['bounds']): void {
-  const R = 4000;
-  const { minX, minY, maxX, maxY } = bounds;
-  const outer: PlanPoint[] = [[minX - R, minY - R], [maxX + R, minY - R], [maxX + R, maxY + R], [minX - R, maxY + R]];
-  const hole: PlanPoint[] = [[minX, minY], [minX, maxY], [maxX, maxY], [maxX, minY]];
-  B.polygon('grass', outer, [hole], 0, true);
-  // safety floor under the mapped area: hides hairline gaps between surfaces and walls
-  B.polygon('soil', [[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]], [], -0.3, true);
+/**
+ * Ground plane beyond the mapped area (neutral city concrete fading into the haze), with a hole for
+ * the play area — or for the larger context area when context.json is loaded (context.ts).
+ */
+function surroundings(B: Batcher, bounds: CampusDataExt['bounds'], hole: CampusDataExt['bounds']): void {
+  const R = 8000;
+  const outer: PlanPoint[] = [[hole.minX - R, hole.minY - R], [hole.maxX + R, hole.minY - R], [hole.maxX + R, hole.maxY + R], [hole.minX - R, hole.maxY + R]];
+  const h: PlanPoint[] = [[hole.minX, hole.minY], [hole.minX, hole.maxY], [hole.maxX, hole.maxY], [hole.maxX, hole.minY]];
+  B.polygon('roof', outer, [h], 0, true);
+  // safety floor: hides hairline gaps between surfaces and walls
+  B.polygon('soil', [[hole.minX, hole.minY], [hole.maxX, hole.minY], [hole.maxX, hole.maxY], [hole.minX, hole.maxY]], [], -0.3, true);
+  void bounds;
 }
 
 interface Node { x: number; y: number; segs: { line: RoadLineExt; atStart: boolean }[] }
@@ -163,7 +168,7 @@ function markings(B: Batcher, lines: RoadLineExt[], nodes: Node[]): void {
   }
 }
 
-export function buildGround(data: CampusDataExt): GroundResult {
+export function buildGround(data: CampusDataExt, outerHole: CampusDataExt['bounds'] = data.bounds): GroundResult {
   const B = new Batcher();
   for (const [kind, polys] of Object.entries(data.surfaces) as [keyof CampusDataExt['surfaces'], Polygon2D[]][]) {
     const s = SURFACE[kind];
@@ -171,13 +176,16 @@ export function buildGround(data: CampusDataExt): GroundResult {
   }
   curbs(B, data.surfaces.road, data.bounds, 0, CURB_H, 'concrete', true);
   curbs(B, data.surfaces.water, data.bounds, CURB_H - 0.1, CURB_H, 'concreteDark', true);
-  surroundings(B, data.bounds);
   const mesh = B.toMesh('campus-ground');
   if (mesh) { mesh.receiveShadow = true; mesh.castShadow = false; }
+  const S = new Batcher();
+  surroundings(S, data.bounds, outerHole);
+  const sur = S.toMesh('campus-ground-surroundings');
+  if (sur) { sur.receiveShadow = true; sur.castShadow = false; }
 
   const M = new Batcher();
   markings(M, data.roadLines, findIntersections(data.roadLines));
   const mk = M.toMesh('campus-road-markings');
   if (mk) { mk.receiveShadow = true; mk.castShadow = false; }
-  return { mesh, markings: mk, collider: mesh };
+  return { mesh, surroundings: sur, markings: mk, collider: mesh };
 }

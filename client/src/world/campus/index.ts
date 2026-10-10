@@ -4,11 +4,12 @@ import type { PlanPoint } from '../../core/geo';
 import type { World } from '../../core/world';
 import { Batcher, type BatchRange } from './batcher';
 import { buildVolume, type DoorInfo } from './facade';
-import { centroid, signedArea, triangulate } from './geom';
+import { bbox, centroid, distToRing, orientedBox, pointInPolygon, signedArea, triangulate } from './geom';
+import { buildContext, loadContext } from './context';
 import { buildGround, STREET_KINDS } from './ground';
 import { buildProps } from './props';
 import { makeRng } from './rng';
-import { SegmentIndex, VolumeIndex } from './spatial';
+import { GridIndex, SegmentIndex, VolumeIndex } from './spatial';
 import { chooseStyle, makeStyle, type StyleName } from './styles';
 import { buildTrees } from './trees';
 import type { CampusBuildingExt, CampusDataExt } from './types';
@@ -101,6 +102,35 @@ export function hideCampusBuilding(id: string): boolean {
   return true;
 }
 
+/**
+ * Returns a test "is this point clear of every building?". Generic footprints get a 1 m margin.
+ * Landmarks are hand-built to their footprint's bounding rectangle (filling entrance notches) and
+ * have interiors, so trees must also keep their crown out: margin max(1.5 m, 0.3 x tree height).
+ */
+export function makeFootprintFilter(buildings: CampusBuildingExt[]): (p: PlanPoint, treeHeight: number) => boolean {
+  type Ref = { ring: PlanPoint[]; holes: PlanPoint[][]; landmark: boolean };
+  const grid = new GridIndex<Ref>(40);
+  for (const b of buildings) {
+    if (b.minHeight > 0.5) continue;
+    let ring = b.footprint.outer, holes = b.footprint.holes;
+    if (b.landmark) {
+      const o = orientedBox(ring);
+      const vx = -o.uy, vy = o.ux;
+      ring = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, c]) => [o.cx + o.ux * a! * o.len / 2 + vx * c! * o.wid / 2, o.cy + o.uy * a! * o.len / 2 + vy * c! * o.wid / 2] as PlanPoint);
+      holes = [];
+    }
+    const [x0, y0, x1, y1] = bbox(ring);
+    grid.insert({ ring, holes, landmark: !!b.landmark }, x0 - 10, y0 - 10, x1 + 10, y1 + 10);
+  }
+  return (p, h) => {
+    for (const r of grid.at(p[0], p[1])) {
+      const margin = r.landmark ? Math.max(1.5, 0.3 * h) : 1.0;
+      if (pointInPolygon(p[0], p[1], r.ring, r.holes) || distToRing(p[0], p[1], r.ring) < margin) return false;
+    }
+    return true;
+  };
+}
+
 export async function buildCampus(world: World, rawData: CampusData): Promise<void> {
   const data = rawData as unknown as CampusDataExt;
   const t0 = performance.now();
@@ -187,15 +217,26 @@ export async function buildCampus(world: World, rawData: CampusData): Promise<vo
   }
 
   // --- ground ----------------------------------------------------------------------------------
-  const ground = buildGround(data);
-  for (const m of [ground.mesh, ground.markings]) if (m) { root.add(m); drawGroups += m.geometry.groups.length; vertices += m.geometry.getAttribute('position').count; }
+  const context = await loadContext();
+  const ground = buildGround(data, context?.bounds ?? data.bounds);
+  if (context) {
+    for (const o of buildContext(context)) {
+      root.add(o);
+      drawGroups += (o as THREE.Mesh).geometry.groups.length || 1;
+    }
+  }
+  for (const m of [ground.mesh, ground.surroundings, ground.markings]) if (m) { root.add(m); drawGroups += m.geometry.groups.length; vertices += m.geometry.getAttribute('position').count; }
   if (ground.collider) world.addCollider(ground.collider);
 
-  // --- trees & props ---------------------------------------------------------------------------
-  const trees = buildTrees(data.trees);
-  for (const t of trees) root.add(t);
-  drawGroups += trees.length;
-  const props = buildProps(data, segs, data.trees);
+  // --- trees & props (never inside a building: 1 m margin, landmarks by their full rectangle) ----
+  const clearOf = makeFootprintFilter(data.buildings);
+  const treeData = data.trees.filter((t) => clearOf(t.p, t.height));
+  const propData = { ...data, props: Object.fromEntries(Object.entries(data.props).map(([k, v]) => [k, v.filter((p) => clearOf(p, 0))])) as CampusDataExt['props'] };
+  const trees = buildTrees(treeData);
+  for (const t of trees.objects) root.add(t);
+  drawGroups += trees.objects.length;
+  world.onUpdate(() => trees.update(world.focus));
+  const props = buildProps(propData, segs, treeData);
   for (const o of props.objects) {
     root.add(o);
     drawGroups += (o as THREE.Mesh).geometry.groups.length || 1;

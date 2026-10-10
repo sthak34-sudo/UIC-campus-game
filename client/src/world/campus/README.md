@@ -11,7 +11,9 @@ Owner: Map Engineer.
 | `facade.ts` | One building volume: walls with real recessed windows, doors, bands, cornice, parapet, roof, rooftop units |
 | `batcher.ts` | Merges geometry per material (one draw call per material per tile) |
 | `ground.ts` | Roads, raised blocks (sidewalk / grass / plaza / parking at +0.15 m), curbs, lane lines, crosswalks |
-| `trees.ts`, `props.ts` | Instanced trees (4 species x 2 shapes) and street furniture |
+| `trees.ts` | Instanced trees (honey locust, linden, maple, oak x 2 shapes) with two levels of detail: near trees (within 85 m of `world.focus`) get ~400 leaf cards around a dark inner canopy, far trees get a solid lumpy crown |
+| `props.ts` | Street furniture |
+| `context.ts` | Low-detail city around the play area from `data/context.json` (blocks, streets, parkway trees, the Loop skyline). No shadows, no colliders, 7 draw calls |
 | `viewpoints.ts` | `map-aerial`, `map-quad-ground`, `map-halsted`, `map-harrison`, `map-taylor-street`, `map-lecture-centers`, `map-little-italy-low` |
 | `types.ts` | Optional campus.json fields not yet in `core/campusData.ts` |
 
@@ -48,14 +50,14 @@ How an interior plugs in:
 5. Register the interior with `world.addInterior({ id, name, box })` so lighting switches.
 
 ## Performance notes
-- About 190 draw calls before culling (buildings: 20 tiles x ~8 materials; ground 7; trees 16; props ~10).
-  Measured in headless Chrome: 107–162 calls per frame, with no shadow pass yet.
-- About 3.1M triangles: buildings 1.8M, tree crowns 1.0M. Window frames, lintels and sills are only
-  added on street fronts and lower floors.
-- Buildings and trees cast shadows. Props, ground and road markings do not.
-- `campus.test.ts` builds the real campus.json in Node and fails if the draw-call or triangle budget is exceeded.
+- About 205 draw calls before culling, plus 7 for the context. Buildings: 20 tiles x ~8 materials. Ground: 7. Trees: 32 (8 prototypes x cards/core/far/trunk). Props: ~10.
+- Triangles: about 3.1M in the play area. Buildings 1.8M, far tree crowns 0.75M, near leaf cards about 0.25M when standing on the Quad. The context adds 0.42M (no shadows).
+- Tree LOD runs in `world.onUpdate` from `world.focus`. It only re-sorts instances when the focus moves more than 4 m.
+- Trees and props are never placed within 1 m of a footprint. For landmarks the margin is max(1.5 m, 0.3 x tree height) from the bounding rectangle. This is filtered in both the pipeline and the builder.
+- `campus.test.ts` builds the real campus.json and context.json in Node and checks the budgets.
 
 ## Material stand-ins (until the Graphics Engineer adds these names)
-- Road paint uses `sidewalk` (`PAINT` in `ground.ts`).
-- Foliage uses `grass`.
-- Bark uses `wood` darkened by per-instance color.
+- `leafCard` (requested): a single leaf-cluster sprig with a soft transparent border, UV 0..1 per card.
+  Cards currently sample the tiling `foliage` texture, which looks patchy up close.
+- `foliageSolid` (requested): an opaque leaf-mass look for the tree core, far crowns and context trees.
+  These currently use `grass` darkened by instance color.
