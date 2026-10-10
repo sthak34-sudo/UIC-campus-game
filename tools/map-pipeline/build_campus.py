@@ -1,11 +1,17 @@
 """Build client/public/data/campus.json from Overture Maps (which includes OpenStreetMap data).
 
-Usage:  python3 tools/map-pipeline/build_campus.py [--refresh]
+Usage:  python3 tools/map-pipeline/build_campus.py [--refresh] [--offline] [--no-lidar]
   Downloads (once, cached in tools/map-pipeline/cache/) the Overture layers for the campus area,
   converts them to plan coordinates (meters, x=east, y=north; see client/src/core/geo.ts) and writes
   the format described in client/src/core/campusData.ts.
+
+Building heights: USGS 3DEP LiDAR (2017 scan, see lidar.py / heights.py) measures every footprint's
+roof height above local street level; tiered roofs are split into separate volumes. Buildings that
+did not exist in 2017 keep their Overture height / floor count; overrides.json fixes known cases.
+A validation table of named buildings is printed at the end. Tests: python3 -m pytest tools/map-pipeline
 """
 import argparse, json, math, os, sys, datetime
+import numpy as np
 import pyarrow.parquet as pq
 from shapely import wkb
 from shapely.geometry import Polygon, MultiPolygon, Point, box
@@ -14,6 +20,7 @@ from shapely.ops import unary_union
 from shapely.geometry.polygon import orient
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 CACHE = os.path.join(HERE, "cache")
 OUT = os.path.join(ROOT, "client", "public", "data", "campus.json")
@@ -63,9 +70,148 @@ def poly_json(p):
     p = orient(p, 1.0)
     return {"outer": ring(p.exterior.coords), "holes": [ring(i.coords) for i in p.interiors]}
 
+OVERRIDES = os.path.join(HERE, "overrides.json")
+PITCHED = {"gabled", "hipped", "pyramidal", "skillion", "gambrel", "mansard", "half-hipped", "saltbox", "round", "dome", "onion"}
+ATTRS = [("roof_shape", "roofShape"), ("roof_height", "roofHeight"), ("facade_material", "facadeMaterial"),
+         ("facade_color", "facadeColor"), ("roof_material", "roofMaterial"), ("roof_color", "roofColor")]
+# Sanity expectations for the validation table: name -> (min, max) tallest volume, meters.
+EXPECT = {"University Hall": (100, 107), "Science & Engineering Offices": (45, 52), "Behavioral Sciences Building": (14, 21),
+          "Richard J. Daley Library": (17, 21), "Student Center East": (15, 20), "Credit Union 1 Arena": (12.5, 16),
+          "Academic and Residential Complex": (32, 37), "Computer Design Research and Learning Center": (20, 28)}
+
+
+def lidar_dataset():
+    import lidar
+    return lidar.DATASET
+
+
+def load_overrides():
+    with open(OVERRIDES) as f:
+        return json.load(f)["buildings"]
+
+
+def overture_height(it, parent):
+    if it.get("height"): return float(it["height"]), "overture"
+    if it.get("num_floors"): return it["num_floors"] * 3.6, "floors"
+    if it is not parent and parent.get("height"): return float(parent["height"]), "overture"
+    if parent.get("num_floors"): return parent["num_floors"] * 3.6, "floors"
+    return 6.0, "default"
+
+
+def build_buildings(clip, idx):
+    """Return (volumes, stats, report). One building may become several non-overlapping volumes."""
+    import heights as H
+    overrides = load_overrides()
+    street = H.StreetLevel(idx) if idx is not None else None
+    parts_by = {}
+    for p in rows("building_part"): parts_by.setdefault(p["building_id"], []).append(p)
+    vols, stats, report = [], {}, []
+    for r in rows("building"):
+        if r.get("is_underground"): continue
+        name = (r.get("names") or {}).get("primary")
+        landmark = LANDMARKS.get(name)
+        ov = next((o for o in overrides if o.get("id") == r["id"] or (name and o.get("name") == name)), None)
+        foot = to_plan(wkb.loads(r["geometry"])).intersection(clip)
+        if foot.is_empty or foot.area < 4: continue
+        # 1. parts (or the building itself) with Overture heights, attributes, overrides
+        items = parts_by.get(r["id"]) if r.get("has_parts") else None
+        parts = []
+        for k, it in enumerate(items or [r]):
+            h, src = overture_height(it, r)
+            mh = float(it.get("min_height") or 0.0)
+            floors = it.get("num_floors") or (None if items else r.get("num_floors"))
+            if ov:
+                o = ov.get("byFloors", {}).get(str(floors)) or ({"height": ov["height"], "floors": ov.get("floors")} if "height" in ov else None)
+                if o: h, src, floors = o["height"], "override", o.get("floors", floors)
+            if h - mh < 0.5: continue
+            g = to_plan(wkb.loads(it["geometry"])).intersection(clip)
+            attrs = {}
+            for ok_, jk in ATTRS:
+                v = it.get(ok_) if it.get(ok_) is not None else r.get(ok_)
+                if v is not None: attrs[jk] = v
+            for p in polys(g):
+                if p.area >= 2: parts.append({"poly": p, "height": h, "minHeight": mh, "floors": floors, "srcName": src, "src": k, "attrs": attrs, "ovH": h})
+        if items:  # footprint area not covered by any part keeps the building's own height
+            rest = foot.difference(unary_union([p["poly"] for p in parts])) if parts else foot
+            h, src = (float(r["height"]), "overture") if r.get("height") else (max([p["height"] for p in parts] or [6.0]), "overture")
+            for p in polys(rest):
+                if p.area >= 20 and p.area > 0.03 * foot.area:
+                    parts.append({"poly": p, "height": h, "minHeight": 0.0, "floors": r.get("num_floors"), "srcName": src, "src": -1, "attrs": {}, "ovH": h})
+        if not parts: continue
+        faces = H.flatten_parts(parts)
+        # 2. LiDAR per face
+        g0 = H.ground_level(idx, unary_union([f["poly"] for f in faces]), street) if idx is not None else None
+        use_lidar = g0 is not None and not (ov and ov.get("notInLidar"))
+        final = []
+        rep = {"name": name, "id": r["id"], "overture": max(p["ovH"] for p in parts), "lidar": None, "existed": None}
+        for f in faces:
+            poly, h, src = f["poly"], f["height"], f["srcName"]
+            pitched = f["attrs"].get("roofShape") in PITCHED
+            if not use_lidar:
+                final.append(dict(f, height=h, heightSource=src)); continue
+            x, y, z = H.roof_samples(idx, poly, g0)
+            existed = H.existed_in_scan(x, y, z, poly)
+            lh = H.roof_height(z, 97 if pitched else H.ROOF_PCT) if existed else None
+            if existed: rep["lidar"] = max(rep["lidar"] or 0, lh)
+            rep["existed"] = bool(rep["existed"]) or existed
+            if existed and H.rebuilt_after_scan(h, src, f.get("floors"), lh):
+                existed, lh = False, None
+                rep["rebuilt"] = True
+            tiers = None
+            if existed and not landmark and f["minHeight"] < 0.5 and not pitched:
+                tiers = H.split_tiers(poly, x, y, z)
+            if tiers:
+                for tp, th in tiers:
+                    final.append(dict(f, poly=tp, height=max(th, H.MIN_HEIGHT), heightSource="lidar", tier=True))
+                continue
+            ch, csrc = H.choose_height(h, src, lh, existed, f.get("floors"))
+            if f["minHeight"] > 0.5 and ch < f["minHeight"] + 1.0: ch, csrc = h, src  # floating part: keep Overture
+            if pitched and existed and "roofHeight" not in f["attrs"]:
+                f = dict(f, attrs=dict(f["attrs"], roofHeight=round(float(np.clip(np.percentile(z, 97) - np.percentile(z, 10), 1.0, 0.5 * ch)), 1)))
+            final.append(dict(f, height=ch, heightSource=csrc))
+        # 3. merge neighbors that ended up at (almost) the same height
+        merged = H.merge_faces([dict(f, src=f["heightSource"]) for f in final], tol=0.8, keys=("height", "minHeight", "src"))
+        many = len(merged) > 1
+        for k, f in enumerate(sorted(merged, key=lambda f: -f["poly"].area)):
+            h = f["height"]; fl = f.get("floors")
+            if fl and not (2.6 <= (h - f["minHeight"]) / fl <= 6.5): fl = None
+            b = {"id": r["id"] + (f"#{k}" if many else ""), "buildingId": r["id"], "name": name, "kind": r.get("class"),
+                 "height": round(h, 2), "minHeight": round(f["minHeight"], 2), "floors": fl,
+                 "heightSource": f["heightSource"], "footprint": poly_json(f["poly"])}
+            b.update(f["attrs"])
+            if landmark: b["landmark"] = landmark
+            vols.append(b)
+            stats[f["heightSource"]] = stats.get(f["heightSource"], 0) + 1
+        rep["chosen"] = max(f["height"] for f in merged)
+        rep["sources"] = sorted({f["heightSource"] for f in merged})
+        rep["volumes"] = len(merged)
+        report.append(rep)
+    return vols, stats, report
+
+
+def print_validation(report):
+    named = sorted([r for r in report if r["name"]], key=lambda r: -r["chosen"])
+    print(f"\n{'building':44s} {'overture':>8s} {'lidar':>7s} {'chosen':>7s} vols  source        check")
+    bad = []
+    for r in named:
+        lo_hi = EXPECT.get(r["name"])
+        chk = "" if not lo_hi else ("OK" if lo_hi[0] <= r["chosen"] <= lo_hi[1] else "CHECK!")
+        if chk == "CHECK!": bad.append(r["name"])
+        li = f"{r['lidar']:7.1f}" if r["lidar"] is not None else ("  (new)" if r["existed"] is False else "      -")
+        print(f"{r['name'][:44]:44s} {r['overture']:8.1f} {li} {r['chosen']:7.1f} {r['volumes']:4d}  {','.join(r['sources']):13s} {chk}")
+    print()
+    missing = [n for n in EXPECT if n not in {r["name"] for r in named}]
+    if missing: print("WARNING: expected buildings not found:", missing)
+    if bad: print("WARNING: heights outside expected range:", bad)
+
+
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("--refresh", action="store_true"); a = ap.parse_args()
-    fetch(a.refresh)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--refresh", action="store_true", help="re-download the Overture layers")
+    ap.add_argument("--offline", action="store_true", help="fail instead of downloading anything missing")
+    ap.add_argument("--no-lidar", action="store_true", help="skip LiDAR heights (Overture/floors only)")
+    a = ap.parse_args()
+    if not a.offline: fetch(a.refresh)
     S, W, N, E = PLAY_BBOX
     clip = to_plan(box(W, S, E, N))
     out = {"version": 1, "generated": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
@@ -75,31 +221,14 @@ def main():
            "roadLines": [], "trees": [], "props": {k: [] for k in ["bench", "streetLamp", "wasteBasket", "bicycleParking", "busStop"]},
            "attribution": ["© OpenStreetMap contributors (ODbL)", f"Overture Maps Foundation, release {OVERTURE_RELEASE}"]}
 
-    # --- buildings (use building parts when a building has them) ---
-    parts_by = {}
-    for p in rows("building_part"): parts_by.setdefault(p["building_id"], []).append(p)
-    stats = {}
-    for r in rows("building"):
-        if r.get("is_underground"): continue
-        name = (r.get("names") or {}).get("primary")
-        landmark = LANDMARKS.get(name)
-        items = parts_by.get(r["id"]) if r.get("has_parts") else None
-        for idx, it in enumerate(items or [r]):
-            if it.get("height"): h, src = it["height"], "overture"
-            elif it.get("num_floors"): h, src = it["num_floors"] * 3.6, "floors"
-            elif it is not r and r.get("height"): h, src = r["height"], "overture"
-            else: h, src = 6.0, "default"
-            mh = it.get("min_height") or 0.0
-            if h - mh < 0.5: continue
-            g = to_plan(wkb.loads(it["geometry"])).intersection(clip)
-            for k, p in enumerate(polys(g)):
-                if p.area < 4: continue
-                stats[src] = stats.get(src, 0) + 1
-                b = {"id": r["id"] + (f"#{idx}" if items else "") + (f".{k}" if k else ""), "name": name, "kind": r.get("class"),
-                     "height": round(h, 2), "minHeight": round(mh, 2), "floors": it.get("num_floors") or r.get("num_floors"),
-                     "heightSource": src, "footprint": poly_json(p)}
-                if landmark: b["landmark"] = landmark
-                out["buildings"].append(b)
+    # --- buildings (Overture footprints/parts + LiDAR heights + overrides) ---
+    idx = None
+    if not a.no_lidar:
+        import lidar
+        idx = lidar.PointIndex(lidar.load_points(os.path.join(CACHE, "lidar"), PLAY_BBOX, ORIGIN, offline=a.offline))
+    out["buildings"], stats, report = build_buildings(clip, idx)
+    out["attribution"].append(f"USGS 3DEP LiDAR {lidar_dataset()} (public domain) for building heights")
+    print_validation(report)
 
     # --- roads / sidewalks ---
     WIDTH = {"motorway": 14, "trunk": 12, "primary": 12, "secondary": 11, "tertiary": 9, "residential": 7, "unclassified": 6,
