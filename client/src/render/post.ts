@@ -23,9 +23,11 @@ export interface GradeParams {
   vignette: number;
   /** Warm/cool split toning strength. */
   splitTone: number;
+  /** Bloom strength. */
+  bloom: number;
 }
 
-export const DEFAULT_GRADE: GradeParams = { exposure: 1.6, aoAmount: 0.85, saturation: 1.04, contrast: 0.12, vignette: 0.22, splitTone: 1 };
+export const DEFAULT_GRADE: GradeParams = { exposure: 1.6, aoAmount: 0.85, saturation: 1.04, contrast: 0.12, vignette: 0.22, splitTone: 1, bloom: 0.14 };
 
 const compositeShader = {
   uniforms: {
@@ -95,6 +97,25 @@ const compositeShader = {
   `,
 };
 
+const METER_W = 32;
+const METER_H = 18;
+const meterShader = {
+  vertexShader: compositeShader.vertexShader,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tScene;
+    varying vec2 vUv;
+    void main() {
+      float acc = 0.0;
+      for ( int i = 0; i < 4; i ++ ) for ( int j = 0; j < 4; j ++ ) {
+        vec2 o = ( vec2( float( i ), float( j ) ) - 1.5 ) / vec2( ${METER_W * 4}.0, ${METER_H * 4}.0 );
+        vec3 c = texture2D( tScene, vUv + o ).rgb;
+        acc += log( clamp( dot( c, vec3( 0.2126, 0.7152, 0.0722 ) ), 1e-4, 64.0 ) );
+      }
+      gl_FragColor = vec4( acc / 16.0, 0.0, 0.0, 1.0 );
+    }
+  `,
+};
+
 export class PostPipeline {
   readonly sceneRT: THREE.WebGLRenderTarget;
   private ldrRT: THREE.WebGLRenderTarget | null = null;
@@ -105,6 +126,20 @@ export class PostPipeline {
   private quad: FullScreenQuad;
   private white: THREE.DataTexture;
   private frame = 0;
+  /** Set true to measure scene brightness on the next render (interior auto-exposure). */
+  meterNext = false;
+  /** Log-average scene luminance (before exposure) from the last metering, or null. */
+  measuredLum: number | null = null;
+  private meterRT: THREE.WebGLRenderTarget;
+  private meterQuad: FullScreenQuad;
+  private meterBuf = new Float32Array(METER_W * METER_H * 4);
+
+  /** Returns the latest metering result once (null if none since the last call). */
+  takeMeasurement(): number | null {
+    const v = this.measuredLum;
+    this.measuredLum = null;
+    return v;
+  }
 
   constructor(
     private renderer: THREE.WebGLRenderer,
@@ -139,6 +174,36 @@ export class PostPipeline {
     }
     this.composite = new THREE.ShaderMaterial({ ...compositeShader, uniforms: THREE.UniformsUtils.clone(compositeShader.uniforms), depthTest: false, depthWrite: false });
     this.quad = new FullScreenQuad(this.composite);
+    this.meterRT = new THREE.WebGLRenderTarget(METER_W, METER_H, { type: THREE.FloatType, depthBuffer: false });
+    this.meterQuad = new FullScreenQuad(new THREE.ShaderMaterial({ ...meterShader, uniforms: { tScene: { value: null } }, depthTest: false, depthWrite: false }));
+  }
+
+  /** Geometric-mean luminance of the HDR scene, center-weighted (16 taps per cell, 32x18 cells). */
+  private meter(): void {
+    const r = this.renderer;
+    (this.meterQuad as unknown as { material: THREE.ShaderMaterial }).material.uniforms.tScene.value = this.sceneRT.texture;
+    r.setRenderTarget(this.meterRT);
+    this.meterQuad.render(r);
+    try {
+      r.readRenderTargetPixels(this.meterRT, 0, 0, METER_W, METER_H, this.meterBuf);
+    } catch {
+      this.measuredLum = null;
+      return;
+    }
+    let sum = 0;
+    let wsum = 0;
+    for (let y = 0; y < METER_H; y++) {
+      for (let x = 0; x < METER_W; x++) {
+        const v = this.meterBuf[(y * METER_W + x) * 4];
+        if (!Number.isFinite(v)) continue;
+        const dx = (x + 0.5) / METER_W - 0.5;
+        const dy = (y + 0.5) / METER_H - 0.5;
+        const w = 1.0 - Math.min(0.7, Math.hypot(dx, dy) * 1.2);
+        sum += v * w;
+        wsum += w;
+      }
+    }
+    this.measuredLum = wsum > 0 ? Math.exp(sum / wsum) : null;
   }
 
   setSize(w: number, h: number): void {
@@ -154,6 +219,10 @@ export class PostPipeline {
     const r = this.renderer;
     r.setRenderTarget(this.sceneRT);
     r.render(this.scene, camera);
+    if (this.meterNext) {
+      this.meterNext = false;
+      this.meter();
+    }
     let ao: THREE.Texture = this.white;
     if (this.gtao && grade.aoAmount > 0) {
       this.gtao.camera = camera;
@@ -161,7 +230,9 @@ export class PostPipeline {
       ao = this.gtao.gtaoMap;
     }
     if (this.bloom) {
-      this.bloom.threshold = 1.0 / Math.max(grade.exposure, 1e-3);
+      // only genuinely bright things (sun, specular glints, light panels) bloom; screens and white walls don't
+      this.bloom.threshold = 2.2 / Math.max(grade.exposure, 1e-3);
+      this.bloom.strength = grade.bloom;
       this.bloom.render(r, this.sceneRT, this.sceneRT, 0, false);
     }
     const u = this.composite.uniforms;

@@ -30,7 +30,7 @@ export const SKY_SATURATION = 0.62;
 /** The environment (ambient light) uses an even less saturated sky so shadows read gray, not blue. */
 export const ENV_SKY_SATURATION = 0.3;
 /** Average ground albedo of a campus (asphalt, concrete, grass mix) used for bounce light. */
-export const GROUND_ALBEDO = 0.16;
+export const GROUND_ALBEDO = 0.2;
 
 /**
  * Recommended light levels for other modules, in the same units as the sun.
@@ -44,7 +44,8 @@ export const LIGHT_UNITS = {
   /** Corridors / stairs. */
   interiorDim: 0.25,
 };
-export const INTERIOR_EXPOSURE_BOOST = 2.6;
+/** Fallback interior exposure boost when the image can't be metered (low quality preset). */
+export const INTERIOR_EXPOSURE_BOOST = 1.8;
 
 const E = 2.718281828459045;
 const PI = Math.PI;

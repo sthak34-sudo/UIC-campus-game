@@ -135,6 +135,9 @@ diffuseColor.rgb *= ( 1.0 + GFX_MACRO_AMP * ( gfxMac.r * 2.0 - 1.0 ) ) * ( 1.0 +
 	float gfxSt = texture2D( gfxMacro, vec2( gfxH * 0.23, vGfxWPos.y * 0.009 ) ).g;
 	float gfxStreak = smoothstep( 0.52, 0.85, gfxSt ) * ( 0.5 + 0.5 * smoothstep( 0.3, 0.7, gfxMac2.r ) );
 	diffuseColor.rgb *= 1.0 - GFX_STREAKS * gfxStreak * gfxVert;
+	// broad, storey-tall run-off stains: what makes a weathered facade read as such from far away
+	float gfxBig = texture2D( gfxMacro, vec2( gfxH * 0.045, vGfxWPos.y * 0.0025 ) + vec2( 0.13, 0.0 ) ).g;
+	diffuseColor.rgb *= 1.0 - GFX_STREAKS * 0.9 * smoothstep( 0.42, 0.8, gfxBig ) * gfxVert;
 	float gfxBase = exp( - max( vGfxWPos.y, 0.0 ) / 0.55 ) * ( 0.65 + 0.35 * gfxMac2.b );
 	diffuseColor.rgb *= 1.0 - GFX_BASE * gfxBase * gfxVert;
 	diffuseColor.rgb *= 1.0 - GFX_TOP * smoothstep( 0.6, 0.95, gfxN.y ) * ( 0.6 + 0.4 * gfxMac2.g );
