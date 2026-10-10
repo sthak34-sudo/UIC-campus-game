@@ -1,6 +1,6 @@
 # UIC Campus Game: Project Plan
 
-*Last updated: October 9, 2026 · Status: **Planning complete, waiting for owner approval***
+*Last updated: October 10, 2026 · Status: **Plan approved. Now building the realistic map (Milestone 0–1)***
 
 ## 0. The plan in one minute
 
@@ -32,6 +32,9 @@ We build in **5 milestones**. Each one ends with something you can actually try:
 | What players do | **Missions / quests** | Timed goals across campus, with points and rewards. |
 | Where to play | **Web browser** | Anyone opens a link. Nothing to install. |
 | Players | **Multiplayer from day one** | The game is designed for many players from the very first line of code. You'll see other players by Milestone 2. |
+| Realism (decided Oct 10) | **Browser + photo landmarks** | As realistic as a browser allows: exact building shapes from laser scans, real concrete/brick materials, good lighting and trees. The owner's own photos make the landmarks look like the real buildings. This is honestly *not* GTA 6 level, which no option here can reach. See [`docs/research/realism-options.md`](docs/research/realism-options.md). |
+| Map data source | **Overture Maps + USGS laser scans** | Overture (which includes OpenStreetMap data) works from our cloud computer today. Laser scans (LiDAR) correct wrong heights. |
+| Owner photos | **Yes** | The owner photographs key buildings using [`docs/photo-guide.md`](docs/photo-guide.md). |
 
 ## 2. The team (how the "game studio" works)
 
@@ -228,6 +231,17 @@ it before building on top of it.
   - Set up the automatic testing robots.
   - Download UIC's map data and check how many buildings have real height data.
 - **You'll see:** a short report on how many campus buildings have real height data, and which ones we had to guess.
+
+### Milestone 0.5: 📸 Realism test scene (added Oct 10)
+- **Goal:** prove the realistic look on one spot before building the whole campus.
+- **Spot:** University Hall plus the Quad.
+- **Team:** Map Engineer, Graphics/Lighting Engineer, QA Tester
+- **Work:**
+  - Use laser-scan heights.
+  - Model University Hall's real window grid and its wider-at-the-top shape.
+  - Add weathered concrete materials, sky and sun lighting, shadows, trees, benches and lamp posts.
+  - Swap in the owner's photos when they arrive.
+- **You'll see:** before-and-after screenshots. You judge "does this look like UIC?"
 
 ### Milestone 1: 🗺️ Walk around UIC
 - **Goal:** the real East Campus in 3D, and you walk and run around it.
