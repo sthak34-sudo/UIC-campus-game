@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { getMaterial } from '../../../render/materials';
 
 /**
  * TEMPORARY local materials for surfaces the shared material library (render/materials.ts, owned by
@@ -7,7 +8,6 @@ import * as THREE from 'three';
  * with getMaterial('books') / getMaterial('lightPanel').
  */
 let books: THREE.MeshStandardMaterial | null = null;
-let lightPanel: THREE.MeshStandardMaterial | null = null;
 let fire: THREE.MeshStandardMaterial | null = null;
 
 /** Book covers/spines: white so InstancedMesh.setColorAt() colors show unmodified. */
@@ -17,9 +17,8 @@ export function booksMaterial(): THREE.MeshStandardMaterial {
 }
 
 /** Ceiling light panel (emissive). */
-export function lightPanelMaterial(): THREE.MeshStandardMaterial {
-  lightPanel ??= new THREE.MeshStandardMaterial({ name: 'lightPanel(local)', color: 0xffffff, emissive: 0xfff4e2, emissiveIntensity: 1.4, roughness: 1 });
-  return lightPanel;
+export function lightPanelMaterial(): THREE.Material {
+  return getMaterial('lightFixture');
 }
 
 /** Glowing fireplace embers (Circle Reading Room). */

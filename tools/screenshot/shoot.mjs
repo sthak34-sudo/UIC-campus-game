@@ -3,7 +3,7 @@
 //
 //   npm run screenshot                  -> every registered viewpoint
 //   npm run screenshot -- quad-ground   -> only the named viewpoints
-//   options: --out=screenshots  --hour=14  --size=1600x900  --port=5199 (or SHOT_PORT)
+//   options: --query=gfxtest=1&quality=medium  --out=screenshots  --hour=14  --size=1600x900  --port=5199 (or SHOT_PORT)
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,7 +36,7 @@ try {
   const base = `http://127.0.0.1:${port}/`;
   if (names.length === 0) {
     const p = await browser.newPage({ viewport: { width: 320, height: 200 } });
-    await p.goto(`${base}?view=__list__`);
+    await p.goto(`${base}?view=__list__${opt.query ? `&${opt.query}` : ''}`, { timeout: 300000 });
     await p.waitForFunction(() => Array.isArray(window.__viewpoints), null, { timeout: 600000 });
     names = await p.evaluate(() => window.__viewpoints);
     await p.close();
@@ -47,7 +47,7 @@ try {
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
     const t0 = Date.now();
-    await page.goto(`${base}?view=${encodeURIComponent(name)}${opt.hour ? `&hour=${opt.hour}` : ''}`);
+    await page.goto(`${base}?view=${encodeURIComponent(name)}${opt.hour ? `&hour=${opt.hour}` : ''}${opt.query ? `&${opt.query}` : ''}`, { timeout: 300000 });
     try {
       await page.waitForFunction(() => window.__ready === true, null, { timeout: 600000 });
       const file = path.join(outDir, `${name}.png`);

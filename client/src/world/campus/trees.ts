@@ -120,8 +120,8 @@ export function buildTrees(trees: TreeInput[]): THREE.Object3D[] {
     const rng = makeRng(`species:${sp.name}:${pi % VARIANTS}`);
     const crown = crownGeometry(sp, rng, pi);
     const trunk = trunkGeometry(sp, rng);
-    const crownMesh = new THREE.InstancedMesh(crown, getMaterial('grass'), list.length);
-    const trunkMesh = new THREE.InstancedMesh(trunk, getMaterial('wood'), list.length);
+    const crownMesh = new THREE.InstancedMesh(crown, getMaterial('foliage'), list.length);
+    const trunkMesh = new THREE.InstancedMesh(trunk, getMaterial('bark'), list.length);
     crownMesh.name = `campus-trees-${sp.name}-${pi % VARIANTS}-crowns`;
     trunkMesh.name = `campus-trees-${sp.name}-${pi % VARIANTS}-trunks`;
     list.forEach((t, i) => {

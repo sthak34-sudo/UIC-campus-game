@@ -13,7 +13,7 @@ export const CURB_H = 0.15;
  * Road paint. The material library has no paint material yet (requested from Graphics), so light
  * pavement stands in. Change here only.
  */
-export const PAINT: MaterialName = 'sidewalk';
+export const PAINT: MaterialName = 'roadMarking';
 
 const SURFACE: Record<keyof CampusDataExt['surfaces'], { mat: MaterialName; y: number }> = {
   road: { mat: 'asphalt', y: 0 },

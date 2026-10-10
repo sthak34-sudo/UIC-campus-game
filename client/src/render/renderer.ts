@@ -234,29 +234,9 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
   }
 
   if (params.get('gfxtest') === '1') buildGfxTestScene(world);
-  installReadyGate(ready);
 
   const api: GameRenderer = { renderer, render, resize, setFocus, setTimeOfDay, ready, quality: q };
   (window as unknown as { __gfx?: unknown }).__gfx = { ...api, scene, getLighting: () => lighting, grade };
   return api;
 }
 
-/**
- * Screenshots wait for `window.__ready` (set by main.ts after 3 frames). Textures load
- * asynchronously, so until main.ts awaits `gfx.ready` itself, hold `__ready` back until they're in.
- */
-function installReadyGate(ready: Promise<void>): void {
-  let gfxReady = false;
-  void ready.then(() => (gfxReady = true));
-  const w = window as unknown as Record<string, unknown>;
-  let value = w.__ready;
-  try {
-    Object.defineProperty(window, '__ready', {
-      configurable: true,
-      get: () => (value === true ? gfxReady : value),
-      set: (v) => (value = v),
-    });
-  } catch {
-    // not fatal: screenshots may just catch textures mid-load
-  }
-}

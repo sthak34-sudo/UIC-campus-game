@@ -53,6 +53,8 @@ async function start(): Promise<void> {
   document.getElementById('loading')!.remove();
   const clock = new THREE.Clock();
   let frames = 0;
+  let gfxReady = false;
+  void gfx.ready.then(() => (gfxReady = true));
   const loop = () => {
     const dt = Math.min(clock.getDelta(), 0.1);
     player?.update(dt);
@@ -60,9 +62,11 @@ async function start(): Promise<void> {
     world.update(dt, clock.elapsedTime);
     gfx.setFocus(focus, !!world.interiorAt(focus));
     gfx.render(camera);
-    if (++frames === 3) window.__ready = true;
-    // Screenshot mode: stop after the ready frame so the headless (software) renderer is idle for the capture.
-    if (view && frames >= 3) return;
+    frames++;
+    // Ready = a few frames rendered AND the renderer's textures/environment are loaded.
+    if (!window.__ready && frames >= 3 && gfxReady) window.__ready = true;
+    // Screenshot mode: stop once ready so the headless (software) renderer is idle for the capture.
+    if (view && window.__ready) return;
     requestAnimationFrame(loop);
   };
   loop();
