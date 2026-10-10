@@ -13,7 +13,7 @@ A validation table of named buildings is printed at the end. Tests: python3 -m p
 import argparse, json, math, os, sys, datetime
 import numpy as np
 import pyarrow.parquet as pq
-from shapely import wkb
+from shapely import wkb, make_valid
 from shapely.geometry import Polygon, MultiPolygon, Point, box
 from shapely.affinity import affine_transform
 from shapely.ops import unary_union
@@ -205,6 +205,63 @@ def print_validation(report):
     if bad: print("WARNING: heights outside expected range:", bad)
 
 
+WIDTH = {"motorway": 14, "trunk": 12, "primary": 12, "secondary": 11, "tertiary": 9, "residential": 7, "unclassified": 6,
+         "service": 4.5, "unknown": 4, "living_street": 6, "footway": 2.4, "pedestrian": 4, "cycleway": 2, "path": 1.8, "steps": 2.4}
+WALK = {"footway", "pedestrian", "cycleway", "path", "steps"}
+STREET = {"primary", "secondary", "tertiary", "residential", "unclassified", "living_street"}
+GREEN = {"grass", "park", "garden", "recreation_ground", "grassland", "meadow", "village_green"}
+
+
+def build_trees(mapped, idx, clip, built, road):
+    """Mapped trees + treetops found in the LiDAR canopy. Trees inside today's buildings or roads are dropped."""
+    import shapely
+    if idx is None:
+        return [{"p": [round(x, 2), round(y, 2)], "height": 9.0} for x, y in mapped]
+    import heights as H, trees as T
+    street = H.StreetLevel(idx)
+    m = np.isin(idx.cls, T.VEG_CLASSES)
+    x, y, z = idx.x[m], idx.y[m], idx.z[m]
+    # ground per point from the 25 m street-level cell grid (nearest cell median)
+    cell = street.cell
+    gmap = {(int(i), int(j)): float(v) for i, j, v in zip(street.ci, street.cj, street.cz)}
+    gi = np.floor(x / cell).astype(np.int64); gj = np.floor(y / cell).astype(np.int64)
+    base = np.median(street.cz)
+    g = np.array([gmap.get((a, b), base) for a, b in zip(gi.tolist(), gj.tolist())], np.float32)
+    chm, x0, y0 = T.canopy_height_model(x, y, np.clip(z - g, 0, 60))
+    tx, ty, th = T.tree_tops(chm, x0, y0)
+    tx, ty, th = T.dedupe(tx, ty, th, 3.0)
+    ok = (shapely.contains_xy(clip, tx, ty) & ~shapely.contains_xy(built.buffer(2.0), tx, ty)
+          & ~shapely.contains_xy(road.buffer(-0.5), tx, ty) & (th <= T.MAX_TREE_H))
+    tx, ty, th = tx[ok], ty[ok], th[ok]
+    mapped = [p for p in mapped if not built.contains(Point(p))]
+    res = T.merge_mapped(mapped, tx, ty, th, chm=(chm, x0, y0))
+    n = {}
+    for *_, src in res: n[src] = n.get(src, 0) + 1
+    print(f"trees: {len(res)} ({n})")
+    return [{"p": [round(a, 2), round(b, 2)], "height": round(h, 1)} for a, b, h, _ in res]
+
+
+def street_lamps(road_lines, existing, built, road, clip, spacing=34.0):
+    """Chicago streets have a lamp pole every ~30-40 m, alternating sides, just behind the curb."""
+    from shapely.geometry import LineString
+    have = [Point(p) for p in existing]
+    out = []
+    for rl in road_lines:
+        if rl["kind"] not in STREET or len(rl["points"]) < 2: continue
+        line = LineString(rl["points"])
+        if line.length < 20: continue
+        off = rl["width"] / 2 + 0.7
+        for k, d in enumerate(np.arange(spacing / 2, line.length - 8, spacing)):
+            side = 1 if k % 2 == 0 else -1
+            a = line.interpolate(d); b = line.interpolate(min(d + 1, line.length))
+            dx, dy = b.x - a.x, b.y - a.y; L = math.hypot(dx, dy) or 1
+            p = Point(a.x - side * dy / L * off, a.y + side * dx / L * off)
+            if not clip.contains(p) or built.buffer(1.0).contains(p) or road.contains(p): continue
+            if any(p.distance(q) < 12 for q in have): continue
+            have.append(p); out.append([round(p.x, 2), round(p.y, 2)])
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--refresh", action="store_true", help="re-download the Overture layers")
@@ -231,9 +288,6 @@ def main():
     print_validation(report)
 
     # --- roads / sidewalks ---
-    WIDTH = {"motorway": 14, "trunk": 12, "primary": 12, "secondary": 11, "tertiary": 9, "residential": 7, "unclassified": 6,
-             "service": 4.5, "unknown": 4, "living_street": 6, "footway": 2.4, "pedestrian": 4, "cycleway": 2, "path": 1.8, "steps": 2.4}
-    WALK = {"footway", "pedestrian", "cycleway", "path", "steps"}
     acc = {"road": [], "sidewalk": []}
     for r in rows("segment"):
         if r["subtype"] != "road": continue
@@ -242,30 +296,48 @@ def main():
         if g.is_empty: continue
         kind = "sidewalk" if c in WALK else "road"
         acc[kind].append(g.buffer(w / 2, cap_style=2 if kind == "road" else 1, join_style=1))
+        name = (r.get("names") or {}).get("primary")
         for line in getattr(g, "geoms", [g]):
             if line.geom_type == "LineString":
-                out["roadLines"].append({"kind": c, "width": w, "points": [[round(x, 2), round(y, 2)] for x, y in line.coords]})
-    road_u = unary_union(acc["road"]).simplify(0.15)
-    walk_u = unary_union(acc["sidewalk"]).difference(road_u).simplify(0.15)
-    out["surfaces"]["road"] = [poly_json(p) for p in polys(road_u)]
-    out["surfaces"]["sidewalk"] = [poly_json(p) for p in polys(walk_u)]
+                rl = {"kind": c, "width": w, "points": [[round(x, 2), round(y, 2)] for x, y in line.coords]}
+                if name: rl["name"] = name
+                out["roadLines"].append(rl)
+    raw = {"road": unary_union(acc["road"]), "sidewalk": unary_union(acc["sidewalk"])}
 
     # --- land use / water ---
-    GREEN = {"grass", "park", "garden", "recreation_ground", "grassland", "meadow", "village_green"}
+    land = {k: [] for k in ["plaza", "parking", "pitch", "water", "grass"]}
     for r in rows("land_use"):
         c = r["class"]
         kind = "grass" if c in GREEN else "pitch" if c == "pitch" else "plaza" if c in ("plaza", "pedestrian") else "parking" if c == "parking" else None
-        if not kind: continue
-        out["surfaces"][kind] += [poly_json(p) for p in polys(to_plan(wkb.loads(r["geometry"])).intersection(clip)) if p.area > 2]
+        if kind: land[kind].append(make_valid(to_plan(wkb.loads(r["geometry"]))).intersection(clip))
+    for r in rows("infrastructure"):  # parking lots are in the infrastructure layer
+        if r["class"] == "parking":
+            land["parking"].append(make_valid(to_plan(wkb.loads(r["geometry"]))).intersection(clip))
     for r in rows("water"):
-        out["surfaces"]["water"] += [poly_json(p) for p in polys(to_plan(wkb.loads(r["geometry"])).intersection(clip)) if p.area > 2]
+        land["water"].append(make_valid(to_plan(wkb.loads(r["geometry"]))).intersection(clip))
+    for k, v in land.items(): raw[k] = unary_union([unary_union(polys(g)) for g in v]) if v else Polygon()
 
-    # --- trees & props ---
+    # --- make surfaces mutually exclusive (no overlaps -> no z-fighting) and fill the rest with grass ---
+    built = unary_union([make_valid(Polygon(b["footprint"]["outer"])) for b in out["buildings"] if b["minHeight"] < 0.5]).buffer(0)
+    taken = Polygon()
+    for kind in ["road", "sidewalk", "plaza", "parking", "pitch", "water", "grass"]:
+        g = raw[kind].intersection(clip).difference(taken)
+        if kind != "road": g = g.difference(built)
+        taken = taken.union(raw[kind].intersection(clip))
+        if kind == "grass":  # yards, parkways, unmapped open space
+            g = g.union(clip.difference(taken.union(built)))
+        g = g.buffer(0).simplify(0.15)
+        out["surfaces"][kind] = [poly_json(p) for p in polys(g) if p.area > 1.0]
+
+    # --- trees: mapped trees + LiDAR canopy tops ---
+    mapped = []
     for r in rows("land"):
         if r["subtype"] == "tree":
             g = to_plan(wkb.loads(r["geometry"]))
-            if isinstance(g, Point) and clip.contains(g):
-                out["trees"].append({"p": [round(g.x, 2), round(g.y, 2)], "height": 9.0})
+            if isinstance(g, Point) and clip.contains(g): mapped.append((g.x, g.y))
+    out["trees"] = build_trees(mapped, idx, clip, built, raw["road"])
+
+    # --- props ---
     PROP = {"bench": "bench", "street_lamp": "streetLamp", "waste_basket": "wasteBasket", "bicycle_parking": "bicycleParking", "bus_stop": "busStop"}
     for r in rows("infrastructure"):
         k = PROP.get(r["class"])
@@ -273,6 +345,9 @@ def main():
         g = to_plan(wkb.loads(r["geometry"]))
         g = g if isinstance(g, Point) else g.centroid
         if clip.contains(g): out["props"][k].append([round(g.x, 2), round(g.y, 2)])
+    extra = street_lamps(out["roadLines"], out["props"]["streetLamp"], built, raw["road"], clip)
+    out["props"]["streetLamp"] += extra
+    print(f"added {len(extra)} street lamps along streets (Chicago spacing)")
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w") as f: json.dump(out, f, separators=(",", ":"))
