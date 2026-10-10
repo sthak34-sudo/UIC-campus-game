@@ -213,6 +213,14 @@ STREET = {"primary", "secondary", "tertiary", "residential", "unclassified", "li
 GREEN = {"grass", "park", "garden", "recreation_ground", "grassland", "meadow", "village_green"}
 
 
+def clear_of_buildings(p, built, landmark_rects, tree_h):
+    """Trees/props stay >= 1 m from every footprint; from landmarks (enterable, built to their
+    bounding rectangle) also keep the crown out: max(1.5 m, 0.3 x tree height)."""
+    if built.distance(p) < 1.0:
+        return False
+    return landmark_rects.is_empty or landmark_rects.distance(p) >= max(1.5, 0.3 * tree_h)
+
+
 def build_trees(mapped, idx, clip, built, road):
     """Mapped trees + treetops found in the LiDAR canopy. Trees inside today's buildings or roads are dropped."""
     import shapely
@@ -338,7 +346,10 @@ def main():
             g = to_plan(wkb.loads(r["geometry"]))
             if isinstance(g, Point) and clip.contains(g): mapped.append((g.x, g.y))
     all_built = unary_union([make_valid(Polygon(b["footprint"]["outer"])) for b in out["buildings"] if b["minHeight"] < 0.5]).buffer(0)
-    out["trees"] = build_trees(mapped, idx, clip, all_built, raw["road"])
+    # landmarks are hand-built to their footprint's bounding rectangle and have interiors
+    landmark_rects = unary_union([make_valid(Polygon(b["footprint"]["outer"])).minimum_rotated_rectangle for b in out["buildings"] if b.get("landmark")])
+    out["trees"] = [t for t in build_trees(mapped, idx, clip, all_built, raw["road"])
+                    if clear_of_buildings(Point(t["p"]), all_built, landmark_rects, t["height"])]
 
     # --- props ---
     PROP = {"bench": "bench", "street_lamp": "streetLamp", "waste_basket": "wasteBasket", "bicycle_parking": "bicycleParking", "bus_stop": "busStop"}
@@ -347,13 +358,18 @@ def main():
         if not k: continue
         g = to_plan(wkb.loads(r["geometry"]))
         g = g if isinstance(g, Point) else g.centroid
-        if clip.contains(g): out["props"][k].append([round(g.x, 2), round(g.y, 2)])
+        if clip.contains(g) and clear_of_buildings(g, all_built, landmark_rects, 0): out["props"][k].append([round(g.x, 2), round(g.y, 2)])
     extra = street_lamps(out["roadLines"], out["props"]["streetLamp"], all_built, raw["road"], clip)
     out["props"]["streetLamp"] += extra
     print(f"added {len(extra)} street lamps along streets (Chicago spacing)")
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w") as f: json.dump(out, f, separators=(",", ":"))
+
+    # --- low-detail surroundings beyond the play area (context.json) ---
+    import context
+    if not a.offline: context.fetch(CACHE, OVERTURE_RELEASE, a.refresh)
+    context.build(CACHE, to_plan, clip, os.path.join(os.path.dirname(OUT), "context.json"))
     found = sorted({b["landmark"] for b in out["buildings"] if b.get("landmark")})
     print(f"wrote {OUT}: {len(out['buildings'])} building volumes (height sources {stats}), "
           f"{len(out['surfaces']['road'])} road / {len(out['surfaces']['sidewalk'])} sidewalk polys, "
