@@ -13,7 +13,7 @@ A validation table of named buildings is printed at the end. Tests: python3 -m p
 import argparse, json, math, os, sys, datetime
 import numpy as np
 import pyarrow.parquet as pq
-from shapely import wkb, make_valid
+from shapely import wkb, make_valid, set_precision
 from shapely.geometry import Polygon, MultiPolygon, Point, box
 from shapely.affinity import affine_transform
 from shapely.ops import unary_union
@@ -171,6 +171,7 @@ def build_buildings(clip, idx):
             final.append(dict(f, height=ch, heightSource=csrc))
         # 3. merge neighbors that ended up at (almost) the same height
         merged = H.merge_faces([dict(f, src=f["heightSource"]) for f in final], tol=0.8, keys=("height", "minHeight", "src"))
+        merged = [dict(f, poly=p) for f in merged for p in polys(set_precision(make_valid(f["poly"]), 0.01)) if p.area >= 1.0]
         many = len(merged) > 1
         for k, f in enumerate(sorted(merged, key=lambda f: -f["poly"].area)):
             h = f["height"]; fl = f.get("floors")
@@ -318,7 +319,8 @@ def main():
     for k, v in land.items(): raw[k] = unary_union([unary_union(polys(g)) for g in v]) if v else Polygon()
 
     # --- make surfaces mutually exclusive (no overlaps -> no z-fighting) and fill the rest with grass ---
-    built = unary_union([make_valid(Polygon(b["footprint"]["outer"])) for b in out["buildings"] if b["minHeight"] < 0.5]).buffer(0)
+    # landmark footprints keep their ground (the Landmarks team builds on top of it)
+    built = unary_union([make_valid(Polygon(b["footprint"]["outer"])) for b in out["buildings"] if b["minHeight"] < 0.5 and not b.get("landmark")]).buffer(0)
     taken = Polygon()
     for kind in ["road", "sidewalk", "plaza", "parking", "pitch", "water", "grass"]:
         g = raw[kind].intersection(clip).difference(taken)
@@ -326,7 +328,7 @@ def main():
         taken = taken.union(raw[kind].intersection(clip))
         if kind == "grass":  # yards, parkways, unmapped open space
             g = g.union(clip.difference(taken.union(built)))
-        g = g.buffer(0).simplify(0.15)
+        g = set_precision(g.buffer(0).simplify(0.15), 0.01)
         out["surfaces"][kind] = [poly_json(p) for p in polys(g) if p.area > 1.0]
 
     # --- trees: mapped trees + LiDAR canopy tops ---
@@ -335,7 +337,8 @@ def main():
         if r["subtype"] == "tree":
             g = to_plan(wkb.loads(r["geometry"]))
             if isinstance(g, Point) and clip.contains(g): mapped.append((g.x, g.y))
-    out["trees"] = build_trees(mapped, idx, clip, built, raw["road"])
+    all_built = unary_union([make_valid(Polygon(b["footprint"]["outer"])) for b in out["buildings"] if b["minHeight"] < 0.5]).buffer(0)
+    out["trees"] = build_trees(mapped, idx, clip, all_built, raw["road"])
 
     # --- props ---
     PROP = {"bench": "bench", "street_lamp": "streetLamp", "waste_basket": "wasteBasket", "bicycle_parking": "bicycleParking", "bus_stop": "busStop"}
@@ -345,7 +348,7 @@ def main():
         g = to_plan(wkb.loads(r["geometry"]))
         g = g if isinstance(g, Point) else g.centroid
         if clip.contains(g): out["props"][k].append([round(g.x, 2), round(g.y, 2)])
-    extra = street_lamps(out["roadLines"], out["props"]["streetLamp"], built, raw["road"], clip)
+    extra = street_lamps(out["roadLines"], out["props"]["streetLamp"], all_built, raw["road"], clip)
     out["props"]["streetLamp"] += extra
     print(f"added {len(extra)} street lamps along streets (Chicago spacing)")
 
