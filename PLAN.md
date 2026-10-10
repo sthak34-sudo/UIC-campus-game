@@ -244,6 +244,13 @@ it before building on top of it.
   - Swap in the owner's photos when they arrive.
 - **You'll see:** before-and-after screenshots. You judge "does this look like UIC?"
 
+**Status (Oct 10): first version built ✅** Screenshots are in [`docs/images/realism-test/`](docs/images/realism-test/).
+- **Data:** LiDAR heights for 1,171 buildings and 3,806 trees.
+- **University Hall:** the stepped 28-floor tower.
+- **Daley Library:** a 4-floor walkable interior, tested by a robot walking in and up the stairs.
+- **Look:** real sky, sun and shadows, generated PBR materials, and the surrounding city out to the Loop.
+- **Waiting on the owner:** photos, plus unblocking free texture sites for even more realistic materials.
+
 ### Milestone 1: 🗺️ Walk around UIC
 - **Goal:** the real East Campus in 3D, and you walk and run around it.
 - **Team:** Map Engineer, Gameplay Engineer, QA Tester, DevOps
