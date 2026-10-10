@@ -37,6 +37,8 @@ export class World {
   spawn = new THREE.Vector3(0, 2, 0);
   /** Optional facing direction at spawn (radians, three.js yaw around +Y; 0 = looking toward -Z / north). */
   spawnYaw?: number;
+  /** Where the action is: the player's feet (or the camera in screenshot mode). Updated by main.ts every frame. */
+  readonly focus = new THREE.Vector3();
   private updates: UpdateFn[] = [];
 
   addCollider(mesh: THREE.Mesh): void {

@@ -25,13 +25,15 @@ async function start(): Promise<void> {
 
   const data: CampusData = await (await fetch(`${import.meta.env.BASE_URL}data/campus.json`)).json();
   await buildCampus(world, data);
-  await buildLandmarks(world, data);
+  const landmarks = await buildLandmarks(world, data);
+  if (landmarks.spawnYaw !== undefined) world.spawnYaw = landmarks.spawnYaw;
 
   const view = params.get('view');
   const hourParam = params.get('hour');
   const player = view ? null : await createPlayer(world, camera, container);
 
   const vp = view ? world.viewpoints.get(view) : undefined;
+  world.focus.copy(player ? player.position : (vp?.position ?? camera.position));
   if (view && !vp) console.error(`Unknown viewpoint "${view}". Known: ${[...world.viewpoints.keys()].join(', ')}`);
   if (vp) {
     camera.position.copy(vp.position);
@@ -54,8 +56,8 @@ async function start(): Promise<void> {
   const loop = () => {
     const dt = Math.min(clock.getDelta(), 0.1);
     player?.update(dt);
+    const focus = world.focus.copy(player ? player.position : camera.position);
     world.update(dt, clock.elapsedTime);
-    const focus = player ? player.position : camera.position;
     gfx.setFocus(focus, !!world.interiorAt(focus));
     gfx.render(camera);
     if (++frames === 3) window.__ready = true;

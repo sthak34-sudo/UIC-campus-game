@@ -3,7 +3,7 @@
 //
 //   npm run screenshot                  -> every registered viewpoint
 //   npm run screenshot -- quad-ground   -> only the named viewpoints
-//   options: --out=screenshots  --hour=14  --size=1600x900
+//   options: --out=screenshots  --hour=14  --size=1600x900  --port=5199 (or SHOT_PORT)
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,7 +14,7 @@ const opt = Object.fromEntries(args.filter((a) => a.startsWith('--')).map((a) =>
 let names = args.filter((a) => !a.startsWith('--'));
 const outDir = path.resolve(opt.out ?? 'screenshots');
 const [w, h] = (opt.size ?? '1600x900').split('x').map(Number);
-const port = 5199;
+const port = Number(opt.port ?? process.env.SHOT_PORT ?? 5199);
 const CHROME = process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium';
 
 fs.mkdirSync(outDir, { recursive: true });
