@@ -1,0 +1,25 @@
+{
+  "_doc": "Hand corrections applied by build_campus.py. Match a building by Overture primary `name` or by `id`. `notInLidar: true` = finished after the 2017 LiDAR scan, so LiDAR is ignored. `byFloors` maps an Overture part's num_floors to the corrected {height (m above ground), floors}; `height`/`floors` apply to the whole building / every part not matched by byFloors. heightSource becomes \"override\".",
+  "buildings": [
+    {
+      "name": "Academic and Residential Complex",
+      "reason": "ARC opened Aug 2019 (after the 2017 scan): a 10-story residence hall (548 beds) joined to a 2-story academic building (today.uic.edu, 2019). Overture already splits the footprint: the 10-floor part is the tower (~1470 m2, matches 146,000 sq ft / 10 floors), the '3-floor' part is the 2-story academic wing with tall floors.",
+      "notInLidar": true,
+      "byFloors": {
+        "10": { "height": 34.5, "floors": 10 },
+        "3": { "height": 10.5, "floors": 2 },
+        "1": { "height": 4.5, "floors": 1 }
+      }
+    },
+    {
+      "name": "Computer Design Research and Learning Center",
+      "reason": "CDRLC opened July 2025 (after the 2017 scan). Five stories, 135,000 sq ft, organized around a five-story atrium; two lower floors are larger teaching floors (today.uic.edu 2025; asumag.com 2025). Overture's small '6-floor' parts are rooftop stair/mechanical/atrium bulkheads, the 5-floor part is the main block (~2600 m2 = 135k sq ft / 5), the 2-floor part is the wider podium. Lab floors ~4.4 m.",
+      "notInLidar": true,
+      "byFloors": {
+        "6": { "height": 26.5, "floors": 5 },
+        "5": { "height": 23.0, "floors": 5 },
+        "2": { "height": 9.5, "floors": 2 }
+      }
+    }
+  ]
+}
