@@ -11,17 +11,17 @@
   {
     "name": "walk 5 s covers ~7 m",
     "ok": true,
-    "distance": 7.21,
+    "distance": 7.28,
     "expected": 7
   },
   {
     "name": "real-time loop speed ~1.4 m/s",
-    "ok": true,
-    "distance": 4.21,
-    "simSeconds": 3.17,
-    "wallSeconds": 3.19,
-    "speed": 1.33,
-    "fps": 33.81
+    "ok": false,
+    "distance": 0.28,
+    "simSeconds": 0.5,
+    "wallSeconds": 12.56,
+    "speed": 0.56,
+    "fps": 10
   },
   {
     "name": "wall stops the player",
@@ -32,7 +32,7 @@
   {
     "name": "jump goes up and lands",
     "ok": true,
-    "jumpHeight": 0.46,
+    "jumpHeight": 0.44,
     "landedDy": 0,
     "events": [
       "land",
@@ -48,19 +48,19 @@
     "pos": {
       "x": 0,
       "y": 0,
-      "z": -17.4
+      "z": -17.58
     }
   },
   {
     "name": "climbs 12 stairs to the 2nd floor",
     "ok": true,
-    "startX": 5.1,
+    "startX": 5.25,
     "pos": {
-      "x": 5.11,
+      "x": 5.25,
       "y": 2.04,
-      "z": -24.75
+      "z": -25.28
     },
-    "secondsFromStairFoot": 4.9
+    "secondsFromStairFoot": 5.1
   },
   {
     "name": "runs up the stairs",
@@ -68,7 +68,7 @@
     "pos": {
       "x": 5,
       "y": 2.04,
-      "z": -27.99
+      "z": -28.67
     }
   },
   {
@@ -77,7 +77,7 @@
     "pos": {
       "x": 5,
       "y": 0,
-      "z": -16.07
+      "z": -15.92
     },
     "grounded": true
   },
@@ -85,7 +85,7 @@
     "name": "steps up the 0.15 m curb",
     "ok": true,
     "pos": {
-      "x": 9.18,
+      "x": 9.41,
       "y": 0.15,
       "z": 0
     }
@@ -96,14 +96,14 @@
     "pos": {
       "x": 0,
       "y": 1.5,
-      "z": 20.24
+      "z": 20.45
     }
   },
   {
     "name": "climbs the trimesh stair",
     "ok": true,
     "pos": {
-      "x": -19.5,
+      "x": -19.73,
       "y": 2.04,
       "z": 13
     }
@@ -146,33 +146,33 @@
     "name": "perf ?",
     "ok": true,
     "spawn": {
-      "x": 0,
-      "y": -7.547438142865848e-8,
-      "z": 0
+      "x": 27.38113793192772,
+      "y": 0.19962434147950267,
+      "z": 34.94278455056225
     },
-    "stepAvgMs": 0.16408333333344985,
-    "stepP95Ms": 0.3333333333333333,
-    "stepMaxMs": 1.150000000023283,
-    "simWallMs": 197.39999999990687,
+    "stepAvgMs": 0.3193333333332945,
+    "stepP95Ms": 0.5166666666433836,
+    "stepMaxMs": 0.8000000000077611,
+    "simWallMs": 383.80000000004657,
     "end": {
-      "x": 0.9864627379926318,
-      "y": -0.00004141149334825969,
-      "z": -0.30048151624667746
+      "x": 28.206012079603966,
+      "y": 0.199756677618815,
+      "z": 54.406966487969875
     },
     "endGrounded": true,
-    "stepMs": 0.09809908550041177,
-    "stepMsMax": 4.199999999953434,
-    "buildMs": 0,
-    "lastBuildMs": 0,
-    "meshes": 0,
+    "stepMs": 0.25148071739331573,
+    "stepMsMax": 2.199999999953434,
+    "buildMs": 478.0999999998603,
+    "lastBuildMs": 478.0999999998603,
+    "meshes": 2424,
     "instances": 0,
-    "cuboids": 0,
-    "trimeshes": 0,
-    "triangles": 0,
+    "cuboids": 1147,
+    "trimeshes": 810,
+    "triangles": 360567,
     "fps": 0,
-    "fallbackGround": true,
-    "rapierInitMs": 179.9000000001397,
-    "initialColliderBuildMs": 0
+    "fallbackGround": false,
+    "rapierInitMs": 196.29999999981374,
+    "initialColliderBuildMs": 478.0999999998603
   },
   {
     "name": "no page errors (?)",
@@ -183,34 +183,34 @@
     "name": "perf ?playertest=perf",
     "ok": true,
     "spawn": {
-      "x": 0,
-      "y": -0.00011856764554975599,
-      "z": 0
+      "x": 27.38113793192772,
+      "y": 0.19962434147950267,
+      "z": 34.94278455056225
     },
-    "stepAvgMs": 0.16508333333341083,
-    "stepP95Ms": 0.3333333333333333,
-    "stepMaxMs": 1.049999999968956,
-    "simWallMs": 198.19999999995343,
+    "stepAvgMs": 0.2980833333331006,
+    "stepP95Ms": 0.4666666666744277,
+    "stepMaxMs": 0.8000000000077611,
+    "simWallMs": 358.30000000004657,
     "end": {
-      "x": -2.76332384458885,
-      "y": 0.000040510058597380966,
-      "z": 0.089606867678557
+      "x": 28.20594629489746,
+      "y": 0.19989203406042844,
+      "z": 54.40480309405612
     },
     "endGrounded": true,
-    "stepMs": 0.09041875022000692,
-    "stepMsMax": 4.099999999860302,
-    "buildMs": 89.19999999995343,
-    "lastBuildMs": 89.19999999995343,
-    "meshes": 1253,
+    "stepMs": 0.2796811577419311,
+    "stepMsMax": 1.3999999999068677,
+    "buildMs": 651.3000000000466,
+    "lastBuildMs": 651.3000000000466,
+    "meshes": 3764,
     "instances": 0,
-    "cuboids": 0,
-    "trimeshes": 573,
-    "triangles": 48028,
+    "cuboids": 1147,
+    "trimeshes": 810,
+    "triangles": 415969,
     "fps": 0,
     "fallbackGround": false,
-    "rapierInitMs": 177.0999999998603,
-    "perfBuildings": 1253,
-    "initialColliderBuildMs": 89.19999999995343
+    "rapierInitMs": 203.80000000004657,
+    "perfBuildings": 1340,
+    "initialColliderBuildMs": 651.3000000000466
   },
   {
     "name": "no page errors (?playertest=perf)",

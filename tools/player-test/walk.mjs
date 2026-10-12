@@ -118,7 +118,9 @@ try {
     const s0 = await page.evaluate(() => window.__player.getSimTime());
     const w0 = Date.now();
     await P.input({ forward: 1 });
-    await page.waitForTimeout(3000);
+    // Wait for 3 s of SIMULATED time (not wall time): with software rendering and the full campus the
+    // loop can run at ~10 fps, so a fixed 3 s of wall time covers too little sim time to measure speed.
+    await page.waitForFunction((t0) => window.__player.getSimTime() - t0 >= 3, s0, { timeout: 180000, polling: 200 });
     await stop();
     const b = await P.pos();
     const s1 = await page.evaluate(() => window.__player.getSimTime());
