@@ -16,11 +16,11 @@
   },
   {
     "name": "real-time loop speed ~1.4 m/s",
-    "ok": false,
-    "distance": 0.28,
-    "simSeconds": 0.5,
-    "wallSeconds": 12.56,
-    "speed": 0.56,
+    "ok": true,
+    "distance": 4.34,
+    "simSeconds": 3.4,
+    "wallSeconds": 71.02,
+    "speed": 1.28,
     "fps": 10
   },
   {
@@ -150,20 +150,20 @@
       "y": 0.19962434147950267,
       "z": 34.94278455056225
     },
-    "stepAvgMs": 0.3193333333332945,
-    "stepP95Ms": 0.5166666666433836,
-    "stepMaxMs": 0.8000000000077611,
-    "simWallMs": 383.80000000004657,
+    "stepAvgMs": 0.3642500000000775,
+    "stepP95Ms": 0.6166666666977108,
+    "stepMaxMs": 1.1333333333798994,
+    "simWallMs": 438.09999999962747,
     "end": {
       "x": 28.206012079603966,
       "y": 0.199756677618815,
       "z": 54.406966487969875
     },
     "endGrounded": true,
-    "stepMs": 0.25148071739331573,
-    "stepMsMax": 2.199999999953434,
-    "buildMs": 478.0999999998603,
-    "lastBuildMs": 478.0999999998603,
+    "stepMs": 0.2560612467141413,
+    "stepMsMax": 1.7000000001862645,
+    "buildMs": 534.8999999999069,
+    "lastBuildMs": 534.8999999999069,
     "meshes": 2424,
     "instances": 0,
     "cuboids": 1147,
@@ -171,8 +171,8 @@
     "triangles": 360567,
     "fps": 0,
     "fallbackGround": false,
-    "rapierInitMs": 196.29999999981374,
-    "initialColliderBuildMs": 478.0999999998603
+    "rapierInitMs": 206.10000000009313,
+    "initialColliderBuildMs": 534.8999999999069
   },
   {
     "name": "no page errors (?)",
@@ -187,20 +187,20 @@
       "y": 0.19962434147950267,
       "z": 34.94278455056225
     },
-    "stepAvgMs": 0.2980833333331006,
-    "stepP95Ms": 0.4666666666744277,
-    "stepMaxMs": 0.8000000000077611,
-    "simWallMs": 358.30000000004657,
+    "stepAvgMs": 0.3280833333331007,
+    "stepP95Ms": 0.5499999999689559,
+    "stepMaxMs": 0.850000000015522,
+    "simWallMs": 393.79999999981374,
     "end": {
       "x": 28.20594629489746,
       "y": 0.19989203406042844,
       "z": 54.40480309405612
     },
     "endGrounded": true,
-    "stepMs": 0.2796811577419311,
-    "stepMsMax": 1.3999999999068677,
-    "buildMs": 651.3000000000466,
-    "lastBuildMs": 651.3000000000466,
+    "stepMs": 0.29141576592699764,
+    "stepMsMax": 1.6000000000931323,
+    "buildMs": 617.5,
+    "lastBuildMs": 617.5,
     "meshes": 3764,
     "instances": 0,
     "cuboids": 1147,
@@ -208,9 +208,9 @@
     "triangles": 415969,
     "fps": 0,
     "fallbackGround": false,
-    "rapierInitMs": 203.80000000004657,
+    "rapierInitMs": 192.79999999981374,
     "perfBuildings": 1340,
-    "initialColliderBuildMs": 651.3000000000466
+    "initialColliderBuildMs": 617.5
   },
   {
     "name": "no page errors (?playertest=perf)",
