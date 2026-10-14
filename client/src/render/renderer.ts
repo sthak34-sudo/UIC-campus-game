@@ -56,6 +56,7 @@ function patchSky(sky: Sky, saturation: number): void {
       texColor += skyFloor * ( 0.5 + 0.9 * pow( 1.0 - max( direction.y, 0.0 ), 3.0 ) ); // city glow
       float skyL = dot( texColor, vec3( 0.2126, 0.7152, 0.0722 ) );
       texColor = vec3( skyL ) + ( texColor - vec3( skyL ) ) * skySat;
+      texColor = min( texColor, vec3( 12.0 ) ); // keep the sun disc from flooding bloom with a white veil
       gl_FragColor = vec4( texColor, 1.0 );`,
     );
   const u = m.uniforms;
