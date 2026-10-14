@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import type { CampusBuilding } from '../../core/campusData';
 import type { World } from '../../core/world';
 import { FACE, MeshBatch, type MatKey } from './kit/batch';
-import { lm } from './kit/materials';
 import { ColliderSet } from './kit/colliders';
 import { slidingDoors } from './kit/doors';
 import { fitFootprint, localToWorld, type LocalFrame } from './kit/frame';
@@ -106,11 +105,11 @@ export function buildUniversityHall(world: World, b: CampusBuilding): University
   // a low floor-edge upstand. Behind it, floors 3-28 have an open GALLERY LEDGE; the window wall
   // (narrow Block-I windows: clear top/bottom, bronze centre, dark bronze frames, smooth precast
   // panels between) sits UH.galleryDepth behind the pier face. Floor 28 is the 2017-18 curtain wall.
-  const C = lm('concreteExposedAggregate');
-  const P = lm('concreteSmooth');
-  const GB = lm('glassBronze');
-  const GC = lm('glass');
-  const FR = lm('metalBronze');
+  const C = 'concrete'; // cast-in-place, board-formed skeleton
+  const P = 'concreteSmooth';
+  const GB = 'glassBronze';
+  const GC = 'glass';
+  const FR = 'metalBronze';
   const cw = UH.cornerW;
   interface Face { axis: 'x' | 'z'; s: number; h: number; a: number; n: number }
   const faces = (t: number): Face[] => {

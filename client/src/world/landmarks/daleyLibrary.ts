@@ -11,7 +11,7 @@ import { switchbackStair, type SwitchbackResult } from './kit/stairs';
 import { buildWall, evenOpenings, type Opening } from './kit/walls';
 import { addInteriorVolume } from './kit/zones';
 import { Furnisher } from './kit/furniture';
-import { lightPanelMaterial, lm } from './kit/materials';
+import { lightPanelMaterial } from './kit/materials';
 import { furnishLibrary } from './daleyInterior';
 
 /**
@@ -153,7 +153,7 @@ export function buildDaleyLibrary(world: World, b: CampusBuilding): LibraryInfo 
   group.rotation.y = frame.rotY;
   world.scene.add(group);
 
-  const AGG = lm('concreteExposedAggregate'); // Netsch exposed-aggregate frame
+  const AGG = 'concreteExposedAggregate'; // Netsch exposed-aggregate frame
   const ext = new MeshBatch(); // facade + roof (casts shadows)
   const struct = new MeshBatch(); // slabs, interior walls, stairs (no shadows needed)
   const col = new ColliderSet();
@@ -202,10 +202,10 @@ export function buildDaleyLibrary(world: World, b: CampusBuilding): LibraryInfo 
   // smooth precast panels in the original central bays, plain stucco-like panels on the west face
   // where the never-built west wings were planned. Windows are deep-set Block-I slots (bronze centre,
   // clear top/bottom bands, dark bronze frames) pushed to the inner face of the wall.
-  const BRICK = lm('brickUIC');
-  const PRECAST = lm('concreteSmooth');
-  const STUCCO = lm('concreteSmooth');
-  const blockI = { clear: lm('glassClear'), bronze: lm('glassBronzeClear'), frame: lm('metalBronze'), inset: LIB.wallT / 2 - 0.05 };
+  const BRICK = 'brickUIC';
+  const PRECAST = 'concreteSmooth';
+  const STUCCO = 'concreteWarm'; // flat light warm grey, closest to the west-wall stucco
+  const blockI = { clear: 'glassClear', bronze: 'glassBronzeClear', frame: 'metalBronze', inset: LIB.wallT / 2 - 0.05 } as const;
   const slots = (len: number, n: number, bottom: number, top: number, w = LIB.windowW): Opening[] =>
     n <= 0 ? [] : evenOpenings(0.25, len - 0.25, n, w, bottom, top, { blockI });
   const winOps = (len: number, n: number, y: number): Opening[] => slots(len, n, y + LIB.windowSill, y + LIB.windowHead);
@@ -259,8 +259,8 @@ export function buildDaleyLibrary(world: World, b: CampusBuilding): LibraryInfo 
       if (fi === 0 && k === LIB.westDoorBay) {
         opsW = [
           { at: len / 2, width: LIB.doorW + 0.2, bottom: fy, top: fy + LIB.doorH, door: true },
-          { at: len / 2 - 2.4, width: 1.6, bottom: fy, top: fy + LIB.doorH, glass: 'glassClear', frame: lm('metalBronze') },
-          { at: len / 2 + 2.4, width: 1.6, bottom: fy, top: fy + LIB.doorH, glass: 'glassClear', frame: lm('metalBronze') },
+          { at: len / 2 - 2.4, width: 1.6, bottom: fy, top: fy + LIB.doorH, glass: 'glassClear', frame: 'metalBronze' },
+          { at: len / 2 + 2.4, width: 1.6, bottom: fy, top: fy + LIB.doorH, glass: 'glassClear', frame: 'metalBronze' },
         ];
       }
       infill([-wx, zb], [-wx, za], yb, yt, brick ? BRICK : STUCCO, opsW);
@@ -292,7 +292,7 @@ export function buildDaleyLibrary(world: World, b: CampusBuilding): LibraryInfo 
   {
     const z = doorSets[1][1];
     for (const s of [1, -1]) {
-      ext.box(lm('metalPanel'), hx + 1.2, 1.9, z + s * 2.7, 1.3, 3.8, 1.3, { rotY: Math.PI / 4 });
+      ext.box('metal', hx + 1.2, 1.9, z + s * 2.7, 1.3, 3.8, 1.3, { rotY: Math.PI / 4 });
       col.box(hx + 1.2, 1.9, z + s * 2.7, 1.3, 3.8, 1.3, 'solid', { rotY: Math.PI / 4 });
     }
   }
@@ -320,7 +320,7 @@ export function buildDaleyLibrary(world: World, b: CampusBuilding): LibraryInfo 
   // ------------------------------------------------------------------ annexes (2-storey brick blocks)
   for (const a of annexes) {
     const h = 8.9;
-    ext.boxMinMax(lm('brickUIC'), a.x0, 0, a.z0, a.x1, h, a.z1, FACE.PX | FACE.NX | FACE.PZ | FACE.NZ);
+    ext.boxMinMax('brickUIC', a.x0, 0, a.z0, a.x1, h, a.z1, FACE.PX | FACE.NX | FACE.PZ | FACE.NZ);
     ext.boxMinMax(AGG, a.x0 - 0.1, h, a.z0 - 0.1, a.x1 + 0.1, h + 0.5, a.z1 + 0.1);
     ext.boxMinMax(AGG, a.x0 - 0.1, F[1] - 0.5, a.z0 - 0.1, a.x1 + 0.1, F[1] + 0.3, a.z1 + 0.1);
     col.boxMinMax(a.x0, 0, a.z0, a.x1, h + 0.5, a.z1, 'solid');
