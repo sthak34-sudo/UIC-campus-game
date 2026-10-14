@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { getMaterial } from '../../../render/materials';
+import { getMaterial, MATERIAL_NAMES, type MaterialName } from '../../../render/materials';
 
 /**
  * TEMPORARY local materials for surfaces the shared material library (render/materials.ts, owned by
@@ -19,6 +19,36 @@ export function booksMaterial(): THREE.MeshStandardMaterial {
 /** Ceiling light panel (emissive). */
 export function lightPanelMaterial(): THREE.Material {
   return getMaterial('lightFixture');
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Planned shared materials (Graphics Engineer, round 3). Until they exist in render/materials.ts we
+// alias them to the closest existing name. `lm()` switches over AUTOMATICALLY as soon as the real
+// name appears in MATERIAL_NAMES, so no landmark code has to change.
+// ---------------------------------------------------------------------------------------------------
+export type PlannedMaterial =
+  | 'brickUIC' // UIC dark red-brown face brick with per-brick variation
+  | 'glassBronze' // opaque bronze-tinted glass (sealed floors, centre of Block-I windows)
+  | 'glassBronzeClear' // see-through bronze-tinted glass (enterable buildings)
+  | 'metalBronze' // dark bronze anodized frames / mullions
+  | 'concreteExposedAggregate' // sandblasted / exposed-aggregate Netsch concrete (frames, piers)
+  | 'metalPanel' // steel grating / metal panel
+  | 'glassFritted';
+
+export const PLANNED_ALIAS: Record<PlannedMaterial, MaterialName> = {
+  brickUIC: 'brick',
+  glassBronze: 'glass',
+  glassBronzeClear: 'glassClear',
+  metalBronze: 'windowFrame',
+  concreteExposedAggregate: 'concrete',
+  metalPanel: 'metal',
+  glassFritted: 'glass',
+};
+
+/** Landmark material lookup: a shared name, or a planned name (aliased until it exists). */
+export function lm(name: PlannedMaterial | MaterialName): THREE.Material {
+  if ((MATERIAL_NAMES as readonly string[]).includes(name)) return getMaterial(name as MaterialName);
+  return getMaterial(PLANNED_ALIAS[name as PlannedMaterial]);
 }
 
 /** Glowing fireplace embers (Circle Reading Room). */

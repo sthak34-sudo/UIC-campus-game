@@ -62,8 +62,9 @@ export async function buildLandmarks(world: World, data: CampusData): Promise<La
     world.spawn.copy(toWorld(ctx.hx + 7, F[0] + 0.1, doorZ));
     out.spawnYaw = SPAWN_YAW + lib.frame.rotY;
 
-    // from the paved walk between the library and Lecture Center A, looking along the east facade
-    world.addViewpoint('library-exterior', { position: new THREE.Vector3(...planToWorld([30, 6], LANDMARK_BASE_Y + EYE)), target: toWorld(ctx.hx - 3, 6.5, 8), fov: 70 });
+    // from the paved walk between the library and Lecture Center F, looking north along the east
+    // facade (sun behind the camera in the afternoon)
+    world.addViewpoint('library-exterior', { position: new THREE.Vector3(...planToWorld([31, -72], LANDMARK_BASE_Y + EYE)), target: toWorld(ctx.hx - 4, 7, -12), fov: 70 });
     // from the plaza south of the library, the whole Quad-side facade receding north
     world.addViewpoint('library-quad-wide', { position: new THREE.Vector3(...planToWorld([36, -117], LANDMARK_BASE_Y + EYE)), target: toWorld(ctx.hx - 6, 6, -22), fov: 75 });
     world.addViewpoint('library-entrance', { position: toWorld(ctx.hx + 2.6, 1.65, doorZ + 0.8), target: toWorld(ctx.hx - 8, 1.4, doorZ - 1.2), fov: 70 });

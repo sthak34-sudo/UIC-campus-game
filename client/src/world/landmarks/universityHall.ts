@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import type { CampusBuilding } from '../../core/campusData';
 import type { World } from '../../core/world';
-import { FACE, MeshBatch } from './kit/batch';
+import { FACE, MeshBatch, type MatKey } from './kit/batch';
+import { lm } from './kit/materials';
 import { ColliderSet } from './kit/colliders';
 import { slidingDoors } from './kit/doors';
 import { fitFootprint, localToWorld, type LocalFrame } from './kit/frame';
@@ -35,16 +36,23 @@ export const UH = {
   groundH: 6.1,
   typicalH: 3.58,
   /** Facade layering (m). */
-  pierW: 0.6,
+  pierW: 0.55,
+  /** Depth of the exterior piers and of the floor-edge upstand (m). */
+  pierDepth: 0.55,
+  upstandDepth: 0.3,
+  upstandH: 0.85,
+  /** Window wall set back behind the pier face: open gallery ledge on floors 3-28. */
+  galleryDepth: 1.3,
+  /** Block-I window: clear glass band at top and bottom, bronze centre; window width in a module. */
+  blockIClear: 0.35,
+  windowW: 0.95,
   /** Solid corner = one full module on each face (assumption, see README). */
   cornerW: 1.524,
-  recess: 0.38,
-  frameDepth: 0.55,
-  spandrelH: 1.1,
   crownH: 1.1,
   /** Ground floor: glass line set back behind the column line. */
   lobbySetback: 2.8,
-  columnSize: 1.1,
+  /** Giant ground-floor columns. */
+  columnSize: 1.6,
   /** Columns every N modules on the long faces. */
   columnEvery: 5,
   plazaMargin: 7,
@@ -91,71 +99,123 @@ export function buildUniversityHall(world: World, b: CampusBuilding): University
   const ext = new MeshBatch(); // casts shadows
   const inner = new MeshBatch(); // lobby interior
   const col = new ColliderSet();
-  const D = UH.frameDepth;
 
   // ------------------------------------------------------------------ tower floors 2..28
-  for (let f = 2; f <= UH.floors; f++) {
-    const t = uhTier(f);
+  // Each face is built in "face coordinates": u runs along the face, depth runs inward from the
+  // outer face of the concrete piers. Outer layer: exposed-aggregate piers (continuous per tier) and
+  // a low floor-edge upstand. Behind it, floors 3-28 have an open GALLERY LEDGE; the window wall
+  // (narrow Block-I windows: clear top/bottom, bronze centre, dark bronze frames, smooth precast
+  // panels between) sits UH.galleryDepth behind the pier face. Floor 28 is the 2017-18 curtain wall.
+  const C = lm('concreteExposedAggregate');
+  const P = lm('concreteSmooth');
+  const GB = lm('glassBronze');
+  const GC = lm('glass');
+  const FR = lm('metalBronze');
+  const cw = UH.cornerW;
+  interface Face { axis: 'x' | 'z'; s: number; h: number; a: number; n: number }
+  const faces = (t: number): Face[] => {
     const hz = tierHalfZ[t];
-    const y0 = uhFloorY(f);
-    const y1 = uhFloorY(f + 1);
-    const ws = y0 + UH.spandrelH; // window sill
-    const wh = y1 - ws; // window strip height
-    // spandrel band (wraps all four faces) - outward, top (sill) and bottom (head) faces only
-    for (const s of [1, -1]) {
-      // (stops at the solid corner columns to avoid coplanar faces with a different material)
-      const cw = UH.cornerW;
-      ext.box('concreteSmooth', s * (hx - D / 2), y0 + UH.spandrelH / 2, 0, D, UH.spandrelH, 2 * (hz - cw), { faces: (s > 0 ? FACE.PX : FACE.NX) | FACE.PY | FACE.NY });
-      ext.box('concreteSmooth', 0, y0 + UH.spandrelH / 2, s * (hz - D / 2), 2 * (hx - cw), UH.spandrelH, D, { faces: (s > 0 ? FACE.PZ : FACE.NZ) | FACE.PY | FACE.NY });
-    }
-    // piers on the long faces (x = ±hx)
-    const nL = UH.tierBays[t];
-    const mL = (2 * hz) / nL;
-    for (let i = 1; i < nL; i++) {
-      const z = -hz + i * mL;
-      for (const s of [1, -1]) ext.box('concrete', s * (hx - D / 2), ws + wh / 2, z, D, wh, UH.pierW, { faces: (s > 0 ? FACE.PX : FACE.NX) | FACE.PZ | FACE.NZ });
-    }
-    // piers on the short faces (z = ±hz)
-    const mS = (2 * hx) / UH.shortBays;
-    for (let i = 1; i < UH.shortBays; i++) {
-      const x = -hx + i * mS;
-      for (const s of [1, -1]) ext.box('concrete', x, ws + wh / 2, s * (hz - D / 2), UH.pierW, wh, D, { faces: (s > 0 ? FACE.PZ : FACE.NZ) | FACE.PX | FACE.NX });
-    }
-    // recessed glass strips (one quad per face per floor)
-    const gIn = UH.recess;
-    for (const s of [1, -1]) {
-      ext.box('glass', s * (hx - gIn), ws + wh / 2, 0, 0.02, wh, 2 * hz, { faces: s > 0 ? FACE.PX : FACE.NX });
-      ext.box('glass', 0, ws + wh / 2, s * (hz - gIn), 2 * hx, wh, 0.02, { faces: s > 0 ? FACE.PZ : FACE.NZ });
-    }
-    // window head/jamb backing: the recess "floor/ceiling" between glass and frame face are the
-    // spandrel top/bottom faces; the recess back wall is the glass itself.
-  }
-  // solid corner columns per tier (full tier height) and the cantilever soffits
+    return [1, -1].flatMap((s) => [
+      { axis: 'x' as const, s, h: hx, a: hz, n: UH.tierBays[t] },
+      { axis: 'z' as const, s, h: hz, a: hx, n: UH.shortBays },
+    ]);
+  };
+  const out = (F: Face) => (F.axis === 'x' ? (F.s > 0 ? FACE.PX : FACE.NX) : F.s > 0 ? FACE.PZ : FACE.NZ);
+  const sides = (F: Face) => (F.axis === 'x' ? FACE.PZ | FACE.NZ : FACE.PX | FACE.NX);
+  /** Box in face coordinates: u0..u1 along the face, d0..d1 depth behind the pier face, y0..y1. */
+  const fbox = (F: Face, mat: MatKey, u0: number, u1: number, d0: number, d1: number, y0: number, y1: number, faceMask: number) => {
+    const n0 = F.s * (F.h - d0);
+    const n1 = F.s * (F.h - d1);
+    if (F.axis === 'x') ext.boxMinMax(mat, Math.min(n0, n1), y0, u0, Math.max(n0, n1), y1, u1, faceMask);
+    else ext.boxMinMax(mat, u0, y0, Math.min(n0, n1), u1, y1, Math.max(n0, n1), faceMask);
+  };
+  const GD = UH.galleryDepth;
   for (let t = 0; t < 3; t++) {
+    const ty0 = t === 0 ? uhFloorY(2) : uhFloorY(UH.tierTopFloor[t - 1] + 1);
+    const ty1 = uhFloorY(UH.tierTopFloor[t] + 1);
+    const f0 = t === 0 ? 2 : UH.tierTopFloor[t - 1] + 1;
+    for (const F of faces(t)) {
+      const m = (2 * F.a) / F.n;
+      const ua = -F.a + cw;
+      const ub = F.a - cw;
+      // continuous exterior piers for the whole tier
+      for (let i = 1; i < F.n; i++) {
+        const u = -F.a + i * m;
+        if (u - UH.pierW / 2 < ua - 0.01 || u + UH.pierW / 2 > ub + 0.01) continue;
+        fbox(F, C, u - UH.pierW / 2, u + UH.pierW / 2, 0, UH.pierDepth, ty0, ty1, out(F) | sides(F));
+      }
+      for (let f = f0; f <= UH.tierTopFloor[t]; f++) {
+        const y0 = uhFloorY(f);
+        const y1 = uhFloorY(f + 1);
+        const ledge = f >= 3;
+        const gd = ledge ? GD : UH.pierDepth + 0.15; // floor 2 has no gallery
+        // floor-edge upstand (the horizontal line of the grid)
+        fbox(F, C, ua, ub, 0, UH.upstandDepth, y0 - 0.35, y0 + UH.upstandH, out(F) | FACE.PY | FACE.NY);
+        // gallery ledge floor; its underside is the ceiling of the gallery below
+        if (ledge) fbox(F, P, ua, ub, UH.upstandDepth, gd, y0 - 0.3, y0, FACE.PY | FACE.NY);
+        const sill = y0 + 0.15;
+        const head = y1 - 0.35;
+        // curb under the windows and lintel above them
+        fbox(F, P, ua, ub, gd - 0.02, gd + 0.2, y0, sill, out(F) | FACE.PY);
+        fbox(F, P, ua, ub, gd - 0.02, gd + 0.2, head, y1 - (f < UH.floors ? 0.3 : 0), out(F) | FACE.NY);
+        if (f === UH.floors) {
+          // 2017-18 curtain wall: continuous bronze glass with slim mullions at every module
+          fbox(F, GB, ua, ub, gd + 0.05, gd + 0.07, sill, head, out(F));
+          for (let i = 0; i <= F.n; i++) {
+            const u = -F.a + i * m;
+            if (u < ua - 0.01 || u > ub + 0.01) continue;
+            fbox(F, FR, u - 0.04, u + 0.04, gd - 0.02, gd + 0.06, sill, head, out(F) | sides(F));
+          }
+          fbox(F, FR, ua, ub, gd - 0.02, gd + 0.06, sill + 1.0, sill + 1.06, out(F) | FACE.PY | FACE.NY);
+        } else {
+          // Block-I window bands: clear bottom, bronze centre, clear top (one quad each per face)
+          const b0 = sill + UH.blockIClear;
+          const b1 = head - UH.blockIClear;
+          fbox(F, GC, ua, ub, gd + 0.1, gd + 0.12, sill, b0, out(F));
+          fbox(F, GB, ua, ub, gd + 0.1, gd + 0.12, b0, b1, out(F));
+          fbox(F, GC, ua, ub, gd + 0.1, gd + 0.12, b1, head, out(F));
+          for (const yb of [b0, b1]) fbox(F, FR, ua, ub, gd + 0.04, gd + 0.1, yb - 0.025, yb + 0.025, out(F) | FACE.PY | FACE.NY);
+          // smooth precast panels between the windows (windows centred in each module)
+          const pw = m - UH.windowW;
+          for (let i = 0; i <= F.n; i++) {
+            const u = -F.a + i * m;
+            const u0 = Math.max(ua, u - pw / 2);
+            const u1 = Math.min(ub, u + pw / 2);
+            if (u1 - u0 < 0.02) continue;
+            fbox(F, P, u0, u1, gd - 0.02, gd + 0.2, sill, head, out(F) | sides(F));
+            // dark bronze jamb frames
+            fbox(F, FR, u0 - 0.04, u0, gd + 0.02, gd + 0.1, sill, head, out(F));
+            fbox(F, FR, u1, u1 + 0.04, gd + 0.02, gd + 0.1, sill, head, out(F));
+          }
+        }
+      }
+      // gallery ceiling above the top floor of the building
+      if (t === 2) fbox(F, P, ua, ub, UH.upstandDepth, GD, ty1 - 0.3, ty1, FACE.NY);
+    }
+    // solid corner columns per tier (full tier height)
     const hz = tierHalfZ[t];
-    const fy0 = t === 0 ? uhFloorY(2) : uhFloorY(UH.tierTopFloor[t - 1] + 1);
-    const fy1 = uhFloorY(UH.tierTopFloor[t] + 1);
     for (const sx of [1, -1])
       for (const sz of [1, -1])
-        ext.box('concrete', sx * (hx - UH.cornerW / 2), (fy0 + fy1) / 2, sz * (hz - UH.cornerW / 2), UH.cornerW, fy1 - fy0, UH.cornerW, {
+        ext.box(C, sx * (hx - cw / 2), (ty0 + ty1) / 2, sz * (hz - cw / 2), cw, ty1 - ty0, cw, {
           faces: (sx > 0 ? FACE.PX : FACE.NX) | (sz > 0 ? FACE.PZ : FACE.NZ),
         });
-    // dark opaque interior behind the glass (so future transparent glass does not reveal a hollow tower)
-    ext.box('concreteDark', 0, (fy0 + fy1) / 2, 0, 2 * (hx - 1.0), fy1 - fy0, 2 * (hz - 1.0), { faces: FACE.PX | FACE.NX | FACE.PZ | FACE.NZ });
+    // dark opaque interior behind the window wall
+    ext.box('concreteDark', 0, (ty0 + ty1) / 2, 0, 2 * (hx - GD - 0.6), ty1 - ty0, 2 * (hz - GD - 0.6), { faces: FACE.PX | FACE.NX | FACE.PZ | FACE.NZ });
     if (t > 0) {
+      // cantilever soffit where the north/south faces step out (also roofs the gallery below)
       const prev = tierHalfZ[t - 1];
       for (const s of [1, -1]) {
-        const za = s * prev;
+        const za = s * (prev - GD - 0.1);
         const zb = s * hz;
-        ext.boxMinMax('concrete', -hx, fy0 - 0.45, Math.min(za, zb), hx, fy0, Math.max(za, zb), FACE.NY | FACE.PX | FACE.NX | (s > 0 ? FACE.PZ : FACE.NZ));
+        ext.boxMinMax(C, -hx, ty0 - 0.45, Math.min(za, zb), hx, ty0, Math.max(za, zb), FACE.NY | FACE.PX | FACE.NX | (s > 0 ? FACE.PZ : FACE.NZ));
       }
     }
   }
   // crown / parapet and roof
   const hzTop = tierHalfZ[2];
-  ext.boxMinMax('concrete', -hx, roofY, -hzTop, hx, topY, hzTop, FACE.PX | FACE.NX | FACE.PZ | FACE.NZ);
+  ext.boxMinMax(C, -hx, roofY, -hzTop, hx, topY, hzTop, FACE.PX | FACE.NX | FACE.PZ | FACE.NZ);
   ext.boxMinMax('roof', -hx + 0.4, roofY, -hzTop + 0.4, hx - 0.4, topY - 0.7, hzTop - 0.4, FACE.PY);
-  ext.boxMinMax('concrete', -hx, topY - 0.05, -hzTop, hx, topY, hzTop, FACE.PY);
+  ext.boxMinMax(C, -hx, topY - 0.05, -hzTop, hx, topY, hzTop, FACE.PY);
   // rooftop: elevator machine room + mechanical units (small: LiDAR h98 is only ~1 m above h50)
   ext.boxMinMax('concreteDark', -2.2, topY - 0.7, -3.6, 2.2, topY + 1.6, 3.6);
   ext.boxMinMax('metal', -6.5, topY - 0.7, 6, -3, topY + 0.7, 11);
@@ -169,19 +229,19 @@ export function buildUniversityHall(world: World, b: CampusBuilding): University
   const gx = hx - sb;
   const gz = hz0 - sb;
   // soffit/podium slab under floor 2 (covers the colonnade)
-  ext.boxMinMax('concrete', -hx, y2 - 0.6, -hz0, hx, y2, hz0, FACE.NY | FACE.PX | FACE.NX | FACE.PZ | FACE.NZ);
+  ext.boxMinMax(C, -hx, y2 - 0.6, -hz0, hx, y2, hz0, FACE.NY | FACE.PX | FACE.NX | FACE.PZ | FACE.NZ);
   // massive ground-floor columns on the facade line
   const cs = UH.columnSize;
   const nCols = UH.tierBays[0] / UH.columnEvery;
   for (let i = 0; i <= nCols; i++) {
     const z = THREE.MathUtils.clamp(-hz0 + (i * 2 * hz0) / nCols, -hz0 + cs / 2, hz0 - cs / 2);
     for (const s of [1, -1]) {
-      ext.box('concrete', s * (hx - cs / 2), (UH.floorY + y2) / 2, z, cs, y2 - UH.floorY, cs);
+      ext.box(C, s * (hx - cs / 2), (UH.floorY + y2) / 2, z, cs, y2 - UH.floorY, cs);
       col.box(s * (hx - cs / 2), (UH.floorY + y2) / 2, z, cs, y2 - UH.floorY, cs, 'column');
     }
   }
   for (const s of [1, -1]) {
-    ext.box('concrete', 0, (UH.floorY + y2) / 2, s * (hz0 - cs / 2), cs, y2 - UH.floorY, cs);
+    ext.box(C, 0, (UH.floorY + y2) / 2, s * (hz0 - cs / 2), cs, y2 - UH.floorY, cs);
     col.box(0, (UH.floorY + y2) / 2, s * (hz0 - cs / 2), cs, y2 - UH.floorY, cs, 'column');
   }
   // glass lobby enclosure with doors in the middle of the east and west sides
