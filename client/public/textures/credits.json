@@ -1,0 +1,422 @@
+{
+ "acg_Carpet012": {
+  "folder": "acg_Carpet012",
+  "id": "Carpet012",
+  "source": "ambientCG",
+  "name": "Carpet 012",
+  "url": "https://ambientcg.com/view?id=Carpet012",
+  "license": "CC0 1.0",
+  "authors": "ambientCG (Lennart Demes)",
+  "tile_m": [
+   1.0,
+   1.0
+  ],
+  "px": 512,
+  "use": "interiorFloor: dark blue-grey loop carpet (API has no size; ~1 m judged from pile)",
+  "meanLinearAlbedo": [
+   0.035,
+   0.044,
+   0.066
+  ]
+ },
+ "acg_Concrete046": {
+  "folder": "acg_Concrete046",
+  "id": "Concrete046",
+  "source": "ambientCG",
+  "name": "Concrete 046",
+  "url": "https://ambientcg.com/view?id=Concrete046",
+  "license": "CC0 1.0",
+  "authors": "ambientCG (Lennart Demes)",
+  "tile_m": [
+   2.4,
+   2.4
+  ],
+  "px": 1024,
+  "use": "concreteSmooth: smooth light precast",
+  "meanLinearAlbedo": [
+   0.608,
+   0.616,
+   0.486
+  ]
+ },
+ "acg_Grass004": {
+  "folder": "acg_Grass004",
+  "id": "Grass004",
+  "source": "ambientCG",
+  "name": "Grass 004",
+  "url": "https://ambientcg.com/view?id=Grass004",
+  "license": "CC0 1.0",
+  "authors": "ambientCG (Lennart Demes)",
+  "tile_m": [
+   1.4,
+   1.4
+  ],
+  "px": 1024,
+  "use": "grass: mown lawn",
+  "meanLinearAlbedo": [
+   0.119,
+   0.152,
+   0.03
+  ]
+ },
+ "acg_OfficeCeiling001": {
+  "folder": "acg_OfficeCeiling001",
+  "id": "OfficeCeiling001",
+  "source": "ambientCG",
+  "name": "Office Ceiling 001",
+  "url": "https://ambientcg.com/view?id=OfficeCeiling001",
+  "license": "CC0 1.0",
+  "authors": "ambientCG (Lennart Demes)",
+  "tile_m": [
+   3.85,
+   3.85
+  ],
+  "px": 1024,
+  "use": "interiorCeiling: 2x2 ft mineral-fiber tiles in T-bar grid",
+  "meanLinearAlbedo": [
+   0.909,
+   0.909,
+   0.909
+  ]
+ },
+ "acg_PavingStones128": {
+  "folder": "acg_PavingStones128",
+  "id": "PavingStones128",
+  "source": "ambientCG",
+  "name": "Paving Stones 128",
+  "url": "https://ambientcg.com/view?id=PavingStones128",
+  "license": "CC0 1.0",
+  "authors": "ambientCG (Lennart Demes)",
+  "tile_m": [
+   3.5,
+   3.5
+  ],
+  "px": 1024,
+  "use": "plaza: light granite pavers, running bond",
+  "meanLinearAlbedo": [
+   0.359,
+   0.335,
+   0.276
+  ]
+ },
+ "ph_asphalt_02": {
+  "folder": "ph_asphalt_02",
+  "id": "asphalt_02",
+  "source": "Poly Haven",
+  "name": "Asphalt 02",
+  "url": "https://polyhaven.com/a/asphalt_02",
+  "license": "CC0 1.0",
+  "authors": "Rob Tuytel",
+  "tile_m": [
+   3.0,
+   3.0
+  ],
+  "px": 1024,
+  "use": "asphalt: grey street asphalt with cracks",
+  "meanLinearAlbedo": [
+   0.104,
+   0.102,
+   0.09
+  ]
+ },
+ "ph_bark_brown_02": {
+  "folder": "ph_bark_brown_02",
+  "id": "bark_brown_02",
+  "source": "Poly Haven",
+  "name": "Bark Brown 02",
+  "url": "https://polyhaven.com/a/bark_brown_02",
+  "license": "CC0 1.0",
+  "authors": "Rob Tuytel",
+  "tile_m": [
+   1.0,
+   1.0
+  ],
+  "px": 512,
+  "use": "bark: tree trunks",
+  "meanLinearAlbedo": [
+   0.119,
+   0.097,
+   0.057
+  ]
+ },
+ "ph_bicolour_gravel": {
+  "folder": "ph_bicolour_gravel",
+  "id": "bicolour_gravel",
+  "source": "Poly Haven",
+  "name": "Bicolour Gravel",
+  "url": "https://polyhaven.com/a/bicolour_gravel",
+  "license": "CC0 1.0",
+  "authors": "Dimitrios Savva",
+  "tile_m": [
+   1.9,
+   1.9
+  ],
+  "px": 1024,
+  "use": "roof: gravel ballast",
+  "meanLinearAlbedo": [
+   0.151,
+   0.14,
+   0.114
+  ]
+ },
+ "ph_blue_metal_plate": {
+  "folder": "ph_blue_metal_plate",
+  "id": "blue_metal_plate",
+  "source": "Poly Haven",
+  "name": "Blue Metal Plate",
+  "url": "https://polyhaven.com/a/blue_metal_plate",
+  "license": "CC0 1.0",
+  "authors": "Rob Tuytel",
+  "tile_m": [
+   2.5,
+   2.5
+  ],
+  "px": 1024,
+  "use": "metalPanel: painted metal cladding panels (desaturated; tinted silver-grey in the material)",
+  "meanLinearAlbedo": [
+   0.042,
+   0.042,
+   0.042
+  ]
+ },
+ "ph_brick_wall_001": {
+  "folder": "ph_brick_wall_001",
+  "id": "brick_wall_001",
+  "source": "Poly Haven",
+  "name": "Brick Wall 001",
+  "url": "https://polyhaven.com/a/brick_wall_001",
+  "license": "CC0 1.0",
+  "authors": "Rob Tuytel, Dimitrios Savva",
+  "tile_m": [
+   3.0,
+   3.0
+  ],
+  "px": 1024,
+  "use": "brickUIC, brickDouble (2x scale), brickCommon: mixed-color brick (tinted to the Netsch palette for brickUIC)",
+  "meanLinearAlbedo": [
+   0.136,
+   0.074,
+   0.048
+  ]
+ },
+ "ph_brick_wall_10": {
+  "folder": "ph_brick_wall_10",
+  "id": "brick_wall_10",
+  "source": "Poly Haven",
+  "name": "Brick Wall 10",
+  "url": "https://polyhaven.com/a/brick_wall_10",
+  "license": "CC0 1.0",
+  "authors": "Dimitrios Savva",
+  "tile_m": [
+   1.9,
+   1.9
+  ],
+  "px": 1024,
+  "use": "brickDark: dark brown/purple face brick",
+  "meanLinearAlbedo": [
+   0.061,
+   0.037,
+   0.029
+  ]
+ },
+ "ph_concrete_layers_02": {
+  "folder": "ph_concrete_layers_02",
+  "id": "concrete_layers_02",
+  "source": "Poly Haven",
+  "name": "Concrete Layers 02",
+  "url": "https://polyhaven.com/a/concrete_layers_02",
+  "license": "CC0 1.0",
+  "authors": "Rob Tuytel",
+  "tile_m": [
+   2.0,
+   2.0
+  ],
+  "px": 1024,
+  "use": "concrete: board-formed cast-in-place, horizontal board/lift marks",
+  "meanLinearAlbedo": [
+   0.206,
+   0.196,
+   0.176
+  ]
+ },
+ "ph_concrete_wall_006": {
+  "folder": "ph_concrete_wall_006",
+  "id": "concrete_wall_006",
+  "source": "Poly Haven",
+  "name": "Concrete Wall 006",
+  "url": "https://polyhaven.com/a/concrete_wall_006",
+  "license": "CC0 1.0",
+  "authors": "Dario Barresi, Charlotte Baglioni",
+  "tile_m": [
+   2.0,
+   2.0
+  ],
+  "px": 1024,
+  "use": "concreteDark: dark, stained, tie holes",
+  "meanLinearAlbedo": [
+   0.107,
+   0.083,
+   0.061
+  ]
+ },
+ "ph_concrete_wall_007": {
+  "folder": "ph_concrete_wall_007",
+  "id": "concrete_wall_007",
+  "source": "Poly Haven",
+  "name": "Concrete Wall 007",
+  "url": "https://polyhaven.com/a/concrete_wall_007",
+  "license": "CC0 1.0",
+  "authors": "Dario Barresi, Rico Cilliers, Charlotte Baglioni",
+  "tile_m": [
+   2.16,
+   2.16
+  ],
+  "px": 1024,
+  "use": "concreteWarm: warm grey weathered wall with pour lines",
+  "meanLinearAlbedo": [
+   0.257,
+   0.224,
+   0.156
+  ]
+ },
+ "ph_dark_wood": {
+  "folder": "ph_dark_wood",
+  "id": "dark_wood",
+  "source": "Poly Haven",
+  "name": "Dark Wood",
+  "url": "https://polyhaven.com/a/dark_wood",
+  "license": "CC0 1.0",
+  "authors": "Dario Barresi, Dimitrios Savva, Rico Cilliers",
+  "tile_m": [
+   2.0,
+   2.0
+  ],
+  "px": 1024,
+  "use": "bookshelf: dark stained wood",
+  "meanLinearAlbedo": [
+   0.111,
+   0.024,
+   0.009
+  ]
+ },
+ "ph_gravel_embedded_concrete": {
+  "folder": "ph_gravel_embedded_concrete",
+  "id": "gravel_embedded_concrete",
+  "source": "Poly Haven",
+  "name": "Gravel Embedded Concrete",
+  "url": "https://polyhaven.com/a/gravel_embedded_concrete",
+  "license": "CC0 1.0",
+  "authors": "Charlotte Baglioni",
+  "tile_m": [
+   2.0,
+   2.0
+  ],
+  "px": 1024,
+  "use": "concreteExposedAggregate: exposed-aggregate precast",
+  "meanLinearAlbedo": [
+   0.3,
+   0.273,
+   0.23
+  ]
+ },
+ "ph_oak_veneer_01": {
+  "folder": "ph_oak_veneer_01",
+  "id": "oak_veneer_01",
+  "source": "Poly Haven",
+  "name": "Oak Veneer 01",
+  "url": "https://polyhaven.com/a/oak_veneer_01",
+  "license": "CC0 1.0",
+  "authors": "Jenelle van Heerden",
+  "tile_m": [
+   1.83,
+   1.83
+  ],
+  "px": 1024,
+  "use": "wood: oak veneer furniture",
+  "meanLinearAlbedo": [
+   0.358,
+   0.21,
+   0.097
+  ]
+ },
+ "ph_painted_plaster_wall": {
+  "folder": "ph_painted_plaster_wall",
+  "id": "painted_plaster_wall",
+  "source": "Poly Haven",
+  "name": "Painted Plaster Wall",
+  "url": "https://polyhaven.com/a/painted_plaster_wall",
+  "license": "CC0 1.0",
+  "authors": "Amal Kumar",
+  "tile_m": [
+   2.0,
+   2.0
+  ],
+  "px": 1024,
+  "use": "interiorWall: painted plaster",
+  "meanLinearAlbedo": [
+   0.407,
+   0.365,
+   0.35
+  ]
+ },
+ "ph_red_brick_03": {
+  "folder": "ph_red_brick_03",
+  "id": "red_brick_03",
+  "source": "Poly Haven",
+  "name": "Red Brick 03",
+  "url": "https://polyhaven.com/a/red_brick_03",
+  "license": "CC0 1.0",
+  "authors": "Rob Tuytel",
+  "tile_m": [
+   1.0,
+   1.0
+  ],
+  "px": 1024,
+  "use": "brick: red-brown face brick",
+  "meanLinearAlbedo": [
+   0.148,
+   0.092,
+   0.075
+  ]
+ },
+ "ph_terrazzo_tiles": {
+  "folder": "ph_terrazzo_tiles",
+  "id": "terrazzo_tiles",
+  "source": "Poly Haven",
+  "name": "Terrazzo Tiles",
+  "url": "https://polyhaven.com/a/terrazzo_tiles",
+  "license": "CC0 1.0",
+  "authors": "Amal Kumar",
+  "tile_m": [
+   2.0,
+   2.0
+  ],
+  "px": 1024,
+  "use": "interiorFloorHard: terrazzo tiles",
+  "meanLinearAlbedo": [
+   0.251,
+   0.152,
+   0.095
+  ]
+ },
+ "ph_yellow_flower_mulch": {
+  "folder": "ph_yellow_flower_mulch",
+  "id": "yellow_flower_mulch",
+  "source": "Poly Haven",
+  "name": "Yellow Flower Mulch",
+  "url": "https://polyhaven.com/a/yellow_flower_mulch",
+  "license": "CC0 1.0",
+  "authors": "Dimitrios Savva",
+  "tile_m": [
+   2.0,
+   2.0
+  ],
+  "px": 512,
+  "use": "soil: planting-bed mulch",
+  "meanLinearAlbedo": [
+   0.131,
+   0.07,
+   0.034
+  ]
+ }
+}
