@@ -36,6 +36,10 @@ export interface SurfaceFx {
   dryTint?: number;
   /** Fake rooms behind opaque window glass. */
   interior?: boolean;
+  /** Color the rooms are seen through (glass body tint). Default: slightly green clear glass. */
+  glassTint?: [number, number, number];
+  /** How much of the room shows through (fritted glass hides part of it). Default 1. */
+  interiorScale?: number;
   /** Transparent glass: keep full-strength reflections regardless of opacity. */
   clearGlass?: boolean;
 }
@@ -66,6 +70,9 @@ export function applySurfaceFx(mat: THREE.MeshStandardMaterial, fx: SurfaceFx, k
   if (fx.antiTileShift) defs.push(`#define GFX_ANTITILE_SHIFT vec2( ${f(fx.antiTileShift[0])}, ${f(fx.antiTileShift[1])} )`);
   if (fx.dryTint) defs.push(`#define GFX_DRY ${f(fx.dryTint)}`);
   if (fx.interior) defs.push('#define GFX_INTERIOR');
+  const gt = fx.glassTint ?? [0.72, 0.8, 0.78];
+  const sc = fx.interiorScale ?? 1;
+  defs.push(`#define GFX_GLASS_TINT vec3( ${f(gt[0] * sc)}, ${f(gt[1] * sc)}, ${f(gt[2] * sc)} )`);
   if (fx.clearGlass) defs.push('#define GFX_CLEAR_GLASS');
   const header = defs.join('\n');
 
@@ -186,7 +193,7 @@ const FRAG_INTERIOR = /* glsl */ `
 	col = mix( col, vec3( 0.72, 0.7, 0.64 ) * slat * ( gfxInterior.x * 1.5 + gfxInterior.y * lightsOn ), blind );
 	float cosV = clamp( dot( - gV, gfxN ), 0.0, 1.0 );
 	float fres = 0.07 + 0.93 * pow( 1.0 - cosV, 5.0 );
-	totalEmissiveRadiance += col * vec3( 0.72, 0.8, 0.78 ) * ( 1.0 - fres );
+	totalEmissiveRadiance += col * GFX_GLASS_TINT * ( 1.0 - fres );
 }
 #endif
 `;

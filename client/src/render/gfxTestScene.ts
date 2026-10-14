@@ -154,7 +154,7 @@ export function buildGfxTestScene(world: World): void {
   const AX0 = -25, AX1 = 15, AZ = 40, AZ1 = 58, TOP = 24.5;
   const floors = [4.5, 8.4, 12.3, 16.2, 20.1];
   b.box('concrete', AX0, 4.5, AZ + 0.35, AX1, TOP - 0.5, AZ1); // body behind the facade
-  b.box('glass', AX0 + 0.1, 4.5, AZ + 0.34, AX1 - 0.1, TOP - 0.6, AZ + 0.35); // window plane (fake rooms)
+  b.box('glassBronze', AX0 + 0.1, 4.5, AZ + 0.34, AX1 - 0.1, TOP - 0.6, AZ + 0.35); // window plane (fake rooms)
   for (const fy of floors) {
     b.box('concrete', AX0, fy, AZ, AX1, fy + 1.25, AZ + 0.35); // spandrel band
     for (let x = AX0 + 3; x < AX1 - 0.1; x += 3) {
@@ -236,17 +236,17 @@ export function buildGfxTestScene(world: World): void {
 
   // ---------------- brick building with punched windows (x 30..55, z 42..56)
   const BX0 = 30, BX1 = 55, BZ = 42, BZ1 = 56, BH = 13.6;
-  b.box('brick', BX0, 0.15, BZ + 0.3, BX1, BH, BZ1);
+  b.box('brickUIC', BX0, 0.15, BZ + 0.3, BX1, BH, BZ1);
   b.box('glass', BX0 + 0.2, 0.9, BZ + 0.29, BX1 - 0.2, BH - 0.8, BZ + 0.3);
   const bFloors = [0.15, 4.55, 8.95];
   const winXs: number[] = [];
   for (let x = BX0 + 2.0; x + 1.6 < BX1 - 1.0; x += 3.2) winXs.push(x);
   for (const fy of bFloors) {
-    b.box('brick', BX0, fy, BZ, BX1, fy + 0.95, BZ + 0.3);
-    b.box('brick', BX0, fy + 3.15, BZ, BX1, fy + 4.4, BZ + 0.3);
+    b.box('brickUIC', BX0, fy, BZ, BX1, fy + 0.95, BZ + 0.3);
+    b.box('brickUIC', BX0, fy + 3.15, BZ, BX1, fy + 4.4, BZ + 0.3);
     let px = BX0;
     for (const wx of winXs) {
-      b.box('brick', px, fy + 0.95, BZ, wx, fy + 3.15, BZ + 0.3);
+      b.box('brickUIC', px, fy + 0.95, BZ, wx, fy + 3.15, BZ + 0.3);
       b.box('concreteSmooth', wx - 0.08, fy + 0.87, BZ - 0.06, wx + 1.68, fy + 0.95, BZ + 0.3); // stone sill
       b.box('windowFrame', wx, fy + 0.95, BZ + 0.22, wx + 1.6, fy + 1.02, BZ + 0.29);
       b.box('windowFrame', wx, fy + 3.08, BZ + 0.22, wx + 1.6, fy + 3.15, BZ + 0.29);
@@ -255,7 +255,7 @@ export function buildGfxTestScene(world: World): void {
       b.box('windowFrame', wx + 1.54, fy + 0.95, BZ + 0.22, wx + 1.6, fy + 3.15, BZ + 0.29);
       px = wx + 1.6;
     }
-    b.box('brick', px, fy + 0.95, BZ, BX1, fy + 3.15, BZ + 0.3);
+    b.box('brickUIC', px, fy + 0.95, BZ, BX1, fy + 3.15, BZ + 0.3);
   }
   b.box('concreteSmooth', BX0 - 0.1, BH, BZ - 0.1, BX1 + 0.1, BH + 0.25, BZ1 + 0.1); // coping
   b.floor('roof', BX0 + 0.3, BZ + 0.3, BX1 - 0.3, BZ1 - 0.3, BH + 0.26);

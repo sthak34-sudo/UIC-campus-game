@@ -3,7 +3,7 @@
 
     python3 tools/textures/generate.py [--only concrete,brick] [--preview out.jpg]
 
-Writes into client/public/textures/<material>/:
+Writes into client/public/textures/<material>/ (only the sets in IN_USE by default):
     albedo.jpg  sRGB base color
     normal.jpg  tangent-space normal map (OpenGL convention, +Y = up the texture / +V)
     orm.jpg     R = ambient occlusion, G = roughness, B = metalness (three.js channel layout)
@@ -828,6 +828,10 @@ def gen_bark():
     return save('bark', alb, nrm, ao, rough)
 
 
+# Since round 3 most surfaces use photo-scanned CC0 textures (tools/textures/fetch_cc0.py). These are the
+# generated sets still in use; the other generators remain for reference (run them with --only).
+IN_USE = ['sidewalk', 'fabric', 'metal', 'water', 'foliage', 'macro']
+
 GENERATORS = {
     'concrete': gen_concrete,
     'concreteSmooth': gen_concrete_smooth,
@@ -894,7 +898,7 @@ def main():
     ap.add_argument('--only', default='')
     ap.add_argument('--preview', default='')
     args = ap.parse_args()
-    names = [n for n in args.only.split(',') if n] or list(GENERATORS)
+    names = [n for n in args.only.split(',') if n] or IN_USE
     stats = {}
     for n in names:
         print('generating', n, flush=True)
@@ -904,7 +908,10 @@ def main():
             print(f'  {n}: ' + ', '.join(f'{k}={v:.3f}' for k, v in s.items()))
     total = sum(f.stat().st_size for f in OUT.rglob('*') if f.is_file())
     print(f'total texture size: {total / 1e6:.2f} MB')
-    (OUT / 'tiles.json').write_text(json.dumps({k: list(v) for k, v in TILE_METERS.items()}, indent=1))
+    tiles_path = OUT / 'tiles.json'
+    tiles = json.loads(tiles_path.read_text()) if tiles_path.exists() else {}
+    tiles.update({k: list(TILE_METERS[k]) for k in names})
+    tiles_path.write_text(json.dumps(dict(sorted(tiles.items())), indent=1) + '\n')
     if args.preview:
         preview(Path(args.preview), names)
 
