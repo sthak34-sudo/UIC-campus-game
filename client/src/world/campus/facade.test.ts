@@ -48,7 +48,7 @@ describe('facade generator', () => {
     expect(nan).toBe(false);
     expect(minY).toBeGreaterThanOrEqual(-1e-6);
     expect(maxY).toBeLessThanOrEqual(16.5 + 1e-6);
-    expect(B.bufs.get('glass')!.ni).toBeGreaterThan(0);
+    expect([...B.bufs.keys()].some((k) => k.startsWith('glass'))).toBe(true);
     expect(B.bufs.get('roof')!.ni).toBeGreaterThan(0);
     expect(res.floors.length).toBeGreaterThanOrEqual(3);
     expect(res.doors.length).toBe(1);
@@ -73,7 +73,7 @@ describe('facade generator', () => {
     // everything east of x = 29.5 is covered by a 12 m neighbor
     const ctx: FacadeContext = { coverAt: (x) => (x > 29.5 ? 12 : 0), streetDist: () => 10 };
     buildVolume(covered, b, st, makeRng('y'), ctx, { door: false, rooftop: false });
-    expect(covered.bufs.get('glass')!.ni).toBeLessThan(free.bufs.get('glass')!.ni);
+    expect(covered.vertexCount).toBeLessThan(free.vertexCount);
   });
 
   it('builds pitched roofs up to the ridge', () => {

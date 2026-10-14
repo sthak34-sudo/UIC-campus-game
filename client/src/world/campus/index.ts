@@ -11,6 +11,8 @@ import { buildProps } from './props';
 import { makeRng } from './rng';
 import { GridIndex, SegmentIndex, VolumeIndex } from './spatial';
 import { chooseStyle, makeStyle, type StyleName } from './styles';
+import { findFacadeSpec, specFeatures } from './facadeSpecs';
+import { applyFeature } from './features';
 import { buildTrees } from './trees';
 import type { CampusBuildingExt, CampusDataExt } from './types';
 import { addCampusViewpoints } from './viewpoints';
@@ -164,6 +166,7 @@ export async function buildCampus(world: World, rawData: CampusData): Promise<vo
     g.push(b);
   }
   const tiles = new Map<string, { B: Batcher; ids: string[] }>();
+  const featureColliders = new Batcher(); // stairs, colonnades, pylons … (one invisible collider mesh)
   let volumeCount = 0;
   for (const [id, vols] of groups) {
     const main = vols.reduce((a, b) => (Math.abs(signedArea(b.footprint.outer)) > Math.abs(signedArea(a.footprint.outer)) ? b : a));
@@ -174,10 +177,13 @@ export async function buildCampus(world: World, rawData: CampusData): Promise<vo
     tile.ids.push(id);
     const totalArea = vols.reduce((s, v) => s + Math.abs(signedArea(v.footprint.outer)), 0);
     const tallest = vols.reduce((a, b) => (b.height > a.height ? b : a));
-    const styleName = chooseStyle({ ...main, height: tallest.height }, totalArea, c[0], c[1]);
+    // per-building spec from docs/research/facades.md, else the generic style choice
+    const spec = vols.map((v) => findFacadeSpec(v.name)).find((x) => !!x);
+    const styleName = spec?.base ?? chooseStyle({ ...main, height: tallest.height }, totalArea, c[0], c[1]);
     const style = makeStyle(styleName, makeRng(`style:${id}`), main);
+    if (spec?.style) Object.assign(style, spec.style);
     // mixed-use: rowhouses / lofts / mid-rises right on a commercial street get shop fronts
-    if ((styleName === 'rowhouse' || styleName === 'loft' || styleName === 'modern') && totalArea < 2500) {
+    if (!spec && (styleName === 'rowhouse' || styleName === 'loft' || styleName === 'modern') && totalArea < 2500) {
       const onMain = main.footprint.outer.some(([x, y]) => {
         const n = segs.nearest(x, y, 30, (s) => s.kind === 'primary' || s.kind === 'secondary');
         return !!n && n.dist <= n.seg.width / 2 + 7;
@@ -187,7 +193,10 @@ export async function buildCampus(world: World, rawData: CampusData): Promise<vo
     const mark = tile.B.mark();
     const entry: CampusBuildingEntry = { id, name: main.name, style: styleName, volumes: [], doors: [], mesh: null, ranges: [] };
     for (const v of vols) {
-      const res = buildVolume(tile.B, v, style, makeRng(`vol:${v.id}`), ctx, { door: v === main, rooftop: true });
+      const vstyle = spec?.volume ? { ...style, ...(spec.volume(v, tallest.height) ?? {}) } : style;
+      const vrng = makeRng(`vol:${v.id}`);
+      const res = buildVolume(tile.B, v, vstyle, vrng, ctx, { door: v === main, rooftop: true });
+      for (const fname of specFeatures(spec, v, tallest.height)) applyFeature(fname, { B: tile.B, C: featureColliders, v, res, rng: vrng, ctx });
       entry.doors.push(...res.doors);
       const collider = prismCollider(res.outer, res.holes, v.minHeight, v.height, `collider:${v.id}`);
       world.addCollider(collider);
@@ -197,6 +206,8 @@ export async function buildCampus(world: World, rawData: CampusData): Promise<vo
     entry.ranges = tile.B.rangesSince(mark);
     campusBuildings.set(id, entry);
   }
+  const fcol = featureColliders.toMesh('campus-feature-colliders');
+  if (fcol) { fcol.visible = false; world.addCollider(fcol); }
   const bgroup = new THREE.Group();
   bgroup.name = 'campus-buildings';
   root.add(bgroup);

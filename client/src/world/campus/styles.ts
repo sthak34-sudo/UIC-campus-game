@@ -1,6 +1,18 @@
 import type { MaterialName } from '../../render/materials';
 import type { CampusBuildingExt } from './types';
 import type { Rng } from './rng';
+import { mat } from './mat';
+
+/**
+ * Window treatment of one floor in frame mode (see FacadeStyle.frameBays):
+ * - punched: `windowsPerBay` recessed windows in the infill wall
+ * - blockI: Netsch "Block I" windows — narrow I-shaped glass (bronze stem, clear trapezoid ends)
+ * - gallery: open gallery ledge between the piers, window wall with Block-I windows set far back
+ * - grille: pointed precast concrete grille over dark glass (Burnham / Addams Halls)
+ * - glazed: full-bay glass window wall between the piers (lobbies, reclad halls)
+ * - none: solid infill
+ */
+export type WinType = 'punched' | 'blockI' | 'gallery' | 'grille' | 'glazed' | 'none';
 
 /**
  * Facade styles found around UIC East Campus.
@@ -59,6 +71,24 @@ export interface FacadeStyle {
   blankBays: number;
   /** Ground floor of the street-facing wall is a shop front (mixed-use buildings on commercial streets). */
   shopFront: boolean;
+  /**
+   * Netsch frame mode: the exposed structure is the facade. Piers (`pierMat`, `pierW` wide,
+   * projecting `pierD`) at every bay, floor beams as bands, and each floor's bay filled per
+   * `groundType` / `upperType` / `topType` with `wall` as the infill (brick or concrete).
+   */
+  frameBays: boolean;
+  pierW: number;
+  pierD: number;
+  pierMat: MaterialName;
+  groundType: WinType;
+  upperType: WinType;
+  /** Optional different treatment for the top floor. */
+  topType?: WinType;
+  /** Secondary glass (clear trapezoids of Block-I windows). */
+  glassAlt: MaterialName;
+  /** Depth of open galleries (m behind the pier face). */
+  galleryDepth: number;
+  windowsPerBay: number;
 }
 
 const BASE: FacadeStyle = {
@@ -66,27 +96,29 @@ const BASE: FacadeStyle = {
   floorH: 3.4, groundH: 4.2, bay: 3, winW: 1.8, winH: 1.9, sill: 0.9, groundWinH: 2.9, groundSill: 0.5, recess: 0.2,
   corner: 0.8, bandH: 0, bandD: 0, bandMat: 'concrete', lintels: false, corniceH: 0, corniceD: 0, corniceMat: 'concrete',
   parapet: 0.9, mullions: 1, transom: false, fins: false, blankBays: 0, shopFront: false,
+  frameBays: false, pierW: 0.6, pierD: 0.3, pierMat: 'concrete', groundType: 'punched', upperType: 'punched',
+  glassAlt: 'glass', galleryDepth: 1.2, windowsPerBay: 1,
 };
 
 export function makeStyle(name: StyleName, rng: Rng, b: CampusBuildingExt): FacadeStyle {
   const fm = b.facadeMaterial;
   switch (name) {
     case 'brutalist': {
-      const variant = rng.pick(['bands', 'bands', 'grid', 'fins', 'slits'] as const);
-      const bay = variant === 'slits' ? rng.range(2.0, 2.6) : rng.range(2.9, 3.6);
-      const lecture = /Lecture Center/i.test(b.name ?? '');
-      const brickInfill = !lecture && rng.chance(0.3);
+      // Typical Netsch building (docs/research/facades.md §1): exterior concrete piers and floor
+      // beams, brick (or concrete) infill, deep-set bronze Block-I windows, recessed glazed ground floor.
+      const brickInfill = rng.chance(0.6);
+      const bay = rng.range(3.0, 3.8);
       return {
-        ...BASE, name, wall: brickInfill ? 'brick' : 'concrete', base: 'concreteDark', plinth: rng.range(0.6, 1.2), reveal: 'concrete',
-        floorH: rng.range(3.7, 4.2), groundH: rng.range(4.4, 5.0), bay,
-        winW: variant === 'slits' ? rng.range(0.7, 0.95) : bay - rng.range(0.9, 1.3),
-        winH: variant === 'slits' ? rng.range(2.2, 2.6) : rng.range(1.8, 2.2), sill: rng.range(0.9, 1.1),
-        groundWinH: rng.range(2.8, 3.3), groundSill: rng.range(0.4, 0.9), recess: rng.range(0.32, 0.5), corner: rng.range(1.6, 3.2),
-        bandH: variant === 'bands' || variant === 'grid' ? rng.range(0.55, 0.8) : 0,
-        bandD: variant === 'bands' || variant === 'grid' ? rng.range(0.12, 0.22) : 0, bandMat: 'concrete',
-        corniceH: rng.range(0.9, 1.5), corniceD: rng.range(0.15, 0.3), corniceMat: 'concrete',
-        parapet: rng.range(0.9, 1.4), mullions: variant === 'slits' ? 0 : 1, fins: variant === 'fins' || variant === 'grid',
-        blankBays: lecture ? 0.7 : rng.range(0.0, 0.15),
+        ...BASE, name, wall: brickInfill ? mat('brickUIC') : mat('concreteExposedAggregate'), base: 'concreteDark', plinth: rng.range(0.5, 0.9),
+        reveal: 'concrete', glass: mat('glassBronze'), glassAlt: mat('glassBronzeClear'), frame: mat('metalBronze'),
+        floorH: rng.range(3.8, 4.2), groundH: rng.range(4.4, 5.0), bay,
+        winW: rng.range(1.0, 1.2), winH: rng.range(2.3, 2.6), sill: rng.range(0.6, 0.8),
+        groundWinH: rng.range(3.2, 3.6), groundSill: 0.15, recess: rng.range(0.35, 0.5), corner: 0.4,
+        bandH: rng.range(0.6, 0.8), bandD: rng.range(0.18, 0.28), bandMat: 'concrete',
+        corniceH: rng.range(1.0, 1.4), corniceD: rng.range(0.2, 0.3), corniceMat: 'concrete',
+        parapet: rng.range(0.9, 1.3), mullions: 0, fins: false, blankBays: rng.range(0.0, 0.12),
+        frameBays: true, pierW: rng.range(0.5, 0.75), pierD: rng.range(0.3, 0.45), pierMat: 'concrete',
+        groundType: 'glazed', upperType: rng.chance(0.4) ? 'gallery' : 'blockI', windowsPerBay: bay > 3.4 ? 2 : 1,
       };
     }
     case 'campusBrick':

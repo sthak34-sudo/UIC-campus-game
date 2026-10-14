@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { PlanPoint } from '../../core/geo';
 import type { World } from '../../core/world';
-import { centroid, pointInPolygon } from './geom';
+import { centroid, distToRing, pointInPolygon } from './geom';
 import { CURB_H } from './ground';
 import type { CampusDataExt } from './types';
 
@@ -129,6 +129,36 @@ export function addCampusViewpoints(world: World, data: CampusDataExt): void {
   if (tay0) {
     world.addViewpoint('map-little-italy-low', { position: W([tay0.p[0] + 60, tay0.p[1] - 90], 55), target: W([tay0.p[0] - 60, tay0.p[1] + 40], 0), fov: 60 });
   }
+
+  // Building portraits (facade checks against docs/research/facades.md)
+  const portrait = (vp: string, name: string, bearingDeg: number, dist: number, eye: number, lookH: number, fov = 60) => {
+    const vols = data.buildings.filter((b) => b.name === name);
+    if (!vols.length) return;
+    const all = vols.flatMap((b) => b.footprint.outer);
+    const c = buildingCenter(data, name)!;
+    const a = (bearingDeg * Math.PI) / 180; // 0 = north, 90 = east
+    const dx = Math.sin(a), dy = Math.cos(a);
+    // distance from the center to the footprint edge along the bearing
+    let r = 0;
+    for (const p of all) r = Math.max(r, (p[0] - c[0]) * dx + (p[1] - c[1]) * dy);
+    // step outward until the camera is clear of every building (incl. stair towers / colonnades)
+    const blocked = (q: PlanPoint) => data.buildings.some((b) => b.minHeight < 0.5 && (pointInPolygon(q[0], q[1], b.footprint.outer, b.footprint.holes) || distToRing(q[0], q[1], b.footprint.outer) < 6));
+    let d = dist;
+    let pos: PlanPoint = [c[0] + dx * (r + d), c[1] + dy * (r + d)];
+    while (blocked(pos) && d < dist + 60) { d += 2; pos = [c[0] + dx * (r + d), c[1] + dy * (r + d)]; }
+    world.addViewpoint(vp, { position: W(pos, CURB_H + eye), target: W(c, lookH), fov });
+  };
+  portrait('map-sce', 'Student Center East', 205, 16, EYE, 9);
+  portrait('map-seo', 'Science & Engineering Offices', 60, 22, EYE, 22, 65);
+  portrait('map-bsb', 'Behavioral Sciences Building', 150, 30, EYE, 8);
+  portrait('map-arc', 'Academic and Residential Complex', 190, 28, EYE, 16, 65);
+  portrait('map-sel', 'Science and Engineering Laboratories', 0, 30, EYE, 10);
+  portrait('map-henry-hall', 'Henry Hall', 160, 22, EYE, 6);
+  portrait('map-burnham-hall', 'Burnham Hall', 200, 22, EYE, 6);
+  portrait('map-grant-hall', 'Grant Hall', 0, 24, EYE, 6);
+  portrait('map-hull-house', 'Jane Addams Hull-House Museum', 90, 16, EYE, 6);
+  portrait('map-cdrlc', 'Computer Design Research and Learning Center', 190, 22, EYE, 12);
+  portrait('map-srf', 'Student Recreation Facility', 270, 30, EYE, 10);
 
   // Taylor St in Little Italy: south sidewalk, looking west along the rowhouses.
   const tay = streetPoint(data, 'West Taylor Street', 'x', -200);

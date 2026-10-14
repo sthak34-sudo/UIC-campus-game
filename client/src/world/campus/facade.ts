@@ -2,7 +2,8 @@ import type { MaterialName } from '../../render/materials';
 import type { PlanPoint } from '../../core/geo';
 import type { Batcher } from './batcher';
 import type { CampusBuildingExt } from './types';
-import type { FacadeStyle } from './styles';
+import type { FacadeStyle, WinType } from './styles';
+import { mat } from './mat';
 import type { Rng } from './rng';
 import { cleanRing, distToRing, edgeNormal, offsetRing, orientedBox, pointInPolygon, signedArea } from './geom';
 
@@ -37,7 +38,7 @@ export interface VolumeResult {
 const PITCHED = new Set(['gabled', 'hipped', 'pyramidal', 'skillion', 'gambrel', 'mansard', 'half-hipped', 'saltbox']);
 
 /** Local frame of one wall edge: s = along the edge, y = up, d = depth INTO the building. */
-class Edge {
+export class Edge {
   readonly tx: number; readonly tz: number; readonly nx: number; readonly nz: number; readonly L: number;
   constructor(readonly ax: number, readonly az: number, bx: number, bz: number, nPlan: PlanPoint) {
     this.L = Math.hypot(bx - ax, bz - az);
@@ -53,6 +54,20 @@ class Edge {
   }
   box(B: Batcher, m: MaterialName, s0: number, s1: number, y0: number, y1: number, d0: number, d1: number, faces = 'ftblr'): void {
     B.boxLocal(m, this.ax, this.az, this.tx, this.tz, this.nx, this.nz, s0, s1, y0, y1, d0, d1, faces);
+  }
+  /** Same edge moved `d` meters into the building (for gallery back walls). */
+  shifted(d: number): Edge {
+    const ax = this.ax - this.nx * d, az = this.az - this.nz * d;
+    return new Edge(ax, az, ax + this.tx * this.L, az + this.tz * this.L, [this.nx, -this.nz]);
+  }
+  /** Triangle in the edge's plane at depth d (s, y pairs), facing outward. */
+  tri(B: Batcher, m: MaterialName, s0: number, y0: number, s1: number, y1: number, s2: number, y2: number, d = 0): void {
+    B.triangle(m, this.x(s0, d), y0, this.z(s0, d), this.x(s1, d), y1, this.z(s1, d), this.x(s2, d), y2, this.z(s2, d), this.nx, 0, this.nz);
+  }
+  /** Quad in the edge's plane at depth d, corners given as (s, y) in order. */
+  quad4(B: Batcher, m: MaterialName, p: [number, number][], d = 0): void {
+    const [a, b, c, e] = p as [[number, number], [number, number], [number, number], [number, number]];
+    B.quad(m, this.x(a[0], d), a[1], this.z(a[0], d), this.x(b[0], d), b[1], this.z(b[0], d), this.x(c[0], d), c[1], this.z(c[0], d), this.x(e[0], d), e[1], this.z(e[0], d), this.nx, 0, this.nz);
   }
 }
 
@@ -185,6 +200,10 @@ function facadeEdge(
   B: Batcher, E: Edge, st: FacadeStyle, rng: Rng, floors: number[], yStart: number, wallTop: number, roofY: number,
   plinthTop: number, isFront: boolean, doors: DoorInfo[],
 ): void {
+  if (st.frameBays && E.L >= 2.5 && st.name !== 'shed') {
+    frameEdge(B, E, st, rng, floors, yStart, wallTop, roofY, plinthTop, isFront, doors);
+    return;
+  }
   const L = E.L;
   // wall rect that switches to the base material below the plinth line
   const wall = (s0: number, s1: number, ya: number, yb: number): void => {
@@ -305,6 +324,192 @@ function facadeEdge(
   }
 }
 
+/**
+ * Netsch frame mode: projecting concrete piers at every bay, floor beams (ring bands, drawn by the
+ * caller), and each floor's bay filled according to the style's window types.
+ */
+function frameEdge(
+  B: Batcher, E: Edge, st: FacadeStyle, rng: Rng, floors: number[], yStart: number, wallTop: number, roofY: number,
+  plinthTop: number, isFront: boolean, doors: DoorInfo[],
+): void {
+  const L = E.L;
+  const infill = (s0: number, s1: number, ya: number, yb: number, d = 0): void => {
+    if (yb <= ya + 1e-3 || s1 <= s0 + 1e-3) return;
+    if (ya < plinthTop) {
+      E.rect(B, st.base, s0, s1, ya, Math.min(yb, plinthTop), d);
+      if (yb > plinthTop) E.rect(B, st.wall, s0, s1, plinthTop, yb, d);
+    } else E.rect(B, st.wall, s0, s1, ya, yb, d);
+  };
+  const nb = Math.max(1, Math.round(L / st.bay));
+  const bw = L / nb;
+  const pw = Math.min(st.pierW, bw * 0.3);
+  // piers (full height, projecting) — half piers at the corners
+  for (let k = 0; k <= nb; k++) {
+    const c = k * bw;
+    const p0 = Math.max(0, c - pw / 2), p1 = Math.min(L, c + pw / 2);
+    E.box(B, st.pierMat, p0, p1, yStart, wallTop, -st.pierD, 0, k === 0 ? 'ftr' : k === nb ? 'ftl' : 'ftlr');
+  }
+  const blank: boolean[] = [];
+  for (let k = 0; k < nb; k++) blank.push(rng.chance(st.blankBays));
+  const doorBay = isFront ? Math.floor(nb / 2) : -1;
+  const last = floors.length - 1;
+  for (let f = 0; f < floors.length; f++) {
+    const yb = floors[f]!, yt = f < last ? floors[f + 1]! : wallTop;
+    if (yt <= yStart + 0.01) continue;
+    const ground = f === 0 && plinthTop > 0;
+    const type: WinType = ground ? st.groundType : f === last && st.topType ? st.topType : st.upperType;
+    // the top floor runs into the parapet: keep the openings below the roof slab
+    const ytOpen = f === last ? Math.min(yt, roofY) : yt;
+    for (let k = 0; k < nb; k++) {
+      const b0 = k * bw + pw / 2, b1 = (k + 1) * bw - pw / 2;
+      if (yb < yStart - 0.01) { infill(b0, b1, yStart, yt); continue; }
+      const isDoor = ground && k === doorBay;
+      let t: WinType = blank[k] && !isDoor && !ground ? 'none' : type;
+      if (isDoor) t = 'glazed'; // the entrance bay is always a glazed door bay
+      if (ytOpen - yb < 2.2) t = 'none';
+      switch (t) {
+        case 'none':
+          infill(b0, b1, yb, yt);
+          break;
+        case 'glazed': {
+          const o0 = isDoor ? yb : yb + (ground ? 0.15 : 0.45);
+          const o1 = Math.min(ytOpen - (ground ? 0.5 : 0.35), yb + (ground ? st.groundWinH : 3.2));
+          const g0 = b0 + 0.06, g1 = b1 - 0.06;
+          infill(b0, g0, yb, yt); infill(g1, b1, yb, yt);
+          infill(g0, g1, yb, o0); infill(g0, g1, o1, yt);
+          const rec = ground ? Math.max(st.recess, 0.6) : Math.min(st.recess, 0.25);
+          cutOpening(B, E, { ...st, recess: rec }, g0, g1, o0, o1, isDoor ? 'door' : 'shop', true);
+          if (isDoor) recordDoor(E, (g0 + g1) / 2, yb, g1 - g0, o1 - o0, doors);
+          break;
+        }
+        case 'punched':
+        case 'blockI': {
+          const n = Math.max(1, Math.min(st.windowsPerBay, Math.floor((b1 - b0) / (st.winW + 0.5))));
+          const w = Math.min(st.winW, (b1 - b0) / n - 0.4);
+          const o0 = yb + (ground ? st.groundSill : st.sill);
+          const o1 = Math.min(o0 + (ground ? st.groundWinH - st.groundSill : st.winH), ytOpen - Math.max(0.35, st.bandH * 0.6 + 0.08));
+          if (w < 0.45 || o1 - o0 < 0.8) { infill(b0, b1, yb, yt); break; }
+          infill(b0, b1, yb, o0); infill(b0, b1, o1, yt);
+          const step = (b1 - b0) / n;
+          let prev = b0;
+          for (let i = 0; i < n; i++) {
+            const c = b0 + step * (i + 0.5), w0 = c - w / 2, w1 = c + w / 2;
+            infill(prev, w0, o0, o1);
+            if (t === 'blockI') blockIWindow(B, E, st, w0, w1, o0, o1, st.recess, f < 3);
+            else cutOpening(B, E, st, w0, w1, o0, o1, 'window', f < 3);
+            prev = w1;
+          }
+          infill(prev, b1, o0, o1);
+          break;
+        }
+        case 'gallery': {
+          const o0 = yb + 0.12, o1 = ytOpen - Math.max(0.5, st.bandH * 0.6 + 0.1);
+          if (o1 - o0 < 2.0) { infill(b0, b1, yb, yt); break; }
+          infill(b0, b1, yb, o0); infill(b0, b1, o1, yt);
+          galleryBay(B, E, st, b0, b1, o0, o1);
+          break;
+        }
+        case 'grille': {
+          const o0 = yb + 0.3, o1 = ytOpen - Math.max(0.4, st.bandH * 0.6 + 0.08);
+          if (o1 - o0 < 1.5) { infill(b0, b1, yb, yt); break; }
+          infill(b0, b1, yb, o0); infill(b0, b1, o1, yt);
+          grilleBay(B, E, st, b0, b1, o0, o1);
+          break;
+        }
+      }
+    }
+  }
+}
+
+/** Four reveal faces of a rectangular recess s0..s1 x y0..y1, depth r. */
+function reveals(B: Batcher, E: Edge, m: MaterialName, s0: number, s1: number, y0: number, y1: number, r: number): void {
+  B.quad(m, E.x(s0, 0), y0, E.z(s0, 0), E.x(s0, r), y0, E.z(s0, r), E.x(s0, r), y1, E.z(s0, r), E.x(s0, 0), y1, E.z(s0, 0), E.tx, 0, E.tz);
+  B.quad(m, E.x(s1, 0), y0, E.z(s1, 0), E.x(s1, r), y0, E.z(s1, r), E.x(s1, r), y1, E.z(s1, r), E.x(s1, 0), y1, E.z(s1, 0), -E.tx, 0, -E.tz);
+  B.quad(m, E.x(s0, 0), y0, E.z(s0, 0), E.x(s1, 0), y0, E.z(s1, 0), E.x(s1, r), y0, E.z(s1, r), E.x(s0, r), y0, E.z(s0, r), 0, 1, 0);
+  B.quad(m, E.x(s0, 0), y1, E.z(s0, 0), E.x(s1, 0), y1, E.z(s1, 0), E.x(s1, r), y1, E.z(s1, r), E.x(s0, r), y1, E.z(s0, r), 0, -1, 0);
+}
+
+/**
+ * Netsch "Block I" window (facades.md §1): an I-shaped pane deep in a concrete recess — narrow
+ * bronze-tinted stem, clear trapezoids flaring to the full opening width at top and bottom.
+ */
+function blockIWindow(B: Batcher, E: Edge, st: FacadeStyle, s0: number, s1: number, y0: number, y1: number, r: number, detail: boolean): void {
+  const rev = st.reveal;
+  reveals(B, E, rev, s0, s1, y0, y1, r);
+  const W = s1 - s0, H = y1 - y0;
+  const hs = Math.min(0.5, H * 0.17), c = (s0 + s1) / 2, sw = W * 0.44;
+  const a0 = c - sw / 2, a1 = c + sw / 2;
+  E.rect(B, st.glass, a0, a1, y0 + hs, y1 - hs, r);
+  E.quad4(B, st.glassAlt, [[a0, y1 - hs], [a1, y1 - hs], [s1, y1], [s0, y1]], r);
+  E.quad4(B, st.glassAlt, [[s0, y0], [s1, y0], [a1, y0 + hs], [a0, y0 + hs]], r);
+  // concrete beside the stem and in the corners of the I
+  E.rect(B, rev, s0, a0, y0 + hs, y1 - hs, r);
+  E.rect(B, rev, a1, s1, y0 + hs, y1 - hs, r);
+  E.tri(B, rev, s0, y1 - hs, a0, y1 - hs, s0, y1, r);
+  E.tri(B, rev, a1, y1 - hs, s1, y1 - hs, s1, y1, r);
+  E.tri(B, rev, s0, y0, a0, y0 + hs, s0, y0 + hs, r);
+  E.tri(B, rev, s1, y0, s1, y0 + hs, a1, y0 + hs, r);
+  if (detail) {
+    // thin bronze frame lines where the stem meets the trapezoids
+    E.rect(B, st.frame, a0, a1, y1 - hs - 0.03, y1 - hs + 0.03, r - 0.02);
+    E.rect(B, st.frame, a0, a1, y0 + hs - 0.03, y0 + hs + 0.03, r - 0.02);
+  }
+}
+
+/**
+ * Open gallery (UH, Henry/Jefferson upper floors): a ledge between the piers with the window wall
+ * set `galleryDepth` back; Block-I windows in that back wall; a slim rail at the ledge edge.
+ */
+function galleryBay(B: Batcher, E: Edge, st: FacadeStyle, b0: number, b1: number, o0: number, o1: number): void {
+  const D = st.galleryDepth;
+  reveals(B, E, 'concrete', b0, b1, o0, o1, D);
+  const E2 = E.shifted(D);
+  const n = Math.max(1, Math.min(st.windowsPerBay, Math.floor((b1 - b0) / (st.winW + 0.4))));
+  const w = Math.min(st.winW, (b1 - b0) / n - 0.3);
+  const y0 = o0 + 0.25, y1 = Math.min(o1 - 0.15, y0 + st.winH);
+  E2.rect(B, 'concrete', b0, b1, o0, y0); E2.rect(B, 'concrete', b0, b1, y1, o1);
+  const step = (b1 - b0) / n;
+  let prev = b0;
+  for (let i = 0; i < n; i++) {
+    const c = b0 + step * (i + 0.5);
+    E2.rect(B, 'concrete', prev, c - w / 2, y0, y1);
+    blockIWindow(B, E2, st, c - w / 2, c + w / 2, y0, y1, 0.12, false);
+    prev = c + w / 2;
+  }
+  E2.rect(B, 'concrete', prev, b1, y0, y1);
+  // ledge rail
+  E.box(B, 'metal', b0, b1, o0 + 1.0, o0 + 1.06, 0.02, 0.07, 'ftb');
+}
+
+/**
+ * Pointed precast concrete grille (Burnham / Addams Halls): slender fins with pointed slots over
+ * dark glass set back in the bay.
+ */
+function grilleBay(B: Batcher, E: Edge, st: FacadeStyle, b0: number, b1: number, o0: number, o1: number): void {
+  const D = 0.55;
+  const pre = mat('concretePrecast');
+  reveals(B, E, pre, b0, b1, o0, o1, D);
+  E.rect(B, st.glass, b0, b1, o0, o1, D);
+  const m = Math.max(2, Math.round((b1 - b0) / 0.5));
+  const step = (b1 - b0) / m, fw = 0.13, peak = Math.min(0.55, step * 1.1);
+  for (let i = 1; i < m; i++) {
+    const x = b0 + step * i;
+    E.box(B, pre, x - fw / 2, x + fw / 2, o0, o1, 0, D * 0.75, 'flr');
+  }
+  // pointed slot heads and feet (solid in the grille plane, cut into lancets)
+  for (let i = 0; i < m; i++) {
+    const xl = b0 + step * i + (i === 0 ? 0 : fw / 2), xr = b0 + step * (i + 1) - (i === m - 1 ? 0 : fw / 2), xc = (xl + xr) / 2;
+    const ys = o1 - peak - 0.12, yp = o1 - 0.1;
+    E.tri(B, pre, xl, ys, xc, yp, xl, o1);
+    E.tri(B, pre, xc, yp, xr, o1, xl, o1);
+    E.tri(B, pre, xc, yp, xr, ys, xr, o1);
+    const yf = o0 + peak * 0.6;
+    E.tri(B, pre, xl, o0, xr, o0, xc, o0 + 0.06);
+    E.tri(B, pre, xl, o0, xc, o0 + 0.06, xl, yf);
+    E.tri(B, pre, xr, o0, xr, yf, xc, o0 + 0.06);
+  }
+}
+
 function recordDoor(E: Edge, s: number, y: number, w: number, h: number, doors: DoorInfo[]): void {
   doors.push({ position: [E.x(s, 0), y, E.z(s, 0)], normal: [E.nx, E.nz], width: w, height: h });
 }
@@ -346,7 +551,7 @@ function cutOpening(B: Batcher, E: Edge, st: FacadeStyle, s0: number, s1: number
 }
 
 /** Protruding band around a ring (mitered corners). Edges covered above yb are skipped. */
-function ringBand(B: Batcher, m: MaterialName, ring: PlanPoint[], yb: number, yt: number, depth: number, covers: number[], topFace = true): void {
+export function ringBand(B: Batcher, m: MaterialName, ring: PlanPoint[], yb: number, yt: number, depth: number, covers: number[], topFace = true): void {
   const off = offsetRing(ring, depth);
   const n = ring.length;
   for (let i = 0; i < n; i++) {
@@ -376,7 +581,8 @@ function parapetRing(B: Batcher, ring: PlanPoint[], roofY: number, top: number, 
 /** Gabled / hipped / pyramidal / skillion roof over the oriented bounding box. */
 function pitchedRoof(B: Batcher, outer: PlanPoint[], obb: ReturnType<typeof orientedBox>, shape: string, eave: number, ridge: number, gableMat: MaterialName): boolean {
   const area = Math.abs(signedArea(outer));
-  if (area / obb.area < 0.8) return false;
+  // hipped / pyramidal roofs tolerate irregular plans (porches, bays); gables need a near-rectangle
+  if (area / obb.area < (shape === 'gabled' || shape === 'skillion' ? 0.8 : 0.6)) return false;
   const ov = 0.3;
   const hl = obb.len / 2 + ov, hw = obb.wid / 2 + ov;
   const { cx, cy, ux, uy } = obb;
