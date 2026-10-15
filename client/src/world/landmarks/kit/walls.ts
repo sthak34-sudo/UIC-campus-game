@@ -15,6 +15,12 @@ export interface Opening {
   frame?: MatKey;
   /** Doorway: no collider in the opening. Non-door openings are blocked by an invisible collider. */
   door?: boolean;
+  /**
+   * Netsch "Block-I" window instead of a single pane: clear glass bands at the top and bottom, a tall
+   * bronze-tinted centre, dark bronze frame and transoms. `inset` moves the glass toward the wall's
+   * left side (inside) so the window sits deep in the reveal.
+   */
+  blockI?: { clear: MatKey; bronze: MatKey; frame: MatKey; band?: number; inset?: number };
 }
 
 export interface WallOpts {
@@ -96,6 +102,21 @@ export function buildWall(batch: MeshBatch, col: ColliderSet | null, o: WallOpts
   for (const h of holes) {
     const u0 = h.at - h.width / 2;
     const u1 = h.at + h.width / 2;
+    if (h.blockI) {
+      const k = h.blockI;
+      const band = k.band ?? Math.min(0.32, (h.top - h.bottom) * 0.14);
+      const off = k.inset ?? 0;
+      const b0 = h.bottom + band;
+      const b1 = h.top - band;
+      place(u0, u1, h.bottom, b0, off, 0.024, k.clear);
+      place(u0, u1, b0, b1, off, 0.024, k.bronze);
+      place(u0, u1, b1, h.top, off, 0.024, k.clear);
+      const fw = 0.05;
+      const ft = 0.08;
+      place(u0, u0 + fw, h.bottom, h.top, off, ft, k.frame);
+      place(u1 - fw, u1, h.bottom, h.top, off, ft, k.frame);
+      for (const yy of [h.bottom, b0 - fw / 2, b1 - fw / 2, h.top - fw]) place(u0, u1, yy, yy + fw, off, ft, k.frame);
+    }
     if (h.glass) place(u0, u1, h.bottom, h.top, 0, 0.024, h.glass);
     if (h.frame) {
       const fw = 0.06;

@@ -126,18 +126,22 @@ from this container.
 
 Each of these is one constant or a few lines to change.
 
-1. **UH corners** are solid for one module (`UH.cornerW`). **UH windows** are 0.92 m wide with 0.6 m
-   piers, and the spandrel is 1.1 m tall on a 3.58 m floor (`UH.pierW`, `UH.spandrelH`,
-   `UH.typicalH`). The top floor is the same as the others; there is no special crown floor.
-2. **UH ground floor:** the lobby is 5.5 m tall, with glass set back 2.8 m behind 1.1 m square columns.
+1. **UH facade:** the corners are solid for one module (`UH.cornerW`). Exterior piers are 0.55 m wide
+   and 0.55 m deep, with a 0.85 m floor-edge upstand. The gallery ledge is 1.3 m deep
+   (`UH.galleryDepth`). Windows are 0.95 m wide per 1.524 m module, with 0.35 m clear bands at top and
+   bottom; floor-to-floor is 3.58 m. Floor 2 has no gallery (the source names floors 3–28). Floor 28
+   is a continuous curtain wall behind the piers.
+2. **UH ground floor:** the lobby is 5.5 m tall, with glass set back 2.8 m behind giant 1.6 m square columns.
    There is a column every 5 modules. The doors are mid-span on the east and west faces. The lobby has
    a central elevator core.
 3. **UH roof:** a small elevator machine room and two mechanical units sit on the roof; the parapet top
    is at about 103.9 m.
 4. **Library bay grid:** 15 bays of about 8.8 m along the length and 4 across. The end 2 bays at each
    end are brick, on all floors (`LIB.brickEndBays`).
-5. **Library upper windows:** 3 narrow (0.8 m) slots per bay on concrete bays and 1 per brick bay.
-   The north and south end walls are all brick with 2 slots per bay.
+5. **Library upper windows:** deep-set Block-I slots, 0.8 m wide. There are 3 per bay on the
+   precast east bays and 1 per bay on brick bays and on the stucco west bays. The north and south end
+   walls are brick with 2 slots per bay. The west-face stucco and the precast central east bays are
+   inferred from the research ("brick facing not added on some west walls").
 6. **Library entrances:** the main doors are at mid-length on the east, and the IDEA doors are 3 bays
    further south. The west doors are at mid-length. All are automatic sliding doors; in real life the
    main doors are revolving.
@@ -155,17 +159,27 @@ Each of these is one constant or a few lines to change.
     plain fabric banners) is generic. Move or remove it to match photos. Keep the straight path from
     the spawn point to the main doors clear.
 
-## Materials used
+## Materials used (round 3, per `docs/research/facades.md`)
 
-- **`glassClear`** for every pane that has an interior behind it: the library's windows, curtain
-  wall, doors and interior glass partitions, and the University Hall lobby. Opaque **`glass`** is used
-  only on University Hall's sealed upper floors.
-- **`concrete`** (exposed aggregate) for the structural frame: columns, beams and the University Hall
-  piers. **`concreteSmooth`** for precast panels, sills, University Hall spandrels and the canopy
-  soffit. **`concreteDark`** for weathered column bases, beam drip lines and panel joints.
-- **`interiorFloorHard`** for the library's ground-floor lobby band and the University Hall lobby.
-  **`interiorFloor`** (carpet) everywhere else.
-- **`lightFixture`** for the ceiling panels and canopy downlights.
+**University Hall**
+- **Skeleton:** `concrete` (cast-in-place, board-formed) for the piers, floor-edge upstands, corner
+  columns and the giant ground columns (1.6 m).
+- **Panels:** `concreteSmooth` for the precast panels between windows, gallery ledges, curbs and lintels.
+- **Windows (floors 2–27):** Block-I windows set 1.3 m behind the pier face, behind an open gallery
+  ledge on floors 3–28. The top and bottom bands are `glass` (opaque clear) with a `glassBronze`
+  centre and `metalBronze` frames.
+- **Floor 28:** the 2017–18 curtain wall in `glassBronze` with `metalBronze` mullions.
+- **Lobby:** `glassClear`.
+
+**Daley Library**
+- **Frame:** `concreteExposedAggregate` for the columns and floor beams.
+- **Infill:**
+  - `brickUIC` in the phase-2 end bays, the north and south ends and the annexes.
+  - `concreteSmooth` precast in the central east bays.
+  - `concreteWarm` (stucco-like) in the central west bays, which have only 1 slot per bay.
+- **Windows:** deep-set Block-I slots: `glassClear` top and bottom, `glassBronzeClear` centre,
+  `metalBronze` frames.
+- **Ground floor east:** the 2011 curtain wall in `glassClear` with `windowFrame`.
 
 ## Requests to other owners
 
