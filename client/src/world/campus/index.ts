@@ -55,7 +55,7 @@ export interface CampusBuildingEntry {
 /** Every generic building, by building id. Filled by buildCampus(). */
 export const campusBuildings = new Map<string, CampusBuildingEntry>();
 
-const TILE = 350;
+const TILE = 500;
 const colliderMat = new THREE.MeshBasicMaterial({ visible: false });
 
 /** Closed prism (walls + top, + bottom when floating) used as the physics shape of a volume. */

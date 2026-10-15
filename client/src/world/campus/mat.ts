@@ -8,10 +8,10 @@ import { MATERIAL_NAMES, type MaterialName } from '../../render/materials';
 export const PLANNED_MATERIALS = {
   brickUIC: 'brick', // UIC dark red-brown face brick with per-brick variation
   brickDouble: 'brick', // SEL / SES double-size brick (~400 x 135 mm module)
-  brickBeige: 'brick', // Formfit loft buildings north of I-290 (Art & Exhibition Hall)
+  brickBeige: 'brickCommon', // Formfit loft buildings north of I-290 (Art & Exhibition Hall) — no beige brick yet
   brickHullHouse: 'brick', // 1960s refaced red Italianate brick
   glassBronze: 'glass', // bronze-tinted centre pane of the Block-I windows
-  glassBronzeClear: 'glass', // clear trapezoids of the Block-I windows
+  glassBronzeClear: 'glass', // (exists, but TRANSPARENT: only for enterable buildings — not used on sealed facades)
   glassFritted: 'glass', // ARC fritted glass
   metalBronze: 'windowFrame', // bronze trim / mullions (1960s frames, CDRLC trim)
   metalPanel: 'metal', // SRF metal panels, ARC folded aluminum fins

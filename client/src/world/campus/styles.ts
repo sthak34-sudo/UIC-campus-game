@@ -109,12 +109,12 @@ export function makeStyle(name: StyleName, rng: Rng, b: CampusBuildingExt): Faca
       const brickInfill = rng.chance(0.6);
       const bay = rng.range(3.0, 3.8);
       return {
-        ...BASE, name, wall: brickInfill ? mat('brickUIC') : mat('concreteExposedAggregate'), base: 'concreteDark', plinth: rng.range(0.5, 0.9),
-        reveal: 'concrete', glass: mat('glassBronze'), glassAlt: mat('glassBronzeClear'), frame: mat('metalBronze'),
+        ...BASE, name, wall: brickInfill ? mat('brickUIC') : mat(rng.pick(['concreteExposedAggregate', 'concreteWarm'] as const)), base: 'concreteDark', plinth: rng.range(0.5, 0.9),
+        reveal: 'concrete', glass: mat('glassBronze'), glassAlt: 'glass', frame: 'windowFrame',
         floorH: rng.range(3.8, 4.2), groundH: rng.range(4.4, 5.0), bay,
         winW: rng.range(1.0, 1.2), winH: rng.range(2.3, 2.6), sill: rng.range(0.6, 0.8),
         groundWinH: rng.range(3.2, 3.6), groundSill: 0.15, recess: rng.range(0.35, 0.5), corner: 0.4,
-        bandH: rng.range(0.6, 0.8), bandD: rng.range(0.18, 0.28), bandMat: 'concrete',
+        bandH: rng.range(0.6, 0.8), bandD: rng.range(0.18, 0.28), bandMat: mat(rng.pick(['concrete', 'concreteWarm'] as const)),
         corniceH: rng.range(1.0, 1.4), corniceD: rng.range(0.2, 0.3), corniceMat: 'concrete',
         parapet: rng.range(0.9, 1.3), mullions: 0, fins: false, blankBays: rng.range(0.0, 0.12),
         frameBays: true, pierW: rng.range(0.5, 0.75), pierD: rng.range(0.3, 0.45), pierMat: 'concrete',
@@ -130,8 +130,10 @@ export function makeStyle(name: StyleName, rng: Rng, b: CampusBuildingExt): Faca
       };
     case 'rowhouse': {
       const brick = fm !== 'wood' && fm !== 'plaster';
+      // Chicago 2-flats: mostly common brick, some red face brick, some dark brown
+      const rb = mat(rng.pick(['brickCommon', 'brickCommon', 'brick', 'brickDark'] as const));
       return {
-        ...BASE, name, wall: brick ? 'brick' : 'wood', base: 'concrete', plinth: rng.range(0.7, 1.1), reveal: brick ? 'brick' : 'wood',
+        ...BASE, name, wall: brick ? rb : 'wood', base: 'concrete', plinth: rng.range(0.7, 1.1), reveal: brick ? rb : 'wood',
         glass: 'glass', frame: 'windowFrame', floorH: rng.range(3.0, 3.4), groundH: rng.range(3.6, 4.0),
         bay: rng.range(1.8, 2.3), winW: rng.range(0.85, 1.0), winH: rng.range(1.7, 2.0), sill: rng.range(0.75, 0.9),
         groundWinH: rng.range(2.9, 3.2), groundSill: rng.range(1.1, 1.3), recess: rng.range(0.12, 0.2), corner: rng.range(0.5, 0.8),
@@ -139,13 +141,15 @@ export function makeStyle(name: StyleName, rng: Rng, b: CampusBuildingExt): Faca
         parapet: rng.range(0.5, 1.0), mullions: 0, transom: true,
       };
     }
-    case 'loft':
+    case 'loft': {
+      const lb = mat(rng.pick(['brick', 'brickCommon', 'brickDark'] as const));
       return {
-        ...BASE, name, wall: 'brick', base: 'concreteDark', plinth: 0.8, reveal: 'brick',
+        ...BASE, name, wall: lb, base: 'concreteDark', plinth: 0.8, reveal: lb,
         floorH: rng.range(3.6, 4.2), groundH: rng.range(4.2, 4.8), bay: rng.range(2.4, 3.0), winW: rng.range(1.5, 1.9), winH: rng.range(2.1, 2.5),
         sill: 0.8, groundWinH: 3.2, groundSill: 0.4, recess: 0.22, corner: 1.0, lintels: true,
         corniceH: 0.8, corniceD: 0.4, corniceMat: 'concreteDark', parapet: 1.0, mullions: 1, transom: true,
       };
+    }
     case 'modern': {
       const wall: MaterialName = fm === 'brick' ? 'brick' : fm === 'metal' ? 'metal' : rng.pick(['brick', 'concrete', 'brick'] as const);
       return {

@@ -26,7 +26,9 @@ export interface FacadeSpec {
 }
 
 const concrete = 'concrete' as const;
-const bronze = () => ({ glass: mat('glassBronze'), glassAlt: mat('glassBronzeClear'), frame: mat('metalBronze') });
+// Block-I: bronze stem + clear trapezoids. Generic buildings are sealed, so the 'clear' panes use
+// the opaque `glass` (fake rooms) rather than the transparent glassBronzeClear.
+const bronze = () => ({ glass: mat('glassBronze'), glassAlt: 'glass' as const, frame: 'windowFrame' as const });
 
 /** 1960s Netsch classroom hall: concrete piers, recessed glazed ground floor, upper floors per `upper`. */
 const netschHall = (upper: FacadeStyle['upperType'], extra: Partial<FacadeStyle> = {}): Partial<FacadeStyle> => ({

@@ -37,7 +37,7 @@ describe('campus build (full campus.json)', () => {
     const generic = new Set(data.buildings.filter((b) => !b.landmark).map((b) => (b as { buildingId?: string }).buildingId ?? b.id));
     expect(campusBuildings.size).toBe(generic.size);
     for (const b of data.buildings.filter((b) => b.landmark)) expect(campusBuildings.has((b as { buildingId?: string }).buildingId ?? b.id)).toBe(false);
-    expect(s.calls).toBeLessThan(300);
+    expect(s.calls).toBeLessThan(260);
     expect(s.tris).toBeLessThan(3.5e6);
     // standing on the tree-filled Quad: nearby trees switch to the leaf-card model
     world.focus.copy(world.viewpoints.get('map-quad-ground')!.position);
