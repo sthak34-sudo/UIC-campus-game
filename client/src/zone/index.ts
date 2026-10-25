@@ -1,0 +1,370 @@
+/**
+ * Safe-zone wall, the white next-circle line, and the zone HUD.
+ * The numbers live in zoneLogic.ts. This file only draws them and asks combat
+ * to apply damage.
+ */
+import * as THREE from 'three';
+import type { World } from '../core/world';
+import type { Player } from '../player';
+import {
+  buildZone,
+  distanceToSafe,
+  distanceLabel,
+  parseZoneOptions,
+  skipStage,
+  stateAt,
+  zoneDamage,
+  zoneTimerLabel,
+  type Circle,
+  type PlanBounds,
+  type ZoneSnapshot,
+} from './zoneLogic';
+
+const WALL_HEIGHT = 140;
+/** Chicago Blue, drawn unlit so the wall stays readable in shade. */
+const WALL_COLOR = 0x41b6e6;
+
+export interface ZoneMount {
+  dispose(): void;
+}
+
+export interface ZoneDebugState {
+  mode: ZoneSnapshot['mode'];
+  phase: number;
+  remaining: number;
+  damagePerSecond: number;
+  timer: string;
+  distance: string;
+  inside: boolean;
+  current: Circle;
+  next: Circle | null;
+}
+
+declare global {
+  interface Window {
+    __zone?: {
+      getState(): ZoneDebugState;
+      skip(): void;
+    };
+  }
+}
+
+export function mountZone(opts: {
+  world: World;
+  player: Player | null;
+  bounds: PlanBounds;
+  search: string;
+  applyDamage(amount: number): void;
+}): ZoneMount {
+  const { fast, seed } = parseZoneOptions(opts.search);
+  const phases = buildZone(opts.bounds, seed, fast);
+  const first = phases[0]!;
+
+  const wallGeo = new THREE.CylinderGeometry(1, 1, 1, 128, 1, true);
+  const wallMat = new THREE.MeshBasicMaterial({
+    color: WALL_COLOR,
+    transparent: true,
+    opacity: 0.42,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    fog: true,
+  });
+  const wall = new THREE.Mesh(wallGeo, wallMat);
+  wall.name = 'zone-wall';
+  wall.frustumCulled = false;
+  wall.castShadow = false;
+  wall.receiveShadow = false;
+  opts.world.scene.add(wall);
+
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.92,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    fog: true,
+  });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(1, 1.2, 8), ringMat);
+  ring.name = 'zone-next';
+  ring.rotation.x = -Math.PI / 2;
+  ring.frustumCulled = false;
+  ring.castShadow = false;
+  ring.receiveShadow = false;
+  opts.world.scene.add(ring);
+
+  let ringKey = '';
+  const syncRing = (next: Circle | null) => {
+    if (!next) {
+      ring.visible = false;
+      return;
+    }
+    ring.visible = true;
+    const key = `${next.x.toFixed(2)}:${next.z.toFixed(2)}:${next.radius.toFixed(2)}`;
+    if (key !== ringKey) {
+      ringKey = key;
+      const stroke = 1.8;
+      const inner = Math.max(0.25, next.radius - stroke / 2);
+      const geo = new THREE.RingGeometry(inner, next.radius + stroke / 2, 160);
+      ring.geometry.dispose();
+      ring.geometry = geo;
+    }
+    ring.position.set(next.x, 0.55, next.z);
+  };
+
+  const syncWall = (circle: Circle) => {
+    wall.position.set(circle.x, WALL_HEIGHT / 2, circle.z);
+    wall.scale.set(circle.radius, WALL_HEIGHT, circle.radius);
+  };
+
+  addViewpoints(opts.world, first.start, first.end);
+
+  const parent = document.getElementById('hud') ?? document.body;
+  const hud = new ZoneHud(parent);
+
+  let elapsed = 0;
+  let skipQueued = false;
+  let latest: ZoneSnapshot = stateAt(phases, 0);
+
+  const point = () => {
+    const p = opts.player?.position;
+    return p ? { x: p.x, z: p.z } : null;
+  };
+
+  const publish = (snap: ZoneSnapshot) => {
+    latest = snap;
+    syncWall(snap.current);
+    syncRing(snap.next);
+    const feet = point();
+    const meters = feet ? distanceToSafe(snap.current, feet) : 0;
+    hud.set(snap, feet, meters);
+  };
+
+  publish(latest);
+
+  const onKey = (e: KeyboardEvent) => {
+    if (e.code !== 'KeyZ' || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    skipQueued = true;
+  };
+  window.addEventListener('keydown', onKey);
+
+  const onUpdate = (dt: number) => {
+    if (skipQueued) {
+      elapsed = skipStage(phases, elapsed);
+      skipQueued = false;
+    } else {
+      elapsed += dt;
+    }
+    const snap = stateAt(phases, elapsed);
+    publish(snap);
+    const feet = point();
+    if (!feet) return;
+    const amount = zoneDamage(snap.damagePerSecond, dt, feet, snap.current);
+    if (amount > 0) opts.applyDamage(amount);
+  };
+  opts.world.onUpdate(onUpdate);
+
+  const api = {
+    getState(): ZoneDebugState {
+      const feet = point();
+      const meters = feet ? distanceToSafe(latest.current, feet) : 0;
+      return {
+        mode: latest.mode,
+        phase: latest.phase,
+        remaining: latest.remaining,
+        damagePerSecond: latest.damagePerSecond,
+        timer: zoneTimerLabel(latest.mode, latest.remaining),
+        distance: feet ? distanceLabel(meters) : 'Inside the zone',
+        inside: meters <= 0.5,
+        current: latest.current,
+        next: latest.next,
+      };
+    },
+    skip() {
+      skipQueued = true;
+    },
+  };
+  window.__zone = api;
+
+  return {
+    dispose() {
+      window.removeEventListener('keydown', onKey);
+      if (window.__zone === api) delete window.__zone;
+      hud.dispose();
+      opts.world.scene.remove(wall);
+      opts.world.scene.remove(ring);
+      wall.geometry.dispose();
+      ring.geometry.dispose();
+      wallMat.dispose();
+      ringMat.dispose();
+    },
+  };
+}
+
+/** Cameras for the screenshot robot. The wall sits outside the campus rectangle, so we stand near it. */
+function addViewpoints(world: World, current: Circle, next: Circle): void {
+  const toward = (circle: Circle, radius: number) => {
+    const dx = -circle.x;
+    const dz = -circle.z;
+    const len = Math.hypot(dx, dz) || 1;
+    return { x: circle.x + (dx / len) * radius, z: circle.z + (dz / len) * radius };
+  };
+  const wall = toward(current, current.radius - 20);
+  const past = toward(current, current.radius + 8);
+  world.addViewpoint('zone-wall', {
+    position: new THREE.Vector3(wall.x, 2.2, wall.z),
+    target: new THREE.Vector3(past.x, 18, past.z),
+    fov: 55,
+    hour: 14,
+  });
+
+  const onLine = toward(next, next.radius);
+  const inside = toward(next, next.radius - 8);
+  world.addViewpoint('zone-next', {
+    position: new THREE.Vector3(inside.x, 2.2, inside.z),
+    target: new THREE.Vector3(onLine.x, 0.55, onLine.z),
+    fov: 50,
+    hour: 14,
+  });
+}
+
+class ZoneHud {
+  private readonly root: HTMLDivElement;
+  private readonly canvas: HTMLCanvasElement;
+  private readonly ctx: CanvasRenderingContext2D;
+  private readonly timer: HTMLDivElement;
+  private readonly distance: HTMLDivElement;
+  private readonly size = 168;
+
+  constructor(parent: HTMLElement) {
+    this.root = document.createElement('div');
+    this.root.id = 'zone-hud';
+    Object.assign(this.root.style, {
+      position: 'absolute',
+      top: '12px',
+      right: '12px',
+      width: `${this.size}px`,
+      zIndex: '16',
+      pointerEvents: 'none',
+      fontFamily: 'system-ui, sans-serif',
+      textAlign: 'center',
+      color: '#f4f7fb',
+      textShadow: '0 1px 2px #000',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    this.canvas = document.createElement('canvas');
+    this.canvas.id = 'zone-minimap';
+    this.canvas.width = this.size * 2;
+    this.canvas.height = this.size * 2;
+    this.canvas.style.width = `${this.size}px`;
+    this.canvas.style.height = `${this.size}px`;
+    this.canvas.style.display = 'block';
+    const ctx = this.canvas.getContext('2d');
+    if (!ctx) throw new Error('zone minimap canvas unavailable');
+    this.ctx = ctx;
+
+    this.timer = document.createElement('div');
+    this.timer.id = 'zone-timer';
+    Object.assign(this.timer.style, {
+      marginTop: '6px',
+      fontSize: '14px',
+      fontWeight: '700',
+      lineHeight: '1.25',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    this.distance = document.createElement('div');
+    this.distance.id = 'zone-distance';
+    Object.assign(this.distance.style, {
+      marginTop: '2px',
+      fontSize: '13px',
+      fontWeight: '650',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    this.root.append(this.canvas, this.timer, this.distance);
+    parent.appendChild(this.root);
+  }
+
+  set(snap: ZoneSnapshot, player: { x: number; z: number } | null, metersOutside: number): void {
+    this.timer.textContent = zoneTimerLabel(snap.mode, snap.remaining);
+    this.distance.textContent = player ? distanceLabel(metersOutside) : '';
+    this.distance.style.color = metersOutside > 0.5 ? '#ffb089' : '#d7ffe4';
+    this.draw(snap, player);
+  }
+
+  private draw(snap: ZoneSnapshot, player: { x: number; z: number } | null): void {
+    const ctx = this.ctx;
+    const size = this.size * 2;
+    const c = size / 2;
+    ctx.clearRect(0, 0, size, size);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(c, c, c - 2, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(6, 14, 24, 0.78)';
+    ctx.fillRect(0, 0, size, size);
+
+    const current = snap.current;
+    let reach = current.radius;
+    if (player) {
+      const away = Math.hypot(player.x - current.x, player.z - current.z);
+      reach = Math.max(reach, Math.min(away * 1.08, current.radius * 1.45));
+    }
+    const scale = reach > 0 ? (c * 0.78) / reach : 1;
+    const toScreen = (x: number, z: number) => ({
+      sx: c + (x - current.x) * scale,
+      sy: c + (z - current.z) * scale,
+    });
+
+    const drawCircle = (circle: Circle, fill: string | null, stroke: string, width: number) => {
+      const p = toScreen(circle.x, circle.z);
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, Math.max(1, circle.radius * scale), 0, Math.PI * 2);
+      if (fill) {
+        ctx.fillStyle = fill;
+        ctx.fill();
+      }
+      ctx.lineWidth = width;
+      ctx.strokeStyle = stroke;
+      ctx.stroke();
+    };
+
+    drawCircle(current, 'rgba(65, 182, 230, 0.28)', '#9fd4f2', 3);
+    if (snap.next) drawCircle(snap.next, null, '#ffffff', 3);
+
+    if (player) {
+      const p = toScreen(player.x, player.z);
+      const inside = metersFrom(current, player) <= 0;
+      ctx.fillStyle = inside ? '#f4f7fb' : '#ffb089';
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = '#f4f7fb';
+    ctx.font = '700 18px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('N', c, 28);
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.arc(c, c, c - 3, 0, Math.PI * 2);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.stroke();
+  }
+
+  dispose(): void {
+    this.root.remove();
+  }
+}
+
+function metersFrom(circle: Circle, point: { x: number; z: number }): number {
+  return Math.hypot(point.x - circle.x, point.z - circle.z) - circle.radius;
+}
