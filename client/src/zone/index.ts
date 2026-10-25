@@ -20,9 +20,9 @@ import {
   type ZoneSnapshot,
 } from './zoneLogic';
 
-const WALL_HEIGHT = 140;
-/** Chicago Blue, drawn unlit so the wall stays readable in shade. */
-const WALL_COLOR = 0x41b6e6;
+const WALL_HEIGHT = 180;
+/** Chicago Blue. Unlit and without fog so the wall stays blue at the far side of campus. */
+const WALL_COLOR = 0x49c2f5;
 
 export interface ZoneMount {
   dispose(): void;
@@ -64,13 +64,16 @@ export function mountZone(opts: {
   const wallMat = new THREE.MeshBasicMaterial({
     color: WALL_COLOR,
     transparent: true,
-    opacity: 0.42,
+    opacity: 0.5,
     side: THREE.DoubleSide,
     depthWrite: false,
-    fog: true,
+    fog: false,
   });
   const wall = new THREE.Mesh(wallGeo, wallMat);
   wall.name = 'zone-wall';
+  // The cylinder's origin is the campus center, so distance sorting would draw it
+  // behind closer glass. Keep it in the transparent pass, after ordinary props.
+  wall.renderOrder = 2;
   wall.frustumCulled = false;
   wall.castShadow = false;
   wall.receiveShadow = false;
@@ -85,10 +88,11 @@ export function mountZone(opts: {
     polygonOffset: true,
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
-    fog: true,
+    fog: false,
   });
   const ring = new THREE.Mesh(new THREE.RingGeometry(1, 1.2, 8), ringMat);
   ring.name = 'zone-next';
+  ring.renderOrder = 2;
   ring.rotation.x = -Math.PI / 2;
   ring.frustumCulled = false;
   ring.castShadow = false;
@@ -105,13 +109,13 @@ export function mountZone(opts: {
     const key = `${next.x.toFixed(2)}:${next.z.toFixed(2)}:${next.radius.toFixed(2)}`;
     if (key !== ringKey) {
       ringKey = key;
-      const stroke = 1.8;
+      const stroke = 3.2;
       const inner = Math.max(0.25, next.radius - stroke / 2);
       const geo = new THREE.RingGeometry(inner, next.radius + stroke / 2, 160);
       ring.geometry.dispose();
       ring.geometry = geo;
     }
-    ring.position.set(next.x, 0.55, next.z);
+    ring.position.set(next.x, 0.8, next.z);
   };
 
   const syncWall = (circle: Circle) => {
@@ -213,21 +217,30 @@ function addViewpoints(world: World, current: Circle, next: Circle): void {
     const len = Math.hypot(dx, dz) || 1;
     return { x: circle.x + (dx / len) * radius, z: circle.z + (dz / len) * radius };
   };
-  const wall = toward(current, current.radius - 20);
-  const past = toward(current, current.radius + 8);
+  const wall = toward(current, current.radius - 28);
+  const past = toward(current, current.radius + 4);
   world.addViewpoint('zone-wall', {
-    position: new THREE.Vector3(wall.x, 2.2, wall.z),
-    target: new THREE.Vector3(past.x, 18, past.z),
+    position: new THREE.Vector3(wall.x, 2.4, wall.z),
+    target: new THREE.Vector3(past.x, 12, past.z),
     fov: 55,
     hour: 14,
   });
 
   const onLine = toward(next, next.radius);
-  const inside = toward(next, next.radius - 8);
+  const inside = toward(next, next.radius - 10);
   world.addViewpoint('zone-next', {
-    position: new THREE.Vector3(inside.x, 2.2, inside.z),
-    target: new THREE.Vector3(onLine.x, 0.55, onLine.z),
-    fov: 50,
+    position: new THREE.Vector3(inside.x, 3.2, inside.z),
+    target: new THREE.Vector3(onLine.x, 0.8, onLine.z),
+    fov: 48,
+    hour: 14,
+  });
+
+  // From the Quad, the safe wall is the blue band on the horizon.
+  const far = toward(current, current.radius);
+  world.addViewpoint('zone-horizon', {
+    position: new THREE.Vector3(0, 4, 0),
+    target: new THREE.Vector3(far.x, 30, far.z),
+    fov: 46,
     hour: 14,
   });
 }
