@@ -23,6 +23,8 @@ import { yawFromDirection } from '../player/math';
 
 export interface CombatMount {
   dispose(): void;
+  /** Safe-zone damage. Ignores armor. Does nothing if the player is already down. */
+  applyZoneDamage(amount: number): void;
 }
 
 export function mountCombat(opts: {
@@ -214,6 +216,13 @@ export function mountCombat(opts: {
   syncHud();
 
   return {
+    applyZoneDamage(amount: number) {
+      if (!opts.player || amount <= 0 || isDown(vitals)) return;
+      const r = takeDirectDamage(vitals, amount);
+      vitals = r.combatant;
+      if (r.died) killPlayer();
+      syncHud();
+    },
     dispose() {
       for (const off of offs) off();
       hud?.dispose();

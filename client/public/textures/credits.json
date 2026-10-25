@@ -79,26 +79,6 @@
    0.909
   ]
  },
- "acg_PavingStones128": {
-  "folder": "acg_PavingStones128",
-  "id": "PavingStones128",
-  "source": "ambientCG",
-  "name": "Paving Stones 128",
-  "url": "https://ambientcg.com/view?id=PavingStones128",
-  "license": "CC0 1.0",
-  "authors": "ambientCG (Lennart Demes)",
-  "tile_m": [
-   3.5,
-   3.5
-  ],
-  "px": 1024,
-  "use": "plaza: light granite pavers, running bond",
-  "meanLinearAlbedo": [
-   0.359,
-   0.335,
-   0.276
-  ]
- },
  "ph_asphalt_02": {
   "folder": "ph_asphalt_02",
   "id": "asphalt_02",

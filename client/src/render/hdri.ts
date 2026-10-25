@@ -28,7 +28,7 @@ export interface HdriPreset {
 export const HDRI_PRESETS = {
   kloofendal: {
     id: 'kloofendal',
-    file: 'kloofendal_overcast_puresky_2k.hdr',
+    file: 'kloofendal_overcast_puresky_1k.hdr',
     name: 'Kloofendal Overcast (Pure Sky)',
     author: 'Greg Zaal',
     url: 'https://polyhaven.com/a/kloofendal_overcast_puresky',
@@ -40,7 +40,7 @@ export const HDRI_PRESETS = {
   },
   bridges: {
     id: 'bridges',
-    file: 'between_bridges_2k.hdr',
+    file: 'between_bridges_1k.hdr',
     name: 'Between Bridges',
     author: 'Greg Zaal',
     url: 'https://polyhaven.com/a/between_bridges',

@@ -93,7 +93,6 @@ export const TILE: Record<string, [number, number]> = {
   ph_asphalt_02: [3.0, 3.0],
   ph_concrete_floor_worn_001: [3.0, 3.0],
   ph_white_sandstone_blocks_02: [2.0, 2.0],
-  acg_PavingStones128: [3.5, 3.5],
   acg_Grass004: [1.4, 1.4],
   ph_yellow_flower_mulch: [2.0, 2.0],
   ph_bicolour_gravel: [1.9, 1.9],

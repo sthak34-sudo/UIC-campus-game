@@ -9,6 +9,8 @@ import { createPlayer } from './player';
 // URL options (used by tools/screenshot):
 //   ?view=<viewpoint name>  freeze the camera at a registered viewpoint (no player control)
 //   ?hour=<0-24>            time of day
+//   ?zoneFast=1             safe-zone timers run at 10× (damage per second stays the same)
+//   ?zoneSeed=<number>      picks where the circles land. Default is 1.
 declare global {
   interface Window {
     __ready?: boolean;
@@ -33,7 +35,15 @@ async function start(): Promise<void> {
   const player = view ? null : await createPlayer(world, camera, container);
   // Combat (dummies, loot, HUD) registers the combat-range viewpoint, so it runs before the camera locks.
   const { mountCombat } = await import('./combat');
-  mountCombat({ world, player, camera, dom: container });
+  const combat = mountCombat({ world, player, camera, dom: container });
+  const { mountZone } = await import('./zone');
+  mountZone({
+    world,
+    player,
+    bounds: data.bounds,
+    search: location.search,
+    applyDamage: (amount) => combat.applyZoneDamage(amount),
+  });
 
   const vp = view ? world.viewpoints.get(view) : undefined;
   world.focus.copy(player ? player.position : (vp?.position ?? camera.position));

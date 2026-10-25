@@ -33,6 +33,14 @@ DIRS = [
     'ph_white_sandstone_blocks_02',
 ]
 
+# 1024 px UASTC normals land over 1 MB. These sets are resized to 512 before encoding.
+NORMAL_512 = {
+    'ph_concrete_layers_02',
+    'ph_red_brick_03',
+    'ph_brick_wall_001',
+    'ph_white_sandstone_blocks_02',
+}
+
 
 def toktx() -> str:
     env = os.environ.get('TOKTX')
@@ -49,10 +57,29 @@ def run(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True)
 
 
+def shrink_normal(path: Path, px: int = 512) -> None:
+    """Box-filter a tangent-space normal map down to `px` and re-normalize."""
+    import numpy as np
+    from PIL import Image
+
+    im = Image.open(path).convert('RGB')
+    if max(im.size) <= px:
+        return
+    im = im.resize((px, px), Image.Resampling.BOX)
+    arr = np.asarray(im).astype(np.float32)
+    n = arr / 255.0 * 2.0 - 1.0
+    length = np.linalg.norm(n, axis=2, keepdims=True)
+    n = n / np.maximum(length, 1e-6)
+    out = np.clip(np.round((n * 0.5 + 0.5) * 255.0), 0, 255).astype(np.uint8)
+    Image.fromarray(out, 'RGB').save(path, quality=95)
+
+
 def encode_dir(folder: Path, bin: str) -> None:
     albedo = folder / 'albedo.jpg'
     normal = folder / 'normal.jpg'
     orm = folder / 'orm.jpg'
+    if folder.name in NORMAL_512 and normal.is_file():
+        shrink_normal(normal)
     if not albedo.is_file() or not normal.is_file() or not orm.is_file():
         missing = [p.name for p in (albedo, normal, orm) if not p.is_file()]
         print(f'skip {folder.name}: missing {", ".join(missing)} (already KTX2?)')
