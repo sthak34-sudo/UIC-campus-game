@@ -1,88 +1,100 @@
 /**
- * Sun shadow that follows the camera. One shadow map (cheap: one extra depth pass) whose box is
- * centered a little ahead of the camera at street level, snapped to whole shadow texels so edges
- * don't shimmer while walking. For aerial cameras the box recenters on where the camera looks and
- * grows with altitude (coarser, but the whole view gets shadows).
+ * Cascaded sun shadows (three's CSM addon, the same technique as three-csm).
+ * Several shadow maps cover near, middle, and far distances so the player sees a sharp
+ * shadow without a huge single map. Every lit standard material has to opt in, otherwise
+ * the three cascade lights would each add their own sun.
  * OWNER: Graphics Engineer.
+ *
+ * Baked lightmaps for Daley Library and University Hall are a follow-up: those meshes are
+ * merged without a second UV channel, so a unique lightmap atlas is not a small change.
+ * Screen-space N8AO is the stand-in until then.
  */
 import * as THREE from 'three';
+import { CSM } from 'three/addons/csm/CSM.js';
 import type { QualitySettings } from './quality';
 
-const DIST = 900; // light distance from the shadow center (m)
+const hooked = new WeakSet<THREE.Material>();
 
-export class ShadowFollower {
-  private dir = new THREE.Vector3(0, 1, 0);
-  private right = new THREE.Vector3(1, 0, 0);
-  private up = new THREE.Vector3(0, 0, -1);
-  private center = new THREE.Vector3();
-  private tmp = new THREE.Vector3();
-  private extent = 0;
+export function hookCascadeMaterial(material: THREE.Material, csm: CSM): void {
+  if (hooked.has(material)) return;
+  if (!(material instanceof THREE.MeshStandardMaterial)) return;
+  hooked.add(material);
+  const prev = material.onBeforeCompile;
+  const prevKey = material.customProgramCacheKey.bind(material);
+  csm.setupMaterial(material);
+  const csmCompile = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    csmCompile.call(material, shader, renderer);
+    prev.call(material, shader, renderer);
+  };
+  material.customProgramCacheKey = () => `csm${csm.cascades}:${prevKey()}`;
+  material.needsUpdate = true;
+}
 
-  constructor(private sun: THREE.DirectionalLight, private q: QualitySettings) {
-    const s = sun.shadow;
-    s.mapSize.set(q.shadowMapSize, q.shadowMapSize);
-    s.radius = q.shadowRadius;
-    s.blurSamples = 8;
-    s.camera.near = 1;
-    s.camera.far = DIST * 2;
-    this.setExtent(q.shadowExtent);
-  }
+export class CascadeSun {
+  readonly csm: CSM;
+  private readonly baseFar: number;
 
-  setSunDirection(d: THREE.Vector3): void {
-    this.dir.copy(d).normalize();
-    const worldUp = Math.abs(this.dir.y) > 0.99 ? new THREE.Vector3(0, 0, -1) : new THREE.Vector3(0, 1, 0);
-    // same basis three's lookAt builds for the shadow camera (looking along -dir)
-    this.right.crossVectors(worldUp, this.dir).normalize();
-    this.up.crossVectors(this.dir, this.right).normalize();
-  }
-
-  private setExtent(e: number): void {
-    if (e === this.extent) return;
-    this.extent = e;
-    const c = this.sun.shadow.camera;
-    c.left = c.bottom = -e / 2;
-    c.right = c.top = e / 2;
-    c.updateProjectionMatrix();
-    const texel = e / this.q.shadowMapSize;
-    this.sun.shadow.normalBias = texel * 1.4;
-    this.sun.shadow.bias = -0.00004;
-  }
-
-  /**
-   * @param focus the player position (from setFocus). At street level the box is centered on it,
-   *   pushed forward along the camera's view so most of the box is on screen.
-   */
-  update(camera: THREE.Camera, focus?: THREE.Vector3): void {
-    const pos = camera.getWorldPosition(this.tmp).clone();
-    const fwd = camera.getWorldDirection(new THREE.Vector3());
-    const height = Math.max(pos.y, 0);
-    let extent = this.q.shadowExtent;
-    const c = this.center;
-    if (height < 40 || fwd.y > -0.05) {
-      // street level: shift the box forward so more of it is in view
-      const h = new THREE.Vector3(fwd.x, 0, fwd.z);
-      if (h.lengthSq() > 1e-6) h.normalize();
-      const base = focus && focus.distanceToSquared(pos) < 60 * 60 ? focus : pos;
-      c.copy(base).addScaledVector(h, extent * 0.3);
-      c.y = Math.min(base.y, 20);
-    } else {
-      const t = Math.min(-pos.y / fwd.y, 2500);
-      c.copy(pos).addScaledVector(fwd, t * 0.85);
-      c.y = 0;
-      // grow with altitude, quantized to avoid constant resizing
-      const want = Math.min(1600, extent + height * 2.6);
-      extent = extent * Math.pow(1.25, Math.ceil(Math.log(want / extent) / Math.log(1.25)));
+  constructor(scene: THREE.Scene, camera: THREE.Camera, q: QualitySettings) {
+    this.baseFar = q.shadowFar;
+    this.csm = new CSM({
+      camera,
+      parent: scene,
+      cascades: q.cascades,
+      maxFar: q.shadowFar,
+      mode: 'practical',
+      shadowMapSize: q.shadowMapSize,
+      shadowBias: -0.0002,
+      lightDirection: new THREE.Vector3(0.2, -1, 0.15).normalize(),
+      lightIntensity: 2,
+      lightNear: 1,
+      lightFar: 2500,
+      lightMargin: 80,
+    });
+    this.csm.fade = false;
+    for (const light of this.csm.lights) {
+      light.name = 'gfx.sun';
+      light.shadow.bias = -0.0002;
+      light.shadow.normalBias = 0.045;
+      light.shadow.radius = q.shadowRadius;
+      light.shadow.mapSize.set(q.shadowMapSize, q.shadowMapSize);
     }
-    this.setExtent(extent);
-    // snap to texels in light space
-    const texel = extent / this.q.shadowMapSize;
-    const cr = c.dot(this.right);
-    const cu = c.dot(this.up);
-    c.addScaledVector(this.right, Math.round(cr / texel) * texel - cr);
-    c.addScaledVector(this.up, Math.round(cu / texel) * texel - cu);
-    this.sun.target.position.copy(c);
-    this.sun.position.copy(c).addScaledVector(this.dir, DIST);
-    this.sun.target.updateMatrixWorld();
-    this.sun.updateMatrixWorld();
+  }
+
+  /** `towardSun` points from the ground toward the sun. */
+  setDirectionTowardSun(towardSun: THREE.Vector3): void {
+    this.csm.lightDirection.copy(towardSun).multiplyScalar(-1);
+    if (this.csm.lightDirection.lengthSq() < 1e-8) this.csm.lightDirection.set(0, -1, 0);
+    else this.csm.lightDirection.normalize();
+  }
+
+  setAppearance(color: THREE.Color, intensity: number): void {
+    this.csm.lightIntensity = intensity;
+    for (const light of this.csm.lights) {
+      light.color.copy(color);
+      light.intensity = intensity;
+      light.castShadow = intensity > 1e-4;
+    }
+  }
+
+  /** Opt every standard material under `root` into the cascade shader. Cheap after the first pass. */
+  adopt(root: THREE.Object3D): void {
+    root.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      const mat = mesh.material;
+      if (!mat) return;
+      const list = Array.isArray(mat) ? mat : [mat];
+      for (const m of list) hookCascadeMaterial(m, this.csm);
+    });
+  }
+
+  update(camera: THREE.Camera): void {
+    const height = Math.max(0, camera.position.y);
+    const want = height < 35 ? this.baseFar : Math.min(1400, this.baseFar + height * 2.4);
+    if (Math.abs(this.csm.maxFar - want) > 30) {
+      this.csm.maxFar = want;
+      this.csm.updateFrustums();
+    }
+    this.csm.update();
   }
 }

@@ -5,6 +5,7 @@ __pycache__/
 *.pyc
 tools/map-pipeline/cache/
 screenshots/tmp/
+screenshots/lighting/
 .DS_Store
 .claude/worktrees/
 screenshots/final/

@@ -7,6 +7,10 @@ import { jumpSpeed } from './math';
 /**
  * Rapier world + kinematic capsule character. No DOM, no rendering: usable from unit tests (Node)
  * and from the game. OWNER: Player Engineer.
+ *
+ * rapier3d-compat is intentional: the WASM is inside the JS module, so tests do not need a
+ * separate .wasm file. The player loads this module with a dynamic import, and the production
+ * build puts it in its own chunk (client/vite.config.ts).
  */
 
 let initPromise: Promise<void> | null = null;
