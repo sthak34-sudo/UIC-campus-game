@@ -1,6 +1,6 @@
 # UIC Campus Game: Team Handbook (read first)
 
-This is a 3D browser game of the real UIC East Campus, with realistic graphics, missions and multiplayer (see `PLAN.md`).
+This is a realistic battle-royale game on the real UIC East Campus, played in the browser (squads of 4; see `PLAN.md`). Graphics stay on three.js. Walking and hitscan stay on Rapier. The dev server stays on Vite.
 The owner is a non-programmer. AI agents write all the code and the Tech Lead (the main session) reviews and merges.
 Explain things to the owner in plain English.
 
@@ -31,6 +31,7 @@ Explain things to the owner in plain English.
 | Graphics Engineer | `client/src/render/**` (renderer, sky, sun, shadows, post-processing, **material library**) |
 | Landmarks Engineer | `client/src/world/landmarks/**` (University Hall, Daley Library, their interiors) |
 | Player Engineer | `client/src/player/**` (Rapier physics, character, controls, camera, entering buildings) |
+| Combat Engineer | `client/src/combat/**` (shooting, health, dummies, loot, combat HUD) |
 
 ## Shared contracts (`client/src/core/`)
 - **`campusData.ts`:** the `campus.json` format. Buildings with `landmark` set are skipped by the generic campus builder.
@@ -52,12 +53,15 @@ Explain things to the owner in plain English.
   - Use `InstancedMesh` for repeated items.
   - Keep total draw calls under about 300 outdoors.
   - Shadows are cast by buildings and trees, not tiny props.
-- **Viewpoint names:** short kebab-case, prefixed by owner area: `map-*`, `gfx-*`, `uh-*`, `library-*`, `player-*`.
+- **Viewpoint names:** short kebab-case, prefixed by owner area: `map-*`, `gfx-*`, `uh-*`, `library-*`, `player-*`, `combat-*`.
 
 ## Legal rules
 - **No UIC logos, seals, Flames or Sparky artwork,** and no restaurant or CTA logos. Real building names are fine.
+- **No Google 3D Tiles, Photorealistic Tiles, Maps imagery, or Street View imagery or geometry.**
 - **Map data is ODbL.** Keep the "© OpenStreetMap contributors" credit visible (it's in `client/index.html`).
-- **Only use assets we're allowed to use:** CC0 or self-made, recorded in `CREDITS.md`. Never copy Google Maps or Street View imagery or geometry.
+- **CC0 and self-made assets may be committed.** Record every one in `CREDITS.md`.
+- **Mixamo may be used at runtime.** Mixamo files — raw downloads or baked into glTF/FBX — must **never** be committed. The same ban covers RenderPeople and any other non-redistributable file. Put those only in gitignored `client/public/models/private/` (for example `anims.glb`). Code must still run when that folder is empty and fall back to the procedural character.
+- A CC0 body, if we add one, may live at `client/public/models/characters/player_base.glb` and must be listed in `CREDITS.md` before it is committed.
 - **No real people's names.** Professors and staff in the game are fictional.
 
 ## Done means
