@@ -2,8 +2,7 @@
  * Tunable player constants. OWNER: Player Engineer.
  * Everything is in meters, seconds and radians unless the name says otherwise.
  *
- * Other modules (e.g. missions) may change `speedScale` at runtime (the plan uses ~2x real speed
- * for timed missions): `player.setSpeedScale(2)`.
+ * Other modules may change `speedScale` at runtime: `player.setSpeedScale(2)`.
  */
 export const PLAYER_CONFIG = {
   // --- movement -----------------------------------------------------------------------------
@@ -11,7 +10,7 @@ export const PLAYER_CONFIG = {
   walkSpeed: 1.4,
   /** Jog / run (Shift). */
   runSpeed: 4.5,
-  /** Multiplies walk and run speed (missions may use 2). */
+  /** Multiplies walk and run speed. 1 is a real human pace. */
   speedScale: 1,
   /** How fast horizontal speed approaches the target on the ground (m/s^2). */
   groundAccel: 14,
