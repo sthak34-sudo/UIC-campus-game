@@ -11,8 +11,12 @@ describe('quality presets', () => {
   it('presets get heavier from low to high', () => {
     const { low, medium, high } = QUALITY_PRESETS;
     expect(low.shadowMapSize).toBeLessThan(medium.shadowMapSize);
-    expect(medium.shadowMapSize).toBeLessThan(high.shadowMapSize);
+    expect(medium.shadowMapSize).toBe(2048);
+    expect(high.shadowMapSize).toBe(2048);
+    expect(low.cascades).toBeLessThan(high.cascades);
     expect(low.post).toBe(false);
+    expect(low.ao).toBe(0);
+    expect(low.bloom).toBe(false);
     expect(high.ao).toBeGreaterThan(medium.ao);
   });
 });

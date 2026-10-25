@@ -6,24 +6,23 @@ import { computeLighting, ENV_SKY_SATURATION, INTERIOR_EXPOSURE_BOOST, NIGHT_FLO
 import { installHeightFog, fogExtra } from './fog';
 import { parseQuality, type QualitySettings } from './quality';
 import { PostPipeline, DEFAULT_GRADE, type GradeParams } from './post';
-import { setTextureAnisotropy, pendingTextures } from './textures';
+import { initTextureLoader, setTextureAnisotropy, pendingTextures } from './textures';
 import { setInteriorLighting, updateMaterials } from './materials';
-import { ShadowFollower } from './shadows';
+import { CascadeSun } from './shadows';
+import { HDRI_PRESETS, loadHdriEnvironment, parseSky, presetSunDirection, type HdriPreset } from './hdri';
 import { buildGfxTestScene } from './gfxTestScene';
 
 /**
  * Renderer, sky, sun, shadows, post-processing. OWNER: Graphics Engineer.
  *
- * - Physical sky (Preetham, three's Sky addon) with the real sun position for Chicago, mid-October.
- * - Sun: one DirectionalLight with soft PCF shadows; the shadow box follows the camera (sharp near
- *   the player, ~200 m wide; grows automatically for aerial views).
- * - Image-based lighting: the sky (+ ground bounce + a dark "city skyline" band) is captured into a
- *   PMREM environment map, used for ambient light and reflections. Re-captured when the time changes.
- * - Height fog matched to the sky's horizon color (aerial perspective).
- * - HDR post: GTAO ambient occlusion, bloom, ACES tone mapping, grading, vignette, SMAA (quality-dependent).
- * - Interiors: setFocus(p, true) smoothly raises exposure and lowers the sky's contribution.
+ * - Default sky is a photographed HDRI (Poly Haven, CC0) turned into a PMREM environment map.
+ *   The directional light points at that photo's sun, so shadows match the picture.
+ *   `?sky=bridges` is late afternoon. `?sky=procedural` keeps the Preetham clock (`?hour=`).
+ * - Cascaded shadow maps (three's CSM) follow the camera. Aerial views grow the far cascade.
+ * - AgX tone mapping and sRGB output. Medium/High add N8AO, bloom, and SMAA.
+ * - Interiors: setFocus(p, true) smoothly raises exposure and swaps in a room environment.
  *
- * URL options: ?quality=low|medium|high, ?gfxtest=1 (material test scene + gfx-* viewpoints).
+ * URL options: ?quality=low|medium|high, ?sky=kloofendal|bridges|procedural, ?hour=, ?gfxtest=1.
  */
 export interface GameRenderer {
   renderer: THREE.WebGLRenderer;
@@ -162,10 +161,14 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, q.maxPixelRatio));
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.shadowMap.enabled = true;
+  // three r186 dropped PCFSoftShadowMap; plain PCF is the softest map it still draws.
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = q.post ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
+  // The post pipeline tone-maps itself. Without it, the renderer applies AgX.
+  renderer.toneMapping = q.post ? THREE.NoToneMapping : THREE.AgXToneMapping;
+  renderer.toneMappingExposure = 1;
   container.appendChild(renderer.domElement);
+  initTextureLoader(renderer);
   setTextureAnisotropy(Math.min(q.anisotropy, renderer.capabilities.getMaxAnisotropy()));
 
   const scene = world.scene;
@@ -179,12 +182,20 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
   scene.add(sky);
   const skyU = (sky.material as THREE.ShaderMaterial).uniforms;
 
-  // --- sun + shadows
-  const sun = new THREE.DirectionalLight(0xffffff, 3);
-  sun.name = 'gfx.sun';
-  sun.castShadow = true;
-  scene.add(sun, sun.target);
-  const shadows = new ShadowFollower(sun, q);
+  // The sun is a cascaded directional light, created on the first frame (it needs the camera).
+  let cascades: CascadeSun | null = null;
+  const sunToward = new THREE.Vector3(0, 1, 0);
+  const sunColor = new THREE.Color(1, 0.98, 0.95);
+  let sunIntensity = 2;
+  function ensureCascades(camera: THREE.PerspectiveCamera): CascadeSun {
+    if (!cascades) cascades = new CascadeSun(scene, camera, q);
+    return cascades;
+  }
+  function applySun(): void {
+    if (!cascades) return;
+    cascades.setDirectionTowardSun(sunToward);
+    cascades.setAppearance(sunColor, sunIntensity);
+  }
 
   // fill light used only indoors (keeps corners from going pitch black when interior lights are sparse)
   const fill = new THREE.HemisphereLight(0xfff2e0, 0x8a7f70, 0);
@@ -225,45 +236,79 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
   scene.fog = new THREE.FogExp2(0xbfc8d0, FOG_DENSITY);
 
   let lighting: Lighting = computeLighting([0, 1, 0]);
-  let currentHour = -1;
+  let hourLocked = -1;
 
-  function setTimeOfDay(hour: number): void {
-    if (Math.abs(hour - currentHour) < 1 / 120) return;
-    currentHour = hour;
-    const angles = campusSunAngles(hour);
-    const d = sunDirectionWorld(angles);
+  // Photographed sky (default). Procedural mode keeps the moving Preetham sun.
+  const skyMode = parseSky(location.search);
+  let activePreset: HdriPreset | null = skyMode === 'procedural' ? null : HDRI_PRESETS[skyMode];
+  let hdriReady = activePreset === null;
+  let hdriSun: THREE.Vector3 | null = null;
+  let hdriHorizon: THREE.Color | null = null;
+  let hdriEnv: THREE.Texture | null = null;
+
+  function refreshLighting(): void {
+    const hour = hourLocked < 0 ? 14 : hourLocked;
+    const dir = activePreset ? (hdriSun ?? presetSunDirection(activePreset)) : null;
+    const d = dir ? ([dir.x, dir.y, dir.z] as [number, number, number]) : sunDirectionWorld(campusSunAngles(hour));
     lighting = computeLighting(d);
     const sunPos = new THREE.Vector3(d[0], d[1], d[2]);
     skyU.sunPosition.value.copy(sunPos);
     envSkyU.sunPosition.value.copy(sunPos);
-    // sun light
-    sun.color.copy(rgb(lighting.sunColor));
-    sun.intensity = lighting.sunIntensity;
-    sun.visible = lighting.sunIntensity > 1e-4;
-    const key = lighting.sunDir;
-    shadows.setSunDirection(new THREE.Vector3(key[0], key[1], key[2]));
-    // Opposite the sun, still from above, so the unlit side of a person picks up a cool sky fill.
-    combatFill.position.set(-key[0], Math.abs(key[1]) + 0.55, -key[2]);
-    combatFill.target.position.set(0, 0, 0);
+    sunToward.copy(sunPos);
+    if (activePreset) {
+      sunColor.setRGB(activePreset.sunColor[0], activePreset.sunColor[1], activePreset.sunColor[2]);
+      sunIntensity = activePreset.sunIntensity;
+    } else {
+      sunColor.copy(rgb(lighting.sunColor));
+      sunIntensity = lighting.sunIntensity;
+    }
+    applySun();
     combatFillBase = lighting.isMoon ? 0.035 : 0.2;
-    // environment
+    const fog = scene.fog as THREE.FogExp2;
+    if (hdriHorizon) fog.color.copy(hdriHorizon);
+    else fog.color.copy(rgb(lighting.horizonColor));
+    const hs = lighting.horizonSunColor;
+    fogExtra.fogSunColor.value = { x: hs[0], y: hs[1], z: hs[2] };
+    fogExtra.fogSunDir.value = { x: d[0], y: d[1], z: d[2] };
+    setInteriorLighting(0.022 * lighting.totalHorizontal, 0.02);
+    // Procedural mode (and the fallback if a photo fails) bakes the analytic sky into the IBL.
+    // A loaded photograph replaces that map, so it is not rebuilt when the clock moves.
+    if (activePreset) return;
     groundMat.color.copy(rgb(lighting.groundRadiance));
     const h = lighting.horizonColor;
-    // facades: ~0.3 albedo, about half in sun, seen through some haze
     const facade = (0.3 * (0.55 * lighting.totalHorizontal + 0.12 * lighting.sunIntensity)) / Math.PI / 0.45;
     bandMat.color.setRGB(facade * 0.75 + h[0] * 0.25, facade * 0.75 + h[1] * 0.25, facade * 0.75 + h[2] * 0.25);
     const old = envRT;
     envRT = pmrem.fromScene(envScene, 0, 0.1, 100, { size: q.envSize });
     skyEnv = envRT.texture;
     old?.dispose();
-    // haze
-    const fog = scene.fog as THREE.FogExp2;
-    fog.color.copy(rgb(lighting.horizonColor));
-    const hs = lighting.horizonSunColor;
-    fogExtra.fogSunColor.value = { x: hs[0], y: hs[1], z: hs[2] };
-    fogExtra.fogSunDir.value = { x: d[0], y: d[1], z: d[2] };
-    // rooms behind opaque windows: dim daylight + electric lights
-    setInteriorLighting(0.022 * lighting.totalHorizontal, 0.02);
+  }
+
+  function setTimeOfDay(hour: number): void {
+    if (Math.abs(hour - hourLocked) < 1 / 120) return;
+    hourLocked = hour;
+    refreshLighting();
+  }
+
+  if (activePreset) {
+    const requested = activePreset;
+    loadHdriEnvironment(renderer, requested)
+      .then((loaded) => {
+        if (activePreset !== requested) return;
+        hdriEnv = loaded.environment;
+        hdriSun = loaded.sunDir;
+        hdriHorizon = loaded.horizon;
+        sky.visible = false;
+        scene.background = loaded.background;
+        hdriReady = true;
+        refreshLighting();
+      })
+      .catch((err: unknown) => {
+        console.error('HDRI failed to load; using the procedural sky.', err);
+        activePreset = null;
+        hdriReady = true;
+        refreshLighting();
+      });
   }
 
   // --- interior adaptation
@@ -300,22 +345,31 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
     timer.update();
     const dt = Math.min(timer.getDelta(), 0.1);
     const elapsed = timer.getElapsed();
-    if (currentHour < 0) setTimeOfDay(14);
+    if (hourLocked < 0) setTimeOfDay(14);
     insideAmt += (insideTarget - insideAmt) * (1 - Math.exp(-dt * 2.5));
     if (Math.abs(insideTarget - insideAmt) < 1e-3) insideAmt = insideTarget;
     combatFill.intensity = combatFillBase * (1 - insideAmt);
+    // Opposite the sun, still from above, aimed at the player so the fill stays local.
+    combatFill.position.set(focus.x - sunToward.x, focus.y + Math.abs(sunToward.y) + 0.55, focus.z - sunToward.z);
+    combatFill.target.position.copy(focus);
 
     sky.position.copy(camera.position);
     // drifting clouds (frozen for fixed viewpoints so screenshots are repeatable)
     skyU.time.value = frozenClouds ? 0 : elapsed;
-    shadows.update(camera, firstFocus ? undefined : focus);
+    const sun = ensureCascades(camera);
+    applySun();
+    // New meshes (the player, a dummy) can appear after the first frame.
+    if (frameNo < 12 || frameNo % 45 === 0) sun.adopt(scene);
+    camera.updateMatrixWorld();
+    sun.update(camera);
     updateMaterials(elapsed);
 
     // Exposure: outdoors it follows the sun/sky model. Indoors the image is metered (like an eye adapting)
     // and a generic "room" environment supplies the soft bounce light real rooms have; its strength is
     // adjusted until the room's average brightness reaches a photographic target. That keeps interiors
     // right whatever lights a building has, instead of a few hot spots in a dark room.
-    const outdoorExp = lighting.exposure;
+    const outdoorExp = activePreset ? activePreset.exposure : lighting.exposure;
+    const envStrength = activePreset ? activePreset.envIntensity : 1;
     const indoors = insideTarget > 0 || insideAmt > 0;
     const inBase = outdoorExp * INTERIOR_EXPOSURE_BOOST;
     const T = INTERIOR_KEY / inBase;
@@ -340,8 +394,8 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
       scene.environmentIntensity = roomFill;
       fill.intensity = 0;
     } else {
-      scene.environment = skyEnv;
-      scene.environmentIntensity = 1 - 0.75 * insideAmt;
+      scene.environment = hdriEnv ?? skyEnv;
+      scene.environmentIntensity = envStrength * (1 - 0.75 * insideAmt);
       fill.intensity = 0.25 * insideAmt * Math.min(1, lighting.totalHorizontal + 0.3);
     }
     const inExp = interiorExp ?? inBase;
@@ -365,7 +419,7 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
     }
 
     const interiorReady = !(insideTarget > 0 || insideAmt > 0) || !q.post || settled;
-    if (pendingTextures() === 0 && interiorReady) {
+    if (pendingTextures() === 0 && hdriReady && interiorReady) {
       if (++readyFrames === 3) {
         isReady = true;
         resolveReady();

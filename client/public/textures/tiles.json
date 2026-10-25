@@ -89,6 +89,12 @@
   1024,
   1024
  ],
+ "ph_concrete_floor_worn_001": [
+  3.0,
+  3.0,
+  1024,
+  1024
+ ],
  "ph_concrete_layers_02": [
   2.0,
   2.0,
@@ -143,17 +149,17 @@
   1024,
   1024
  ],
+ "ph_white_sandstone_blocks_02": [
+  2.0,
+  2.0,
+  1024,
+  1024
+ ],
  "ph_yellow_flower_mulch": [
   2.0,
   2.0,
   512,
   512
- ],
- "sidewalk": [
-  3.0,
-  3.0,
-  1024,
-  1024
  ],
  "water": [
   4.0,
