@@ -31,6 +31,9 @@ async function start(): Promise<void> {
   const view = params.get('view');
   const hourParam = params.get('hour');
   const player = view ? null : await createPlayer(world, camera, container);
+  // Combat (dummies, loot, HUD) registers the combat-range viewpoint, so it runs before the camera locks.
+  const { mountCombat } = await import('./combat');
+  mountCombat({ world, player, camera, dom: container });
 
   const vp = view ? world.viewpoints.get(view) : undefined;
   world.focus.copy(player ? player.position : (vp?.position ?? camera.position));

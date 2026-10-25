@@ -4,6 +4,9 @@ export interface InputActions {
   onToggleView(): void;
   onToggleDebug(): void;
   onInteract(): void;
+  onReload(): void;
+  onDebugHurt(): void;
+  onUseMedkit(): void;
 }
 
 const MOVE_KEYS = new Set([
@@ -19,6 +22,9 @@ export class InputController {
   private readonly keys = new Set<string>();
   private override: MoveInput | null = null;
   private jumpQueued = false;
+  private fireQueued = false;
+  /** When false, movement, look, and combat keys are ignored (death screen). */
+  private controlsOn = true;
   private lookX = 0;
   private lookY = 0;
   private wheel = 0;
@@ -44,7 +50,10 @@ export class InputController {
       }
     });
     on(dom, 'mousedown', (e) => {
-      if (e.button === 0) this.dragging = true;
+      if (e.button === 0) {
+        this.dragging = true;
+        if (this.controlsOn) this.fireQueued = true;
+      }
     });
     on(window, 'mouseup', () => (this.dragging = false));
     on(window, 'mousemove', (e) => {
@@ -63,9 +72,33 @@ export class InputController {
     return document.pointerLockElement === this.dom;
   }
 
+  get enabled(): boolean {
+    return this.controlsOn;
+  }
+
+  /** Death screen turns controls off. Respawning turns them back on. */
+  setEnabled(on: boolean): void {
+    this.controlsOn = on;
+    if (!on) {
+      this.keys.clear();
+      this.fireQueued = false;
+      this.jumpQueued = false;
+    }
+  }
+
+  /** Drops mouse and jump input accumulated while controls are off. */
+  discardFrame(): void {
+    this.fireQueued = false;
+    this.jumpQueued = false;
+    this.lookX = 0;
+    this.lookY = 0;
+    this.wheel = 0;
+  }
+
   private keyDown(e: KeyboardEvent): void {
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    if (!this.controlsOn) return;
     if (MOVE_KEYS.has(e.code)) e.preventDefault(); // no page scrolling with space/arrows
     if (e.repeat) {
       this.keys.add(e.code);
@@ -86,6 +119,15 @@ export class InputController {
       case 'KeyE':
         this.actions.onInteract();
         break;
+      case 'KeyR':
+        this.actions.onReload();
+        break;
+      case 'KeyH':
+        this.actions.onDebugHurt();
+        break;
+      case 'KeyQ':
+        this.actions.onUseMedkit();
+        break;
     }
   }
 
@@ -102,6 +144,7 @@ export class InputController {
 
   /** Current movement intent. */
   read(): MoveInput {
+    if (!this.controlsOn) return { forward: 0, right: 0, run: false, jump: false };
     if (this.override) return { ...this.override };
     const k = this.keys;
     const forward = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
@@ -111,9 +154,16 @@ export class InputController {
 
   /** Returns true once per jump press (consumed by the physics step). */
   consumeJump(): boolean {
-    const j = this.jumpQueued;
+    const j = this.jumpQueued && this.controlsOn;
     this.jumpQueued = false;
     return j;
+  }
+
+  /** True once per left click. Combat applies the fire-rate limit. */
+  consumeFire(): boolean {
+    const f = this.fireQueued && this.controlsOn;
+    this.fireQueued = false;
+    return f;
   }
 
   /** Accumulated mouse movement since the last call (pixels). */

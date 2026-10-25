@@ -11,6 +11,14 @@ export interface PlayerEvents {
   land: { position: { x: number; y: number; z: number }; fallSpeed: number };
   /** Camera mode switched (V). */
   cameraMode: { mode: 'third' | 'first' };
+  /** Left mouse button. Combat reads the camera on this frame. */
+  fire: Record<string, never>;
+  /** R. Reload the equipped rifle. */
+  reload: Record<string, never>;
+  /** Temporary H key: damage the player so the health bar and death screen can be tried. */
+  debugHurt: Record<string, never>;
+  /** Q. Use a carried med kit. */
+  useMedkit: Record<string, never>;
 }
 
 type Handler<T> = (e: T) => void;

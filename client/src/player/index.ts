@@ -1,3 +1,4 @@
+import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { World } from '../core/world';
 import { CameraRig, type CameraMode } from './camera';
@@ -15,11 +16,13 @@ import { buildTestCourse } from './testCourse';
  * Player character, physics (Rapier), controls and camera. OWNER: Player Engineer.
  *
  * Controls: click = capture mouse (Esc releases), mouse = look, WASD/arrows = move, Shift = run,
- * Space = jump, V = first/third person, mouse wheel = zoom, E = interact, F3 = debug line.
+ * Space = jump, left click = fire, R = reload, Q = med kit, H = practice damage,
+ * V = first/third person, mouse wheel = zoom, E = interact, F3 = debug line.
  *
  * Other modules:
- *   player.events.on('interact', ({ position, facing }) => { ... })   // also 'jump', 'land', 'cameraMode'
- *   player.setSpeedScale(2)   // missions: ~2x real speed
+ *   player.events.on('interact', ({ position, facing }) => { ... })
+ *   also 'jump', 'land', 'cameraMode', 'fire', 'reload', 'debugHurt', 'useMedkit'
+ *   player.setSpeedScale(2)   // optional faster pace
  *
  * URL options: `?playertest=1` builds the player test course and spawns there;
  * `?playertest=perf` adds invisible extruded campus buildings as colliders (timing probe).
@@ -39,6 +42,10 @@ export interface Player {
   /** Adds colliders registered since the last sync now (also done automatically every frame). */
   syncColliders(): number;
   stats(): PhysicsStats;
+  /** Rapier world used for movement. Combat casts shots through it. */
+  readonly rapier: { world: RAPIER.World; playerCollider: RAPIER.Collider };
+  /** False while the death screen is up. */
+  setControlsEnabled(enabled: boolean): void;
   dispose(): void;
 }
 
@@ -105,7 +112,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
 
   const events = new Emitter<PlayerEvents>();
   const eventLog: string[] = [];
-  for (const type of ['interact', 'jump', 'land', 'cameraMode'] as const) {
+  for (const type of ['interact', 'jump', 'land', 'cameraMode', 'fire', 'reload', 'debugHurt', 'useMedkit'] as const) {
     events.on(type, () => {
       eventLog.push(type);
       if (eventLog.length > 200) eventLog.shift();
@@ -133,6 +140,9 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
       const f = rig.forward();
       events.emit('interact', { position: { x: phys.feet.x, y: phys.feet.y, z: phys.feet.z }, facing: f });
     },
+    onReload: () => events.emit('reload', {}),
+    onDebugHurt: () => events.emit('debugHurt', {}),
+    onUseMedkit: () => events.emit('useMedkit', {}),
   });
 
   const position = phys.feet.clone();
@@ -177,6 +187,12 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
 
   const update = (dt: number) => {
     if (phys.syncColliders(world.colliders) > 0 && phys.hasFallbackGround) phys.maybeRemoveFallback(phys.feet);
+    if (!input.enabled) {
+      input.discardFrame();
+      present(dt);
+      hud.tick(dt);
+      return;
+    }
     // Look first, so this frame's movement uses this frame's camera yaw.
     const look = input.consumeLook();
     if (look.dx || look.dy) rig.addLook(look.dx, look.dy);
@@ -184,6 +200,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     if (wheel) rig.addZoom(wheel);
     simulate(dt, cfg.maxSubsteps);
     present(dt);
+    if (input.consumeFire()) events.emit('fire', {});
     hud.tick(dt);
     if (hud.debugVisible) {
       const s = phys.stats;
@@ -220,6 +237,8 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     },
     syncColliders: () => phys.syncColliders(world.colliders),
     stats: () => ({ ...phys.stats }),
+    rapier: { world: phys.world, playerCollider: phys.collider },
+    setControlsEnabled: (enabled) => input.setEnabled(enabled),
     dispose: () => {
       input.dispose();
       hud.dispose();
