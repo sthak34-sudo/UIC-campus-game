@@ -2,6 +2,7 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { World } from '../core/world';
 import { CameraRig, type CameraMode } from './camera';
+import { tryLoadAnimatedCharacter } from './characterLoader';
 import { CharacterModel } from './character';
 import { PLAYER_CONFIG } from './config';
 import { Emitter, type PlayerEvents } from './events';
@@ -119,7 +120,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     });
   }
 
-  const model = new CharacterModel();
+  const model = (await tryLoadAnimatedCharacter()) ?? new CharacterModel();
   world.scene.add(model.root);
   const rig = new CameraRig(camera, cfg, phys);
   rig.yaw = initialYaw(world, phys.feet, testMode === '1');
