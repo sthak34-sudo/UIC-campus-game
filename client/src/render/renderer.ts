@@ -191,6 +191,14 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
   fill.name = 'gfx.interiorFill';
   scene.add(fill);
 
+  // Soft outdoor fill from the shadow side of the sun so characters stay readable in a fight.
+  // Much weaker than the sun (~3) and it does not cast shadows. Fades out indoors.
+  const combatFill = new THREE.DirectionalLight(0xb9c7d6, 0);
+  combatFill.name = 'gfx.combatFill';
+  scene.add(combatFill);
+  scene.add(combatFill.target);
+  let combatFillBase = 0;
+
   // --- environment (IBL) scene: sky without sun disc + ground bounce + skyline band
   const envScene = new THREE.Scene();
   const envSky = new Sky();
@@ -234,6 +242,10 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
     sun.visible = lighting.sunIntensity > 1e-4;
     const key = lighting.sunDir;
     shadows.setSunDirection(new THREE.Vector3(key[0], key[1], key[2]));
+    // Opposite the sun, still from above, so the unlit side of a person picks up a cool sky fill.
+    combatFill.position.set(-key[0], Math.abs(key[1]) + 0.55, -key[2]);
+    combatFill.target.position.set(0, 0, 0);
+    combatFillBase = lighting.isMoon ? 0.035 : 0.2;
     // environment
     groundMat.color.copy(rgb(lighting.groundRadiance));
     const h = lighting.horizonColor;
@@ -291,6 +303,7 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
     if (currentHour < 0) setTimeOfDay(14);
     insideAmt += (insideTarget - insideAmt) * (1 - Math.exp(-dt * 2.5));
     if (Math.abs(insideTarget - insideAmt) < 1e-3) insideAmt = insideTarget;
+    combatFill.intensity = combatFillBase * (1 - insideAmt);
 
     sky.position.copy(camera.position);
     // drifting clouds (frozen for fixed viewpoints so screenshots are repeatable)
