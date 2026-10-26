@@ -1,0 +1,41 @@
+{
+ "plan": [
+  145.02,
+  156.79
+ ],
+ "loot": 20,
+ "doors": 8,
+ "parts": [
+  {
+   "node": "part_architecture_and_design_studios_a",
+   "osm_id": "02eea501-41af-4a13-b500-0790ffbfa0a0#0",
+   "osm_name": "Architecture and Design Studios"
+  },
+  {
+   "node": "part_architecture_and_design_studios_b",
+   "osm_id": "02eea501-41af-4a13-b500-0790ffbfa0a0#1",
+   "osm_name": "Architecture and Design Studios"
+  }
+ ],
+ "lods": {
+  "architecture-design-studios_LOD0": {
+   "tris0": 14540,
+   "tris1": 264,
+   "lod1_distance_m": 120
+  }
+ },
+ "tris0": 14540,
+ "tris1": 264,
+ "colliders": {
+  "architecture-design-studios_walls_col": 1980,
+  "architecture-design-studios_floor_col": 660,
+  "architecture-design-studios_stair01_col": 12,
+  "architecture-design-studios_stair02_col": 12
+ },
+ "wall_boxes": 143,
+ "door_overlaps_before_clip": 11,
+ "door_overlaps_after_clip": 0,
+ "wall_gaps": 0,
+ "wall_gaps_patched": 0,
+ "roof_walkable": false
+}
