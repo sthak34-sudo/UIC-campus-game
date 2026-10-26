@@ -1,0 +1,59 @@
+{
+ "plan": [
+  104.38,
+  -35.86
+ ],
+ "loot": 17,
+ "doors": 18,
+ "parts": [
+  {
+   "node": "part_lecture_center_a",
+   "osm_id": "f91c7f32-ff12-4bd0-b2c4-e232a1516de1",
+   "osm_name": "Lecture Center A"
+  },
+  {
+   "node": "part_lecture_center_b",
+   "osm_id": "c77fb1ae-1ebd-4a1e-a5f3-0c5939b8a49a",
+   "osm_name": "Lecture Center B"
+  },
+  {
+   "node": "part_lecture_center_c",
+   "osm_id": "eeb925ff-9b59-4859-9ddd-964375f75b00",
+   "osm_name": "Lecture Center C"
+  },
+  {
+   "node": "part_lecture_center_d",
+   "osm_id": "33f76a96-9119-4bff-9ce5-d0a29df32a34",
+   "osm_name": "Lecture Center D"
+  },
+  {
+   "node": "part_lecture_center_e",
+   "osm_id": "59ca1cfa-c292-4bfb-bf25-b64458616663",
+   "osm_name": "Lecture Center E"
+  },
+  {
+   "node": "part_lecture_center_f",
+   "osm_id": "6d030286-61fc-4774-8f24-370f0bc5c5b1",
+   "osm_name": "Lecture Center F"
+  }
+ ],
+ "lods": {
+  "quad-lecture-centers_LOD0": {
+   "tris0": 13506,
+   "tris1": 184,
+   "lod1_distance_m": 120
+  }
+ },
+ "tris0": 13506,
+ "tris1": 184,
+ "colliders": {
+  "quad-lecture-centers_walls_col": 1468,
+  "quad-lecture-centers_floor_col": 412
+ },
+ "wall_boxes": 107,
+ "door_overlaps_before_clip": 16,
+ "door_overlaps_after_clip": 0,
+ "wall_gaps": 0,
+ "wall_gaps_patched": 0,
+ "roof_walkable": false
+}

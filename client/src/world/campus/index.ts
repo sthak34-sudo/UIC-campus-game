@@ -16,6 +16,7 @@ import { applyFeature } from './features';
 import { buildTrees } from './trees';
 import type { CampusBuildingExt, CampusDataExt } from './types';
 import { addCampusViewpoints } from './viewpoints';
+import { isReplacedByModel } from '../buildings/manifest';
 
 /**
  * Builds the whole campus from campus.json: generic buildings (with procedural facades),
@@ -122,7 +123,7 @@ export function makeFootprintFilter(buildings: CampusBuildingExt[]): (p: PlanPoi
       holes = [];
     }
     const [x0, y0, x1, y1] = bbox(ring);
-    grid.insert({ ring, holes, landmark: !!b.landmark }, x0 - 10, y0 - 10, x1 + 10, y1 + 10);
+    grid.insert({ ring, holes, landmark: !!b.landmark || isReplacedByModel(b) }, x0 - 10, y0 - 10, x1 + 10, y1 + 10);
   }
   return (p, h) => {
     for (const r of grid.at(p[0], p[1])) {
@@ -159,7 +160,7 @@ export async function buildCampus(world: World, rawData: CampusData): Promise<vo
   // --- buildings, grouped by building id and by tile ---------------------------------------
   const groups = new Map<string, CampusBuildingExt[]>();
   for (const b of data.buildings) {
-    if (b.landmark) continue;
+    if (b.landmark || isReplacedByModel(b)) continue; // built by world/landmarks or world/buildings
     const id = b.buildingId ?? b.id;
     let g = groups.get(id);
     if (!g) groups.set(id, (g = []));

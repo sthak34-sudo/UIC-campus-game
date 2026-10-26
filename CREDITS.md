@@ -57,3 +57,7 @@ Loaded at runtime into a PMREM environment map (`client/src/render/hdri.ts`). Bo
 
 ## Disclaimer
 Unofficial fan project. Not affiliated with or endorsed by the University of Illinois Chicago.
+
+## Building models
+
+- `client/public/models/buildings/quad-lecture-centers.glb` (Lecture Centers A to F): modeled for this project by Atlas, released under the project license. Footprints derived from map data © OpenStreetMap contributors (ODbL). No external textures.
