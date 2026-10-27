@@ -49,6 +49,10 @@ describe('landmarks', () => {
     // the library-commons viewpoint is inside the library
     expect(world.interiorAt(world.viewpoints.get('library-commons')!.position)?.id).toBe('daley-library');
     expect(world.interiorAt(world.viewpoints.get('library-stacks')!.position)?.id).toBe('daley-library');
+    // book stacks are hidden away from the library (spawn) and shown inside it
+    world.focus.copy(world.spawn); world.update(0.016, 0);
+    expect(stats(world).books).toBe(0);
+    world.focus.copy(world.viewpoints.get('library-stacks')!.position); world.update(0.016, 0);
     const s = stats(world);
     console.log('landmark stats', s, 'colliders', world.colliders.length);
     expect(s.books).toBeGreaterThan(20000);

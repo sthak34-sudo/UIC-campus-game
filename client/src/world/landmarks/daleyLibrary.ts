@@ -445,6 +445,7 @@ export function buildDaleyLibrary(world: World, b: CampusBuilding): LibraryInfo 
   group.add(ext.build('library-exterior', { castShadow: true, receiveShadow: true }));
   group.add(struct.build('library-structure', { castShadow: false, receiveShadow: true }));
   col.register(world, group);
+  showBooksOnlyNearby(world, group);
 
   // interior zones, one volume per floor
   for (let i = 0; i < F.length; i++) {
@@ -522,4 +523,26 @@ function entranceProps(b: MeshBatch, col: ColliderSet, hx: number, doorZ: number
     for (const yy of [y0, y1]) b.box('metal', hx + 0.35, yy, z, 0.7, 0.05, 0.05);
     b.box('fabric', hx + 0.64, (y0 + y1) / 2, z, 0.02, y1 - y0 - 0.1, 0.6);
   }
+}
+
+/** Book stacks show only within this distance (m) of the building box (inside / at the glass). */
+export const BOOKS_NEAR_M = 2;
+
+/**
+ * Daley's book stacks are only visible from inside or right outside the glass. Hide them
+ * whenever the player is farther than BOOKS_NEAR_M from the building.
+ */
+export function showBooksOnlyNearby(world: World, group: THREE.Object3D): void {
+  group.updateWorldMatrix(true, true);
+  const books: THREE.Object3D[] = [];
+  group.traverse((o) => { if (/^library-books-/.test(o.name)) books.push(o); });
+  if (!books.length) return;
+  // inside the library interior volume, or within BOOKS_NEAR_M of it (looking in through the glass)
+  const probe = new THREE.Vector3();
+  const offs = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]];
+  const near = (): boolean => offs.some(([dx, dz]) =>
+    world.interiorAt(probe.copy(world.focus).add(new THREE.Vector3(dx * BOOKS_NEAR_M, 0, dz * BOOKS_NEAR_M)))?.id === 'daley-library');
+  const set = (v: boolean) => { for (const b of books) b.visible = v; };
+  set(false);
+  world.onUpdate(() => set(near()));
 }

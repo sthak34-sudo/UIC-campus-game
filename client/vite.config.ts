@@ -1,8 +1,12 @@
+import { existsSync } from 'node:fs';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
   // Relative asset paths so the built game works from any web address (artifact link, GitHub Pages, etc.).
   base: './',
+  // Only probe for the private (gitignored) Mixamo clips when they exist on this machine, so the
+  // public build (GitHub Pages) never requests models/private/anims.glb and logs a 404.
+  define: { __HAS_PRIVATE_ANIMS__: JSON.stringify(existsSync('public/models/private/anims.glb')) },
   build: {
     target: 'es2022',
     // Rapier stays on the compat build: its WASM is inlined, so Node tests and the browser
