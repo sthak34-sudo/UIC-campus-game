@@ -104,6 +104,23 @@ for (const model of BUILDING_MODELS.filter((m) => !m.farOnly)) {
       expect(fell).toEqual([]);
     }, 120000);
 
+    it('invisible parapets stop a player walking off any roof edge', () => {
+      const fell: string[] = [];
+      const dirs: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7071, 0.7071], [-0.7071, -0.7071]];
+      for (const { name, p } of roofSpots()) {
+        for (const [dx, dz] of dirs) {
+          const phys = new PlayerPhysics(p.clone().setY(p.y + 0.3));
+          phys.syncColliders(world.colliders);
+          for (let i = 0; i < 30; i++) phys.step(0, 0, 0, false);
+          for (let i = 0; i < 600; i++) phys.step(dx, dz, PLAYER_CONFIG.walkSpeed * 1.6, false); // 10 s run
+          for (let i = 0; i < 60; i++) phys.step(0, 0, 0, false);
+          // Gaps exist only onto walkable surfaces within ~1.2 m of the roof (other roofs/stairs).
+          if (phys.feet.y < p.y - 3) fell.push(`${name} dir ${dx},${dz}: top ${p.y.toFixed(1)} feet ${phys.feet.y.toFixed(1)}`);
+        }
+      }
+      expect(fell).toEqual([]);
+    }, 240000);
+
     it('roofs block shots fired upward from below', () => {
       const leaks: string[] = [];
       for (const { name, p } of roofSpots()) {
