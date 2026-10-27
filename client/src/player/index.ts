@@ -55,6 +55,8 @@ export interface Player {
   readonly rapier: { world: RAPIER.World; playerCollider: RAPIER.Collider };
   /** False while the death screen is up. Plays the death animation while controls are off. */
   setControlsEnabled(enabled: boolean): void;
+  /** Show or hide the rifle in the player's hands (unarmed until one is looted). */
+  setArmed(armed: boolean): void;
   /** Upper-body fire clip. Combat calls this when a shot actually leaves the gun. */
   playFire(): void;
   /** Upper-body reload clip, timed to the gameplay reload. */
@@ -196,6 +198,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
   let simTime = 0;
   let lastMoveYaw: number | null = null;
   let jumpLatch = false;
+  let armed = true;
   let dead = false;
   events.on('jump', () => {
     jumpLatch = true;
@@ -242,6 +245,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
       aiming,
       jumping: !dead && !phys.grounded && (jumpLatch || Math.abs(phys.velocity.y) > 0.08),
       dead,
+      unarmed: !armed,
     });
     const face = aiming ? rig.yaw : lastMoveYaw;
     const viewDistance = camera.position.distanceTo(position);
@@ -319,6 +323,9 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     syncColliders: () => phys.syncColliders(world.colliders),
     stats: () => ({ ...phys.stats }),
     rapier: { world: phys.world, playerCollider: phys.collider },
+    setArmed: (v) => {
+      armed = v;
+    },
     setControlsEnabled: (enabled) => {
       input.setEnabled(enabled);
       dead = !enabled;

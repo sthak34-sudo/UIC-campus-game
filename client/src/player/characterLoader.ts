@@ -69,6 +69,8 @@ export interface AnimFlags {
   aiming?: boolean;
   jumping?: boolean;
   dead?: boolean;
+  /** No rifle in hand (the player before looting one). Default false: bots and dummies stay armed. */
+  unarmed?: boolean;
 }
 
 export interface HitDir {
@@ -755,7 +757,7 @@ class AnimatedCharacter implements CharacterVisual {
   private updateRifle(dt: number, speed: number, dead: boolean): void {
     if (!this.rifle) return;
     this.fireHold = Math.max(0, this.fireHold - dt);
-    this.rifle.visible = !dead && this.lod < 3;
+    this.rifle.visible = !dead && !this.flags.unarmed && this.lod < 3;
     const want = Math.max(this.aimBlend, this.fireHold > 0 ? 1 : 0, this.reloading ? 0.6 : 0);
     this.holdAim += (want - this.holdAim) * damp(16, dt);
     this.rifle.update(dt, this.root, blendHold(locomotionWeights(speed), this.holdAim), !this.reloading);
