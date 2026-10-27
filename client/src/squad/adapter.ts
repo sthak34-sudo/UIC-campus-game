@@ -5,11 +5,15 @@
  * Pure rules stay in the other squad modules.
  */
 import * as THREE from 'three';
+import RAPIER from '@dimforge/rapier3d-compat';
 import type { CombatMount, CombatSquadBridge } from '../combat';
 import { createCombatant, takeDirectDamage, type Combatant } from '../combat/health';
 import type { World } from '../core/world';
 import type { Player } from '../player';
 import { PLAYER_CONFIG } from '../player/config';
+import { createAvatar, peekCharacterAssets, type CharacterVisual } from '../player/characterLoader';
+import { snapBotY } from './botBody';
+import type { GroundProbe } from '../player/characterLoader';
 import type { ZoneMount } from '../zone';
 import { DOWN } from './balance';
 import { botIntent, stepToward } from './bots';
@@ -24,6 +28,21 @@ import { createMatch } from './roster';
 import { nextTarget, spectateTargets } from './spectate';
 import { step, type PlayerInput } from './step';
 import type { PlayerId, SquadEvent, SquadMatchState } from './types';
+
+
+/** Downward Rapier ray probe. `skip` excludes colliders (e.g. the local player's capsule). */
+function rapierDownProbe(world: RAPIER.World, skip: RAPIER.Collider | null): GroundProbe {
+  return {
+    sample(x, yFrom, z, maxDrop) {
+      const hit = world.castRay(
+        new RAPIER.Ray({ x, y: yFrom, z }, { x: 0, y: -1, z: 0 }),
+        maxDrop, true, undefined, undefined, skip ?? undefined,
+      );
+      return hit ? yFrom - hit.timeOfImpact : null;
+    },
+  };
+}
+
 
 export type SquadMode = 'bots' | 'solo';
 
@@ -65,6 +84,9 @@ interface BotBody {
   id: PlayerId;
   root: THREE.Group;
   enemy: boolean;
+  /** Animated character with its starter rifle, or null (capsule fallback). */
+  avatar: CharacterVisual | null;
+  last: { x: number; z: number };
 }
 
 /**
@@ -138,6 +160,9 @@ export function mountSquad(opts: {
   };
 
   const bots: BotBody[] = [];
+  const assets = peekCharacterAssets();
+  // Feet and body height come from the same downward ray the player uses (skipping the player capsule).
+  const probe = player ? rapierDownProbe(player.rapier.world, player.rapier.playerCollider) : null;
   const bodyGeom = new THREE.CapsuleGeometry(0.28, 0.9, 4, 8);
   const headGeom = new THREE.SphereGeometry(0.18, 12, 10);
   let allyColorIdx = 0;
@@ -157,16 +182,32 @@ export function mountSquad(opts: {
       metalness: 0,
     });
     const skin = new THREE.MeshStandardMaterial({ color: 0xc4a574, roughness: 0.7, metalness: 0 });
-    const body = new THREE.Mesh(bodyGeom, suit);
-    body.position.y = 0.95;
-    body.castShadow = true;
-    const head = new THREE.Mesh(headGeom, skin);
-    head.position.y = 1.7;
-    head.castShadow = true;
-    root.add(body, head);
-    root.position.set(m.pos.x, m.pos.y, m.pos.z);
+    let avatar: CharacterVisual | null = null;
+    if (assets) {
+      avatar = createAvatar(assets);
+      if (probe) avatar.setGroundProbe(probe);
+      root.add(avatar.root);
+      // Team colour as a flat ring at the feet (the character itself is shared).
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.42, 24), new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide,
+      }));
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.02;
+      root.add(ring);
+      skin.dispose();
+    } else {
+      const body = new THREE.Mesh(bodyGeom, suit);
+      body.position.y = 0.95;
+      body.castShadow = true;
+      const head = new THREE.Mesh(headGeom, skin);
+      head.position.y = 1.7;
+      head.castShadow = true;
+      root.add(body, head);
+    }
+    const y0 = snapBotY(probe, m.pos.x, m.pos.y, m.pos.z);
+    root.position.set(m.pos.x, y0, m.pos.z);
     opts.world.scene.add(root);
-    bots.push({ id, root, enemy });
+    bots.push({ id, root, enemy, avatar, last: { x: m.pos.x, z: m.pos.z } });
   }
 
   // Viewpoints for screenshots (no player).
@@ -445,6 +486,20 @@ export function mountSquad(opts: {
 
   const botSpeed = PLAYER_CONFIG.walkSpeed * 1.05;
 
+  const poseBot = (body: BotBody, life: string, dt: number) => {
+    if (!body.avatar) {
+      if (life === 'downed') body.root.scale.set(1, 0.45, 1);
+      else body.root.scale.set(1, 1, 1);
+      return;
+    }
+    const p = body.root.position;
+    const speed = dt > 0 ? Math.hypot(p.x - body.last.x, p.z - body.last.z) / dt : 0;
+    body.last.x = p.x;
+    body.last.z = p.z;
+    body.avatar.setFlags({ crouch: life === 'downed', dead: life === 'dead' });
+    body.avatar.update(dt, speed, true, null, opts.camera.position.distanceTo(p));
+  };
+
   const onUpdate = (dt: number) => {
     if (!player) {
       // Viewpoint / screenshot demo: keep bot meshes posed, no match stepping.
@@ -466,8 +521,7 @@ export function mountSquad(opts: {
         const m = state.members[body.id]!;
         body.root.position.set(m.pos.x, m.pos.y, m.pos.z);
         body.root.visible = m.life !== 'dead';
-        if (m.life === 'downed') body.root.scale.set(1, 0.45, 1);
-        else body.root.scale.set(1, 1, 1);
+        poseBot(body, m.life, dt);
       }
       return;
     }
@@ -574,6 +628,7 @@ export function mountSquad(opts: {
         }
       }
 
+      pos = { ...pos, y: snapBotY(probe, pos.x, pos.y, pos.z) };
       body.root.position.set(pos.x, pos.y, pos.z);
       if (intent.type === 'follow' || intent.type === 'moveTo') {
         const tx = intent.type === 'follow' ? state.members[intent.target]!.pos.x : intent.x;
@@ -645,11 +700,10 @@ export function mountSquad(opts: {
     squadHud.update({ state, pings, dt, nowMs: performance.now() });
     opts.zone?.setSquadMarks(squadHud.getMapMarks());
 
-    // Downed bot mesh squash.
+    // Downed bots: crouch the character (or squash the capsule fallback).
     for (const body of bots) {
       const m = state.members[body.id]!;
-      if (m.life === 'downed') body.root.scale.set(1, 0.45, 1);
-      else body.root.scale.set(1, 1, 1);
+      poseBot(body, m.life, dt);
     }
 
     const specHint = spectateId ? ` · spectate ${state.members[spectateId]?.name ?? spectateId}` : '';
@@ -679,6 +733,11 @@ export function mountSquad(opts: {
       panel.remove();
       for (const b of bots) {
         opts.world.scene.remove(b.root);
+        if (b.avatar) {
+          // Shared character geometry: let the avatar release its own clone, not the template.
+          b.root.remove(b.avatar.root);
+          b.avatar.dispose();
+        }
         b.root.traverse((o) => {
           const mesh = o as THREE.Mesh;
           if (mesh.isMesh) {
