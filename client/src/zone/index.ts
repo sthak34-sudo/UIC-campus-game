@@ -24,8 +24,20 @@ const WALL_HEIGHT = 180;
 /** Chicago Blue. Unlit and without fog so the wall stays blue at the far side of campus. */
 const WALL_COLOR = 0x49c2f5;
 
+export interface SquadMapDot {
+  x: number;
+  z: number;
+  color: string;
+  /** Optional facing yaw (radians). */
+  yaw?: number;
+  /** Yellow ping marker. */
+  ping?: boolean;
+}
+
 export interface ZoneMount {
   dispose(): void;
+  /** Teammate / ping dots drawn on the minimap (S4). */
+  setSquadMarks(marks: readonly SquadMapDot[]): void;
 }
 
 export interface ZoneDebugState {
@@ -127,6 +139,7 @@ export function mountZone(opts: {
 
   const parent = document.getElementById('hud') ?? document.body;
   const hud = new ZoneHud(parent);
+  let squadMarks: SquadMapDot[] = [];
 
   let elapsed = 0;
   let skipQueued = false;
@@ -143,7 +156,7 @@ export function mountZone(opts: {
     syncRing(snap.next);
     const feet = point();
     const meters = feet ? distanceToSafe(snap.current, feet) : 0;
-    hud.set(snap, feet, meters);
+    hud.set(snap, feet, meters, squadMarks);
   };
 
   publish(latest);
@@ -195,6 +208,11 @@ export function mountZone(opts: {
   window.__zone = api;
 
   return {
+    setSquadMarks(marks: readonly SquadMapDot[]) {
+      squadMarks = marks.slice();
+      // Redraw with the latest snap so dots appear without waiting a tick.
+      publish(latest);
+    },
     dispose() {
       window.removeEventListener('keydown', onKey);
       if (window.__zone === api) delete window.__zone;
@@ -301,14 +319,23 @@ class ZoneHud {
     parent.appendChild(this.root);
   }
 
-  set(snap: ZoneSnapshot, player: { x: number; z: number } | null, metersOutside: number): void {
+  set(
+    snap: ZoneSnapshot,
+    player: { x: number; z: number } | null,
+    metersOutside: number,
+    squadMarks: readonly SquadMapDot[] = [],
+  ): void {
     this.timer.textContent = zoneTimerLabel(snap.mode, snap.remaining);
     this.distance.textContent = player ? distanceLabel(metersOutside) : '';
     this.distance.style.color = metersOutside > 0.5 ? '#ffb089' : '#d7ffe4';
-    this.draw(snap, player);
+    this.draw(snap, player, squadMarks);
   }
 
-  private draw(snap: ZoneSnapshot, player: { x: number; z: number } | null): void {
+  private draw(
+    snap: ZoneSnapshot,
+    player: { x: number; z: number } | null,
+    squadMarks: readonly SquadMapDot[] = [],
+  ): void {
     const ctx = this.ctx;
     const size = this.size * 2;
     const c = size / 2;
@@ -358,6 +385,34 @@ class ZoneHud {
       ctx.lineWidth = 2;
       ctx.strokeStyle = 'rgba(0,0,0,0.7)';
       ctx.stroke();
+    }
+
+    for (const mark of squadMarks) {
+      const p = toScreen(mark.x, mark.z);
+      if (mark.ping) {
+        ctx.strokeStyle = mark.color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, 8, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = mark.color;
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+        ctx.stroke();
+        if (mark.yaw != null) {
+          const len = 10;
+          ctx.beginPath();
+          ctx.moveTo(p.sx, p.sy);
+          ctx.lineTo(p.sx + Math.sin(mark.yaw) * len, p.sy + Math.cos(mark.yaw) * len);
+          ctx.strokeStyle = mark.color;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      }
     }
 
     ctx.fillStyle = '#f4f7fb';

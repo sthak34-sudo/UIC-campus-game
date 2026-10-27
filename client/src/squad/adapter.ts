@@ -1,6 +1,7 @@
 /**
- * Squad wiring (S3). Owns match state, bot capsule bodies, crawl/revive input,
- * debug keys, and the combat bridge. Pure rules stay in the other squad modules.
+ * Squad wiring (S3 + S4 HUD). Owns match state, bot capsule bodies, crawl/revive
+ * input, debug keys, combat bridge, team panel / markers / pings. Pure rules stay
+ * in the other squad modules.
  */
 import * as THREE from 'three';
 import type { CombatMount, CombatSquadBridge } from '../combat';
@@ -8,13 +9,16 @@ import { createCombatant, takeDirectDamage, type Combatant } from '../combat/hea
 import type { World } from '../core/world';
 import type { Player } from '../player';
 import { PLAYER_CONFIG } from '../player/config';
+import type { ZoneMount } from '../zone';
 import { DOWN } from './balance';
 import { botIntent, stepToward } from './bots';
 import { applyDamage } from './downed';
 import { canDamage } from './friendlyFire';
+import { SquadHud } from './hud';
+import { placePing, tickPings, type Ping } from './pings';
 import { createMatch } from './roster';
 import { step, type PlayerInput } from './step';
-import type { PlayerId, SquadEvent, SquadMatchState, SquadMember } from './types';
+import type { PlayerId, SquadEvent, SquadMatchState } from './types';
 
 export type SquadMode = 'bots' | 'solo';
 
@@ -56,6 +60,8 @@ export function mountSquad(opts: {
   camera: THREE.PerspectiveCamera;
   combat: CombatMount;
   search: string;
+  /** Optional zone mount so teammate / ping dots land on the minimap (S4). */
+  zone?: ZoneMount | null;
 }): SquadMount | null {
   const { mode, bleedFast } = parseSquadOptions(opts.search);
   if (mode === 'solo') return null;
@@ -141,11 +147,44 @@ export function mountSquad(opts: {
       fov: 50,
       hour: 14,
     });
+    // Wider framing for the S4 HUD screenshot (panel + markers + minimap dots).
+    opts.world.addViewpoint('s4-squad-hud', {
+      position: new THREE.Vector3(mx + 7.5, my + 2.6, mz + 9.5),
+      target: new THREE.Vector3(mx, my + 1.3, mz),
+      fov: 52,
+      hour: 14,
+    });
   }
 
   let holdRevive = false;
   let wasDowned = false;
   const eventsLog: SquadEvent[] = [];
+  let pings: Ping[] = [];
+  let feedCursor = 0;
+
+  // S4: for viewpoint screenshots, knock Bot1 and drop a ping so markers/feed show.
+  if (!player) {
+    const bot = botIds[0];
+    if (bot) {
+      const m = state.members[bot]!;
+      const outcome = takeDirectDamage(m.combatant, 999);
+      const r = applyDamage(state, bot, 'debug', outcome);
+      state = r.state;
+      eventsLog.push(...r.events);
+    }
+    const leader = state.members[playerId]!;
+    pings = placePing(pings, playerId, { x: leader.pos.x + 2, y: leader.pos.y, z: leader.pos.z + 3 }, state.t);
+  }
+
+  const hudParent = document.getElementById('hud') ?? document.body;
+  const squadHud = new SquadHud({
+    parent: hudParent,
+    camera: opts.camera,
+    localId: playerId,
+  });
+  // Seed names for the kill feed.
+  const memberNames: Record<PlayerId, string> = {};
+  for (const m of Object.values(state.members)) memberNames[m.id] = m.name;
 
   const syncPlayerCombatant = (c: Combatant) => {
     const m = state.members[playerId]!;
@@ -249,6 +288,15 @@ export function mountSquad(opts: {
       opts.combat.setVitals(state.members[playerId]!.combatant);
       applyDownedPresentation(false);
       player?.setControlsEnabled(true);
+    } else if (e.code === 'KeyP') {
+      // Ping (P). Q stays combat medkit; design doc said Q but that key is taken.
+      const feet = player?.position ?? state.members[playerId]!.pos;
+      pings = placePing(
+        pings,
+        playerId,
+        { x: feet.x, y: typeof feet.y === 'number' ? feet.y : 0, z: feet.z },
+        state.t,
+      );
     }
   };
   const onKeyUp = (e: KeyboardEvent) => {
@@ -259,22 +307,38 @@ export function mountSquad(opts: {
     window.addEventListener('keyup', onKeyUp);
   }
 
-  // Tiny debug readout (S4 owns the real HUD).
+  // Small key hint under the S4 team panel (K/J/L/P/F).
   const panel = document.createElement('div');
   panel.id = 'squad-debug';
   panel.style.cssText =
-    'position:absolute;left:12px;bottom:48px;color:#e8e8e8;font:12px/1.4 ui-monospace,monospace;' +
-    'background:rgba(0,0,0,.45);padding:8px 10px;border-radius:6px;pointer-events:none;z-index:20;white-space:pre';
-  (document.getElementById('hud') ?? document.body).appendChild(panel);
+    'position:absolute;left:12px;bottom:48px;color:#e8e8e8;font:11px/1.35 ui-monospace,monospace;' +
+    'background:rgba(0,0,0,.4);padding:6px 8px;border-radius:6px;pointer-events:none;z-index:20;white-space:pre';
+  hudParent.appendChild(panel);
 
   const botSpeed = PLAYER_CONFIG.walkSpeed * 1.05;
 
   const onUpdate = (dt: number) => {
     if (!player) {
       // Viewpoint / screenshot demo: keep bot meshes posed, no match stepping.
+      // Still drive the S4 HUD so markers / panel / feed show up in screenshots.
+      pings = tickPings(pings, state.t);
+      if (feedCursor < eventsLog.length) {
+        squadHud.pushEvents(eventsLog.slice(feedCursor), memberNames, performance.now());
+        feedCursor = eventsLog.length;
+      }
+      squadHud.update({ state, pings, dt, nowMs: performance.now(), forceMarkers: true });
+      opts.zone?.setSquadMarks(squadHud.getMapMarks());
       panel.textContent =
-        `Squad A demo (3 bot teammates · K/J knock · L heal · hold F revive)\n` +
-        botIds.map((id, i) => `${i + 1} ${state.members[id]!.name}(bot) alive`).join('\n');
+        `Squad HUD demo (J knock · L heal · P ping · hold F revive)\n` +
+        `Pings: ${pings.length}`;
+      // Pose downed bot lower.
+      for (const body of bots) {
+        const m = state.members[body.id]!;
+        body.root.position.set(m.pos.x, m.pos.y, m.pos.z);
+        body.root.visible = m.life !== 'dead';
+        if (m.life === 'downed') body.root.scale.set(1, 0.45, 1);
+        else body.root.scale.set(1, 1, 1);
+      }
       return;
     }
     const feet = player.position;
@@ -373,14 +437,26 @@ export function mountSquad(opts: {
     // Keep combat HUD vitals in sync after revive.
     opts.combat.setVitals(state.members[playerId]!.combatant);
 
-    // Debug panel.
-    const lines = Object.values(state.members)
-      .filter((m) => m.squad === 'A')
-      .sort((a, b) => a.slot - b.slot)
-      .map((m) => formatMember(m));
+    // Expire pings, push new kill-feed lines, refresh HUD + minimap dots.
+    pings = tickPings(pings, state.t);
+    if (feedCursor < eventsLog.length) {
+      squadHud.pushEvents(eventsLog.slice(feedCursor), memberNames, performance.now());
+      feedCursor = eventsLog.length;
+    }
+    squadHud.update({ state, pings, dt, nowMs: performance.now() });
+    opts.zone?.setSquadMarks(squadHud.getMapMarks());
+
+    // Downed bot mesh squash.
+    for (const body of bots) {
+      const m = state.members[body.id]!;
+      if (m.life === 'downed') body.root.scale.set(1, 0.45, 1);
+      else body.root.scale.set(1, 1, 1);
+    }
+
     panel.textContent =
-      `Squad A  (K knock you · J knock Bot1 · L heal · hold F revive)${bleedFast ? '  bleedFast' : ''}\n` +
-      lines.join('\n');
+      `K knock you · J knock Bot1 · L heal · P ping · hold F revive` +
+      (bleedFast ? ' · bleedFast' : '') +
+      (pings.length ? ` · ping×${pings.length}` : '');
   };
 
   opts.world.onUpdate(onUpdate);
@@ -398,6 +474,8 @@ export function mountSquad(opts: {
         window.removeEventListener('keyup', onKeyUp);
       }
       applyDownedPresentation(false);
+      opts.zone?.setSquadMarks([]);
+      squadHud.dispose();
       panel.remove();
       for (const b of bots) {
         opts.world.scene.remove(b.root);
@@ -415,13 +493,3 @@ export function mountSquad(opts: {
   };
 }
 
-function formatMember(m: SquadMember): string {
-  const hp =
-    m.life === 'downed'
-      ? `downHp ${m.downHp.toFixed(0)}`
-      : m.life === 'dead'
-        ? 'DEAD'
-        : `hp ${m.combatant.health}`;
-  const tag = m.isBot ? 'bot' : 'you';
-  return `${m.slot} ${m.name}(${tag}) ${m.life} ${hp}`;
-}
