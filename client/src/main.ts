@@ -32,15 +32,59 @@ async function start(): Promise<void> {
   const landmarks = await buildLandmarks(world, data);
   // Atlas's building glbs (they replace procedural footprints listed in world/buildings/manifest.ts).
   const { buildBuildingModels } = await import('./world/buildings');
-  await buildBuildingModels(world);
+  const buildings = await buildBuildingModels(world);
   if (landmarks.spawnYaw !== undefined) world.spawnYaw = landmarks.spawnYaw;
 
   const view = params.get('view');
   const hourParam = params.get('hour');
   const player = view ? null : await createPlayer(world, camera, container);
+
+  // B6: glb loot_spawn markers -> floor-snapped crates for the existing loot spawner.
+  const { collectBuildingLootMarkers, snapLootToFloor, warnDroppedLoot } = await import('./world/buildings/lootSpawns');
+  const { buildingLootSpots } = await import('./combat/buildingLoot');
+  const { initRapier, PlayerPhysics } = await import('./player/physics');
+  await initRapier();
+  const lootPhys = player
+    ? player.rapier.world
+    : (() => {
+        const phys = new PlayerPhysics(world.spawn.clone());
+        phys.syncColliders(world.colliders);
+        phys.world.step();
+        return phys.world;
+      })();
+  if (player) {
+    player.syncColliders();
+    player.rapier.world.step();
+  }
+  const rawMarkers = collectBuildingLootMarkers(buildings);
+  const snapped = snapLootToFloor(lootPhys, rawMarkers);
+  warnDroppedLoot(snapped.dropped);
+  const extraLoot = buildingLootSpots(snapped.kept);
+  // Viewpoints aimed at the first kept marker in lecture centers / SCE.
+  const lecturePool = snapped.kept.filter((m) => m.slug === 'quad-lecture-centers');
+  // Prefer a mid-list marker so the camera is not jammed against a wall/door.
+  const lecture = lecturePool[Math.min(4, Math.max(0, lecturePool.length - 1))];
+  const sce = snapped.kept.find((m) => m.slug === 'student-center-east');
+  if (lecture) {
+    world.addViewpoint('b6-lecture-loot', {
+      position: new THREE.Vector3(lecture.x + 4.5, lecture.y + 2.4, lecture.z + 3.8),
+      target: new THREE.Vector3(lecture.x, lecture.y + 0.4, lecture.z),
+      fov: 58,
+      hour: 14,
+    });
+  }
+  if (sce) {
+    world.addViewpoint('b6-sce-loot', {
+      position: new THREE.Vector3(sce.x - 2.8, sce.y + 1.7, sce.z + 3.0),
+      target: new THREE.Vector3(sce.x, sce.y + 0.35, sce.z),
+      fov: 55,
+      hour: 14,
+    });
+  }
+
   // Combat (dummies, loot, HUD) registers the combat-range viewpoint, so it runs before the camera locks.
   const { mountCombat } = await import('./combat');
-  const combat = mountCombat({ world, player, camera, dom: container });
+  const combat = mountCombat({ world, player, camera, dom: container, extraLoot });
   const { mountZone } = await import('./zone');
   const zone = mountZone({
     world,
