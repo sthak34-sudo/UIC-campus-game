@@ -1,0 +1,56 @@
+{
+ "plan": [
+  209.18,
+  30.13
+ ],
+ "loot": 20,
+ "doors": 8,
+ "parts": [
+  {
+   "node": "part_student_center_east",
+   "osm_id": "e0524bbe-eb73-4e33-a627-09c00e3326b4",
+   "osm_name": "Student Center East"
+  },
+  {
+   "node": "part_student_center_east_tower_a",
+   "osm_id": "8aa0a812-c6c7-4b6a-b8c0-db3e4a803bb6#0",
+   "osm_name": "Student Center East Tower"
+  },
+  {
+   "node": "part_student_center_east_tower_b",
+   "osm_id": "8aa0a812-c6c7-4b6a-b8c0-db3e4a803bb6#1",
+   "osm_name": "Student Center East Tower"
+  },
+  {
+   "node": "part_student_center_east_tower_c",
+   "osm_id": "8aa0a812-c6c7-4b6a-b8c0-db3e4a803bb6#2",
+   "osm_name": "Student Center East Tower"
+  }
+ ],
+ "lods": {
+  "student-center-east_LOD0": {
+   "tris0": 13423,
+   "tris1": 44,
+   "lod1_distance_m": 120
+  },
+  "student-center-east_tower_LOD0": {
+   "tris0": 6990,
+   "tris1": 80,
+   "lod1_distance_m": 160
+  }
+ },
+ "tris0": 20413,
+ "tris1": 124,
+ "colliders": {
+  "student-center-east_walls_col": 1140,
+  "student-center-east_floor_col": 310,
+  "student-center-east_stair01_col": 12,
+  "student-center-east_stair02_col": 12
+ },
+ "wall_boxes": 88,
+ "door_overlaps_before_clip": 6,
+ "door_overlaps_after_clip": 0,
+ "wall_gaps": 0,
+ "wall_gaps_patched": 0,
+ "roof_walkable": false
+}
