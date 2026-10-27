@@ -80,7 +80,7 @@ export async function mountCombat(opts: {
   const allLoot = opts.extraLoot?.length
     ? [...layout.loot, ...opts.extraLoot]
     : layout.loot;
-  const loot = new LootField(opts.world.scene, allLoot);
+  const loot = new LootField(opts.world.scene, allLoot, bodies?.rifle ?? null);
   if (physics) physics.step();
 
   opts.world.addViewpoint('combat-range', {
