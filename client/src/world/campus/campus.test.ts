@@ -4,6 +4,7 @@ import type { CampusData } from '../../core/campusData';
 import { World } from '../../core/world';
 import { pointInPolygon } from './geom';
 import { buildCampus, campusBuildings } from './index';
+import { isReplacedByModel } from '../buildings/manifest';
 
 const raw = import.meta.glob('../../../public/data/campus.json', { eager: true, query: '?raw', import: 'default' }) as Record<string, string>;
 const data = JSON.parse(Object.values(raw)[0]!) as CampusData;
@@ -34,7 +35,7 @@ describe('campus build (full campus.json)', () => {
     const s = stats(root);
     console.info(`draw calls ${s.calls}, triangles ${(s.tris / 1e6).toFixed(2)}M (shadow casters ${(s.shadowTris / 1e6).toFixed(2)}M)`,
       Object.fromEntries(Object.entries(s.by).map(([k, v]) => [k, `${(v / 1e3).toFixed(0)}k`])));
-    const generic = new Set(data.buildings.filter((b) => !b.landmark).map((b) => (b as { buildingId?: string }).buildingId ?? b.id));
+    const generic = new Set(data.buildings.filter((b) => !b.landmark && !isReplacedByModel(b)).map((b) => (b as { buildingId?: string }).buildingId ?? b.id));
     expect(campusBuildings.size).toBe(generic.size);
     for (const b of data.buildings.filter((b) => b.landmark)) expect(campusBuildings.has((b as { buildingId?: string }).buildingId ?? b.id)).toBe(false);
     expect(s.calls).toBeLessThan(260);

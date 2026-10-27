@@ -28,6 +28,9 @@ async function start(): Promise<void> {
   const data: CampusData = await (await fetch(`${import.meta.env.BASE_URL}data/campus.json`)).json();
   await buildCampus(world, data);
   const landmarks = await buildLandmarks(world, data);
+  // Atlas's building glbs (they replace procedural footprints listed in world/buildings/manifest.ts).
+  const { buildBuildingModels } = await import('./world/buildings');
+  await buildBuildingModels(world);
   if (landmarks.spawnYaw !== undefined) world.spawnYaw = landmarks.spawnYaw;
 
   const view = params.get('view');
