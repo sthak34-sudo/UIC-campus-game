@@ -19,46 +19,6 @@
    0.066
   ]
  },
- "acg_Concrete046": {
-  "folder": "acg_Concrete046",
-  "id": "Concrete046",
-  "source": "ambientCG",
-  "name": "Concrete 046",
-  "url": "https://ambientcg.com/view?id=Concrete046",
-  "license": "CC0 1.0",
-  "authors": "ambientCG (Lennart Demes)",
-  "tile_m": [
-   2.4,
-   2.4
-  ],
-  "px": 1024,
-  "use": "concreteSmooth: smooth light precast",
-  "meanLinearAlbedo": [
-   0.608,
-   0.616,
-   0.486
-  ]
- },
- "acg_Grass004": {
-  "folder": "acg_Grass004",
-  "id": "Grass004",
-  "source": "ambientCG",
-  "name": "Grass 004",
-  "url": "https://ambientcg.com/view?id=Grass004",
-  "license": "CC0 1.0",
-  "authors": "ambientCG (Lennart Demes)",
-  "tile_m": [
-   1.4,
-   1.4
-  ],
-  "px": 1024,
-  "use": "grass: mown lawn",
-  "meanLinearAlbedo": [
-   0.119,
-   0.152,
-   0.03
-  ]
- },
  "acg_OfficeCeiling001": {
   "folder": "acg_OfficeCeiling001",
   "id": "OfficeCeiling001",
@@ -199,26 +159,6 @@
    0.029
   ]
  },
- "ph_concrete_floor_worn_001": {
-  "folder": "ph_concrete_floor_worn_001",
-  "id": "concrete_floor_worn_001",
-  "source": "Poly Haven",
-  "name": "Concrete Floor Worn 001",
-  "url": "https://polyhaven.com/a/concrete_floor_worn_001",
-  "license": "CC0 1.0",
-  "authors": "Dimitrios Savva, Rico Cilliers",
-  "tile_m": [
-   3.0,
-   3.0
-  ],
-  "px": 1024,
-  "use": "sidewalk: worn cast-concrete pavement",
-  "meanLinearAlbedo": [
-   0.093,
-   0.094,
-   0.089
-  ]
- },
  "ph_concrete_layers_02": {
   "folder": "ph_concrete_layers_02",
   "id": "concrete_layers_02",
@@ -237,6 +177,26 @@
    0.206,
    0.196,
    0.176
+  ]
+ },
+ "ph_concrete_pavement": {
+  "folder": "ph_concrete_pavement",
+  "id": "concrete_pavement",
+  "source": "Poly Haven",
+  "name": "Concrete Pavement",
+  "url": "https://polyhaven.com/a/concrete_pavement",
+  "license": "CC0 1.0",
+  "authors": "Poly Haven",
+  "tile_m": [
+   3.0,
+   3.0
+  ],
+  "px": 1024,
+  "use": "sidewalk: poured slabs with saw-cut joints",
+  "meanLinearAlbedo": [
+   0.214,
+   0.176,
+   0.135
   ]
  },
  "ph_concrete_wall_006": {
@@ -279,6 +239,26 @@
    0.156
   ]
  },
+ "ph_concrete_wall_009": {
+  "folder": "ph_concrete_wall_009",
+  "id": "concrete_wall_009",
+  "source": "Poly Haven",
+  "name": "Concrete Wall 009",
+  "url": "https://polyhaven.com/a/concrete_wall_009",
+  "license": "CC0 1.0",
+  "authors": "Poly Haven",
+  "tile_m": [
+   2.0,
+   2.0
+  ],
+  "px": 1024,
+  "use": "concreteSmooth: weathered precast panels, curbs, sills",
+  "meanLinearAlbedo": [
+   0.356,
+   0.318,
+   0.261
+  ]
+ },
  "ph_dark_wood": {
   "folder": "ph_dark_wood",
   "id": "dark_wood",
@@ -317,6 +297,26 @@
    0.3,
    0.273,
    0.23
+  ]
+ },
+ "ph_leafy_grass": {
+  "folder": "ph_leafy_grass",
+  "id": "leafy_grass",
+  "source": "Poly Haven",
+  "name": "Leafy Grass",
+  "url": "https://polyhaven.com/a/leafy_grass",
+  "license": "CC0 1.0",
+  "authors": "Poly Haven",
+  "tile_m": [
+   2.0,
+   2.0
+  ],
+  "px": 1024,
+  "use": "grass: lawn with clover, Quad and parkways",
+  "meanLinearAlbedo": [
+   0.315,
+   0.232,
+   0.103
   ]
  },
  "ph_oak_veneer_01": {

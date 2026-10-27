@@ -28,13 +28,17 @@ DIRS = [
     'ph_red_brick_03',
     'ph_brick_wall_001',
     'ph_asphalt_02',
-    'acg_Grass004',
-    'ph_concrete_floor_worn_001',
     'ph_white_sandstone_blocks_02',
+    'ph_leafy_grass',
+    'ph_concrete_pavement',
+    'ph_concrete_wall_009',
 ]
 
 # 1024 px UASTC normals land over 1 MB. These sets are resized to 512 before encoding.
 NORMAL_512 = {
+    'ph_leafy_grass',
+    'ph_concrete_pavement',
+    'ph_concrete_wall_009',
     'ph_concrete_layers_02',
     'ph_red_brick_03',
     'ph_brick_wall_001',

@@ -85,15 +85,15 @@ export const TILE: Record<string, [number, number]> = {
   ph_concrete_layers_02: [2.0, 2.0],
   ph_concrete_wall_007: [2.16, 2.16],
   ph_concrete_wall_006: [2.0, 2.0],
-  acg_Concrete046: [2.4, 2.4],
   ph_gravel_embedded_concrete: [2.0, 2.0],
   ph_red_brick_03: [1.0, 1.0],
   ph_brick_wall_10: [1.9, 1.9],
   ph_brick_wall_001: [3.0, 3.0],
   ph_asphalt_02: [3.0, 3.0],
-  ph_concrete_floor_worn_001: [3.0, 3.0],
+  ph_concrete_pavement: [3.0, 3.0],
+  ph_concrete_wall_009: [2.0, 2.0],
   ph_white_sandstone_blocks_02: [2.0, 2.0],
-  acg_Grass004: [1.4, 1.4],
+  ph_leafy_grass: [2.0, 2.0],
   ph_yellow_flower_mulch: [2.0, 2.0],
   ph_bicolour_gravel: [1.9, 1.9],
   acg_Carpet012: [1.0, 1.0],
@@ -118,7 +118,9 @@ export const MEAN_ALBEDO: Record<string, [number, number, number]> = {
   ph_concrete_layers_02: [0.206, 0.196, 0.176],
   ph_concrete_wall_007: [0.257, 0.224, 0.156],
   ph_concrete_wall_006: [0.107, 0.083, 0.061],
-  acg_Concrete046: [0.608, 0.616, 0.486],
+  ph_leafy_grass: [0.315, 0.232, 0.103],
+  ph_concrete_pavement: [0.214, 0.176, 0.135],
+  ph_concrete_wall_009: [0.356, 0.318, 0.261],
   ph_gravel_embedded_concrete: [0.3, 0.273, 0.23],
   ph_brick_wall_001: [0.136, 0.074, 0.048],
   acg_OfficeCeiling001: [0.909, 0.909, 0.909],
@@ -141,8 +143,9 @@ export const KTX_TEXTURE_DIRS = [
   'ph_red_brick_03',
   'ph_brick_wall_001',
   'ph_asphalt_02',
-  'acg_Grass004',
-  'ph_concrete_floor_worn_001',
+  'ph_leafy_grass',
+  'ph_concrete_pavement',
+  'ph_concrete_wall_009',
   'ph_white_sandstone_blocks_02',
 ] as const;
 
@@ -245,8 +248,9 @@ function build(name: MaterialName): THREE.Material {
       applySurfaceFx(m, { ...EXTERIOR_WALL, antiTileShift: [0.4137, 0], macroAmp: 0.12, streaks: 0.3, baseGrime: 0.35 }, name);
       return m;
     case 'concreteSmooth':
-      m = std({ name, color: tintTo('acg_Concrete046', 0xbab5ac), roughness: 1.6 });
-      textured(m, { dir: 'acg_Concrete046' }, 1, 1);
+      // Poly Haven "Concrete Wall 009": weathered precast with pores and pour marks
+      m = std({ name, color: tintTo('ph_concrete_wall_009', 0xb4afa6), roughness: 1.2 });
+      textured(m, { dir: 'ph_concrete_wall_009' }, 1, 1);
       applySurfaceFx(m, { ...EXTERIOR_WALL, antiTileShift: [0.4137, 0], macroAmp: 0.08, streaks: 0.2 }, name);
       return m;
     case 'concreteExposedAggregate':
@@ -316,8 +320,10 @@ function build(name: MaterialName): THREE.Material {
       return m;
     case 'sidewalk':
       m = std({ name, roughness: 1 });
-      textured(m, { dir: 'ph_concrete_floor_worn_001' }, 1, 1);
-      applySurfaceFx(m, { macroScale: 29, macroAmp: 0.1, macroAmp2: 0.06, roughAmp: 0.04 }, name);
+      // Poly Haven "Concrete Pavement": poured slabs with saw-cut joints, like Chicago sidewalks
+      m.color = tintTo('ph_concrete_pavement', 0xa7a39b);
+      textured(m, { dir: 'ph_concrete_pavement' }, 1, 1);
+      applySurfaceFx(m, { macroScale: 29, macroAmp: 0.12, macroAmp2: 0.07, roughAmp: 0.05, antiTile: true }, name);
       return m;
     case 'limestone':
     case 'plaza':
@@ -327,8 +333,9 @@ function build(name: MaterialName): THREE.Material {
       applySurfaceFx(m, { macroScale: 33, macroAmp: 0.08, macroAmp2: 0.05, roughAmp: 0.05 }, name);
       return m;
     case 'grass':
-      m = std({ name, color: new THREE.Color(1.1, 1.08, 1.0), roughness: 3.2 }); // scan's roughness is glossy (~0.26): lawns are matte
-      textured(m, { dir: 'acg_Grass004' }, 1, 1);
+      // Poly Haven "Leafy Grass": a real lawn scan with clover and blade depth (less flat than a mown-carpet scan)
+      m = std({ name, color: tintTo('ph_leafy_grass', 0x5f6b3c), roughness: 1.6 });
+      textured(m, { dir: 'ph_leafy_grass' }, 1.2, 1);
       applySurfaceFx(m, { macroScale: 43, macroAmp: 0.16, macroAmp2: 0.1, antiTile: true, dryTint: 0.25 }, name);
       return m;
     case 'soil':
