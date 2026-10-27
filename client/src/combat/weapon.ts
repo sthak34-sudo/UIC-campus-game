@@ -43,6 +43,54 @@ export function castHitscan(
   };
 }
 
+type V3 = { x: number; y: number; z: number };
+
+/** Where shots leave the gun: chest/eye height above the feet, a little ahead along the aim. */
+export const MUZZLE_HEIGHT = 1.4;
+export function muzzlePoint(feet: V3, aimDir: V3): V3 {
+  const l = Math.hypot(aimDir.x, aimDir.y, aimDir.z) || 1;
+  return { x: feet.x + (aimDir.x / l) * 0.4, y: feet.y + MUZZLE_HEIGHT + (aimDir.y / l) * 0.4, z: feet.z + (aimDir.z / l) * 0.4 };
+}
+
+export interface AimedShot {
+  /** What the bullet actually hit (from the muzzle), or null. */
+  hit: ShotHit | null;
+  /** Crosshair point the camera ray found (or the point at max range). */
+  aimPoint: V3;
+  /** True when something between the muzzle and the aim point takes the bullet instead. */
+  blocked: boolean;
+}
+
+/**
+ * Third-person shot: the camera ray picks the crosshair point, then the real hitscan goes from the
+ * muzzle (or eye) to that point. So the crosshair stays honest, but a player hidden behind a corner
+ * can't shoot what only the over-the-shoulder camera sees: the corner takes the bullet.
+ * Pure Rapier, shared by anything that shoots (player today, bots later).
+ */
+export function castAimedShot(
+  world: RAPIER.World,
+  camOrigin: V3,
+  camDir: V3,
+  muzzle: V3,
+  maxDistance: number = COMBAT.maxRange,
+  exclude?: RAPIER.Collider | null,
+): AimedShot {
+  const len = Math.hypot(camDir.x, camDir.y, camDir.z) || 1;
+  const d = { x: camDir.x / len, y: camDir.y / len, z: camDir.z / len };
+  // Skip the stretch of camera ray behind the shooter (walls behind a shoulder camera).
+  const t0 = Math.max(0, (muzzle.x - camOrigin.x) * d.x + (muzzle.y - camOrigin.y) * d.y + (muzzle.z - camOrigin.z) * d.z);
+  const start = { x: camOrigin.x + d.x * t0, y: camOrigin.y + d.y * t0, z: camOrigin.z + d.z * t0 };
+  const camHit = castHitscan(world, start, d, maxDistance, exclude);
+  const reach = camHit ? camHit.distance : maxDistance;
+  const aimPoint = { x: start.x + d.x * reach, y: start.y + d.y * reach, z: start.z + d.z * reach };
+  const to = { x: aimPoint.x - muzzle.x, y: aimPoint.y - muzzle.y, z: aimPoint.z - muzzle.z };
+  const dist = Math.hypot(to.x, to.y, to.z);
+  if (dist < 1e-4) return { hit: camHit, aimPoint, blocked: false };
+  const hit = castHitscan(world, muzzle, to, Math.min(maxDistance, dist + 0.05), exclude);
+  const blocked = !!hit && (!camHit ? true : hit.colliderHandle !== camHit.colliderHandle || hit.distance < dist - 0.15);
+  return { hit, aimPoint, blocked };
+}
+
 /**
  * Short-lived muzzle flash and a small pool of bullet marks.
  * Materials here are effects, not campus surfaces, so they don't go through the material library.

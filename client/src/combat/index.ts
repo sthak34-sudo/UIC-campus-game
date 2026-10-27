@@ -21,7 +21,7 @@ import {
 } from './inventory';
 import { LootField } from './loot';
 import { practiceLayout } from './range';
-import { castHitscan, WeaponFx } from './weapon';
+import { castAimedShot, muzzlePoint, WeaponFx } from './weapon';
 import { createAvatar, loadCharacterAssets, peekCharacterAssets } from '../player/characterLoader';
 import { yawFromDirection } from '../player/math';
 
@@ -192,20 +192,23 @@ export async function mountCombat(opts: {
     const dir = new THREE.Vector3();
     opts.camera.getWorldDirection(dir);
     const origin = opts.camera.position;
-    const hit = castHitscan(
+    const muzzle = muzzlePoint(player.position, dir);
+    const shot = castAimedShot(
       player.rapier.world,
       { x: origin.x, y: origin.y, z: origin.z },
       { x: dir.x, y: dir.y, z: dir.z },
+      muzzle,
       COMBAT.maxRange,
       player.rapier.playerCollider,
     );
+    const hit = shot.hit;
+    // Damage direction is the bullet's real path (muzzle -> aim point), not the camera's.
+    dir.set(shot.aimPoint.x - muzzle.x, shot.aimPoint.y - muzzle.y, shot.aimPoint.z - muzzle.z).normalize();
     lastShotAt = now();
     inventory = spendRound(inventory);
     player.playFire();
-    const muzzle = player.position.clone();
-    muzzle.y += 1.4;
-    muzzle.addScaledVector(dir, 0.4);
     fx.muzzle(muzzle);
+    hud.setMuzzleBlocked(shot.blocked);
     if (hit) {
       const target = dummies.lookup(hit.colliderHandle);
       if (target) {
@@ -289,6 +292,15 @@ export async function mountCombat(opts: {
       reloading = false;
     }
     fx.update(dt);
+    if (hud && opts.player && !playerDead()) {
+      // Subtle cue: crosshair dims when the muzzle can't reach what it points at.
+      const dir = new THREE.Vector3();
+      opts.camera.getWorldDirection(dir);
+      const o = opts.camera.position;
+      const s = castAimedShot(opts.player.rapier.world, { x: o.x, y: o.y, z: o.z }, { x: dir.x, y: dir.y, z: dir.z },
+        muzzlePoint(opts.player.position, dir), COMBAT.maxRange, opts.player.rapier.playerCollider);
+      hud.setMuzzleBlocked(s.blocked);
+    }
     dummies.update(dt, opts.camera, physics);
     loot.update(clock);
     hud?.tick(dt);
