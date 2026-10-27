@@ -34,9 +34,10 @@ function makeRifle() {
     o.position.set(0, y, z);
     r.add(o);
   };
-  add('Grip', 0.23);
-  add('Foregrip', -0.13);
-  add('Muzzle', -0.43, 0.03);
+  // Same sockets as rifle_m4_cc0.glb (tools/anim-bake/rifle.mjs).
+  add('Grip', 0.065, -0.075);
+  add('Foregrip', -0.22, -0.02);
+  add('Muzzle', -0.54, 0.022);
   return r;
 }
 
@@ -77,15 +78,23 @@ describe('held rifle', () => {
     expect(held.reach.left).toBeLessThan(0.02);
   });
 
+  it('keeps both hands within 2 cm of the grips in every hold, run included', () => {
+    for (const pose of ['idle', 'walk', 'run', 'aim'] as const) {
+      const { held } = setup(pose);
+      expect(held.reach.right, pose).toBeLessThan(0.02);
+      expect(held.reach.left, pose).toBeLessThan(0.02);
+    }
+  });
+
   it('aims the muzzle along body forward, and points it down at idle', () => {
     for (const [pose, check] of [
       ['aim', (d: THREE.Vector3) => expect(d.z).toBeLessThan(-0.95)],
       ['idle', (d: THREE.Vector3) => expect(d.y).toBeLessThan(-0.2)],
     ] as const) {
-      const { rig, held } = setup(pose);
-      const muzzle = held.getMuzzleWorld(new THREE.Vector3());
-      const grip = rig.getObjectByName('held-rifle')!.getObjectByName('Grip')!.getWorldPosition(new THREE.Vector3());
-      check(muzzle.sub(grip).normalize());
+      const { rig } = setup(pose);
+      // Barrel axis is the rifle's -Z (the grip sits below the bore, so grip->muzzle tilts up).
+      const q = rig.getObjectByName('held-rifle')!.getWorldQuaternion(new THREE.Quaternion());
+      check(new THREE.Vector3(0, 0, -1).applyQuaternion(q));
     }
   });
 });
