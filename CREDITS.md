@@ -9,10 +9,11 @@
 - Buildings, furniture, trees, props, the fallback player, and the fallback practice dummies are procedural meshes written in this repository. The game still runs if the private animation file is missing.
 
 ## Characters and animation
-- `client/public/models/characters/player_base.glb` — **CC0 1.0**. Player body made by the project artist with MPFB2 / MakeHuman. 1.75 m, Y-up, facing +Z, mixamorig skeleton (53 bones, including a `root` at the feet), meshes `player_LOD0` through `player_LOD3`, KTX2 textures. This file is committed.
+- `client/public/models/characters/player_base.glb` — **CC0 1.0**. Player body made by the project artist with MPFB2 / MakeHuman. 1.75 m, Y-up, facing +Z, mixamorig skeleton (53 bones, including a `root` at the feet), meshes `player_LOD0` through `player_LOD3`, KTX2 textures. This file is committed. Normal maps were removed (they rendered blotchy) and roughness was tuned: 4.29 MB, down from 11.04 MB.
+- `client/public/models/characters/player_anims_cc0.glb` — **CC0 1.0**. Animations from the [Universal Animation Library (Standard)](https://quaternius.itch.io/universal-animation-library) by Quaternius (also listed at https://quaternius.com/packs/universalanimationlibrary.html; licence: CC0, public domain). Ten clips (Idle_Loop, Walk_Loop, Jog_Fwd_Loop, Crouch_Idle_Loop, Crouch_Fwd_Loop, Pistol_Aim_Neutral, Pistol_Shoot, Pistol_Reload, Jump_Loop, Death01) retargeted offline onto the player_base skeleton and renamed to the game's clip names. 0.56 MB. Committed. This is what the public build (GitHub Pages) uses.
 - **Mixamo animations are allowed for use** while the game is running. Mixamo files, raw or baked into glTF or FBX, are not redistributable and must **never** be committed. Put them in `client/public/models/private/` (gitignored), for example `anims.glb`.
 - **RenderPeople** scans and any other non-redistributable asset follow the same rule: use locally if the license allows, never commit, same private folder.
-- If those private files are missing, the game uses the procedural character above. That is the version in this public repository.
+- If the private files are missing, the game uses the CC0 clips above. Only if both clip files are missing does it fall back to the procedural figure.
 - Do not add UIC logos, seals, Flames or Sparky artwork, restaurant or CTA logos, or Google 3D Tiles, Photorealistic Tiles, Maps, or Street View imagery or geometry.
 
 ## Surface textures (photo-scanned PBR, CC0)
