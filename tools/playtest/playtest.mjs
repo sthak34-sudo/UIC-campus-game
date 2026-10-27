@@ -4,7 +4,20 @@ const url = process.argv[2]; const out = process.argv[3] || '/workspace/forge/pl
 const b = await chromium.launch({ executablePath: '/opt/google/chrome/chrome', args: ['--use-gl=angle','--use-angle=swiftshader-webgl','--enable-unsafe-swiftshader','--ignore-gpu-blocklist'] });
 const p = await b.newPage({ viewport: { width: 320, height: 180 } });
 p.on('console', (m) => { if (m.type() === 'error') console.log('console', m.text().slice(0, 200)); });
-await p.goto(url); await p.waitForFunction(() => window.__player && window.__ready, null, { timeout: 400000, polling: 2000 });
+const errors = []; p.on('pageerror', (e) => errors.push(String(e)));
+const tBoot = Date.now();
+await p.goto(url);
+// Live builds expose only the read-only `__uicReady` / `__uicStatus`; `?test` builds add `__player`.
+await p.waitForFunction(() => window.__uicReady === true || window.__ready === true, null, { timeout: 600000, polling: 1000 });
+if (!(await p.evaluate(() => !!window.__player))) {
+  const status = await p.evaluate(() => window.__uicStatus ?? null);
+  const smoke = { mode: 'live-smoke', url, readyAtMs: Date.now() - tBoot, status, errors };
+  fs.writeFileSync(out, JSON.stringify(smoke, null, 1));
+  await p.screenshot({ path: out.replace(/\.json$/, '') + '.png', timeout: 120000 });
+  console.log(JSON.stringify(smoke));
+  console.log('No window.__player (live build): ran smoke checks only. Use ?test locally for physics probes.');
+  await b.close(); process.exit(errors.length ? 1 : 0);
+}
 const t0 = Date.now(); const log = (s) => console.log(((Date.now() - t0) / 1000).toFixed(0) + 's ' + s);
 const res = await p.evaluate(() => {
   const P = window.__player; const R = { falls: [], slides: [], jitter: null, stuck: [], bullets: [], ghost: [] };

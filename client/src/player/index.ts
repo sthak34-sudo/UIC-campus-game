@@ -1,3 +1,4 @@
+import { mark } from '../core/bootTimings';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { World } from '../core/world';
@@ -152,7 +153,9 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     });
   }
 
+  mark('player.physics');
   const model: CharacterVisual = (await tryLoadAnimatedCharacter()) ?? new CharacterModel();
+  mark('player.character');
   world.scene.add(model.root);
   const groundScratch = new THREE.Vector3();
   model.setGroundProbe({

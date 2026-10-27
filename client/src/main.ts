@@ -5,6 +5,12 @@ import { createRenderer } from './render/renderer';
 import { buildCampus } from './world/campus';
 import { buildLandmarks } from './world/landmarks';
 import { createPlayer } from './player';
+import { mark, publishReady as publishStatus, type UicStatus } from './core/bootTimings';
+
+function publishReady(quality: string, reason: 'frames' | 'fallback'): void {
+  publishStatus(window, { bootMs: window.__bootMs ?? 0, quality, reason });
+}
+
 import {
   clearLoadingUi,
   failLoading,
@@ -29,6 +35,9 @@ declare global {
     __viewpoints?: string[];
     __bootMs?: number;
     __quality?: string;
+    /** Prod-safe, read-only: true once playable. No setters or cheats are exposed. */
+    readonly __uicReady?: boolean;
+    readonly __uicStatus?: UicStatus;
   }
 }
 
@@ -42,13 +51,17 @@ async function start(): Promise<void> {
   window.__quality = gfx.quality.name;
   const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 5000);
 
+  mark('renderer');
   setLoadProgress(0.12, 'Downloading map…');
   const data: CampusData = await (await fetch(`${import.meta.env.BASE_URL}data/campus.json`)).json();
+  mark('campus.json');
   setLoadProgress(0.28, 'Building campus…');
   await buildCampus(world, data);
+  mark('campus');
   setLoadProgress(0.48, 'Loading landmarks…');
   const landmarks = await buildLandmarks(world, data);
   // Atlas's building glbs (they replace procedural footprints listed in world/buildings/manifest.ts).
+  mark('landmarks');
   setLoadProgress(0.58, 'Loading buildings…');
   const { buildBuildingModels } = await import('./world/buildings');
   const buildings = await buildBuildingModels(world);
@@ -56,10 +69,12 @@ async function start(): Promise<void> {
 
   const view = params.get('view');
   const hourParam = params.get('hour');
+  mark('buildings');
   setLoadProgress(0.68, 'Spawning player…');
   const player = view ? null : await createPlayer(world, camera, container);
 
   // B6: glb loot_spawn markers -> floor-snapped crates for the existing loot spawner.
+  mark('player');
   setLoadProgress(0.78, 'Physics…');
   const { collectBuildingLootMarkers, snapLootToFloor, warnDroppedLoot } = await import('./world/buildings/lootSpawns');
   const { buildingLootSpots } = await import('./combat/buildingLoot');
@@ -104,6 +119,7 @@ async function start(): Promise<void> {
   }
 
   // Combat (dummies, loot, HUD) registers the combat-range viewpoint, so it runs before the camera locks.
+  mark('physics+loot');
   setLoadProgress(0.88, 'Combat & squads…');
   const { mountCombat } = await import('./combat');
   const combat = await mountCombat({ world, player, camera, dom: container, extraLoot });
@@ -137,6 +153,7 @@ async function start(): Promise<void> {
     gfx.resize(container.clientWidth, container.clientHeight);
   });
 
+  mark('combat+zone+squad');
   setLoadProgress(1, 'Almost ready…');
   clearLoadingUi();
   window.__bootMs = Math.round(loadElapsedMs());
@@ -151,6 +168,8 @@ async function start(): Promise<void> {
     if (!window.__ready) {
       gfxReady = true;
       window.__ready = true;
+      mark('first-frames');
+      publishReady(gfx.quality.name, 'fallback');
       console.warn('[boot] gfx.ready timed out; marking playable anyway');
     }
   }, 5_000);
@@ -162,9 +181,12 @@ async function start(): Promise<void> {
     gfx.setFocus(focus, !!world.interiorAt(focus));
     gfx.render(camera);
     frames++;
-    // Ready = a few frames rendered AND the renderer's textures/environment are loaded.
-    if (!window.__ready && frames >= 3 && gfxReady) {
+    // Ready = the spawn view has been drawn once AND the renderer's textures/environment
+    // are loaded. (Waiting for 3 frames cost ~2 extra full frames on software GL.)
+    if (!window.__ready && frames >= 1 && gfxReady) {
       window.__ready = true;
+      mark('first-frames');
+      publishReady(gfx.quality.name, 'frames');
       clearTimeout(readyFallback);
     }
     // Screenshot mode: stop once ready so the headless (software) renderer is idle for the capture.
