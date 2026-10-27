@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>S2 squad logic demo</title>
+<style>
+  :root { color-scheme: dark; font-family: ui-sans-serif, system-ui, sans-serif; }
+  body { margin: 0; background: #0e141b; color: #e8eef5; }
+  .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 28px; min-height: 100vh; box-sizing: border-box; }
+  h1 { grid-column: 1 / -1; margin: 0 0 4px; font-size: 28px; }
+  .sub { grid-column: 1 / -1; color: #9ab; margin-bottom: 8px; }
+  .card { background: #172231; border: 1px solid #2a3b52; border-radius: 14px; padding: 18px 20px; }
+  .card h2 { margin: 0 0 12px; font-size: 18px; color: #9fd3ff; }
+  .row { display: grid; grid-template-columns: 28px 1fr 90px 120px; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid #243247; }
+  .row:first-of-type { border-top: 0; }
+  .dot { width: 18px; height: 18px; border-radius: 50%; }
+  .bar { height: 10px; background: #0b121a; border-radius: 6px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; }
+  .hp { background: #3dce7a; }
+  .bleed { background: #ff5a5a; }
+  .tag { font-size: 12px; padding: 3px 8px; border-radius: 999px; background: #243247; color: #cde; text-align: center; }
+  .tag.downed { background: #5a1f1f; color: #ffb4b4; }
+  .tag.dead { background: #222; color: #888; }
+  .tag.alive { background: #1d3b28; color: #9dffc0; }
+  .tag.reviving { background: #3a2f14; color: #ffd27a; }
+  .feed { font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.55; color: #c5d3e3; }
+  .feed .e { color: #ffb4b4; }
+  .feed .r { color: #ffd27a; }
+  .feed .w { color: #9fd3ff; }
+  .feed .ok { color: #9dffc0; }
+  .ring { width: 64px; height: 64px; border-radius: 50%; border: 6px solid #2a3b52; border-top-color: #ffd27a; margin: 8px auto; animation: spin 1.2s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .big { text-align: center; font-size: 22px; margin-top: 8px; }
+  .muted { color: #8aa; font-size: 13px; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>S2: revive, wipe, spectate (pure logic)</h1>
+    <div class="sub">Scripted match after step(): You are downed, Bot1 is holding F to revive (4.2 / 6.0 s). Squad B already wiped. Spectate order for a dead viewer shown below.</div>
+
+    <div class="card">
+      <h2>Squad A (alive)</h2>
+      <div class="row">
+        <div class="dot" style="background:#f5d76e"></div>
+        <div><strong>You</strong><div class="bar" style="margin-top:6px"><span class="bleed" style="width:62%"></span></div></div>
+        <div class="tag downed">downed</div>
+        <div class="tag reviving">reviving 70%</div>
+      </div>
+      <div class="row">
+        <div class="dot" style="background:#f0a04b"></div>
+        <div><strong>Bot1</strong><div class="bar" style="margin-top:6px"><span class="hp" style="width:100%"></span></div></div>
+        <div class="tag alive">alive</div>
+        <div class="tag">holding F</div>
+      </div>
+      <div class="row">
+        <div class="dot" style="background:#5b8def"></div>
+        <div><strong>Bot2</strong><div class="bar" style="margin-top:6px"><span class="hp" style="width:100%"></span></div></div>
+        <div class="tag alive">alive</div>
+        <div class="tag">—</div>
+      </div>
+      <div class="row">
+        <div class="dot" style="background:#3ecf8e"></div>
+        <div><strong>Bot3</strong><div class="bar" style="margin-top:6px"><span class="hp" style="width:40%"></span></div></div>
+        <div class="tag alive">alive</div>
+        <div class="tag">—</div>
+      </div>
+      <div style="margin-top:18px">
+        <div class="ring"></div>
+        <div class="big">Hold F to revive You</div>
+        <div class="muted">bleed paused while revive runs · range 1.8 m · 6 s</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Events + spectate</h2>
+      <div class="feed">
+        <div class="e">t=12.0  E1 knocked You</div>
+        <div class="r">t=12.1  Bot1 started revive on You</div>
+        <div class="e">t=40.0  Squad B eliminated (#2)</div>
+        <div class="w">t=40.0  matchWon → A (last squad standing)</div>
+        <div class="ok">spectateTargets(dead viewer on A): Bot1, Bot2, Bot3 (alive first, slot order)</div>
+        <div class="ok">nextTarget(→) cycles Bot1 → Bot2 → Bot3 → Bot1</div>
+      </div>
+      <h2 style="margin-top:22px">Squad B (wiped)</h2>
+      <div class="row">
+        <div class="dot" style="background:#888"></div>
+        <div><strong>E1</strong></div>
+        <div class="tag dead">dead</div>
+        <div class="tag">placement #2</div>
+      </div>
+      <div class="row">
+        <div class="dot" style="background:#888"></div>
+        <div><strong>E2–E4</strong></div>
+        <div class="tag dead">dead</div>
+        <div class="tag">converted from downed</div>
+      </div>
+      <p class="muted" style="margin-top:18px;text-align:left">Pure modules only (revive / elimination / spectate / step). No game wiring yet. Same seed + inputs → identical state.</p>
+    </div>
+  </div>
+</body>
+</html>

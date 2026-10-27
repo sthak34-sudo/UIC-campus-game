@@ -361,3 +361,362 @@ describe('downed (3.2)', () => {
     expect(state.members[mates[3]!]!.life).toBe('dead');
   });
 });
+
+import { checkWipe } from './elimination';
+import { canRevive, cancelRevive, horizontalDistance, startRevive, tickRevive } from './revive';
+import { nextTarget, spectateTargets } from './spectate';
+import { step, type PlayerInput } from './step';
+import { mulberry32 } from '../zone/zoneLogic';
+
+function place(state: ReturnType<typeof sampleMatch>, id: string, x: number, y: number, z: number) {
+  const m = state.members[id]!;
+  return {
+    ...state,
+    members: {
+      ...state.members,
+      [id]: { ...m, pos: { x, y, z }, combatant: { ...m.combatant }, reviving: m.reviving ? { ...m.reviving } : null },
+    },
+  };
+}
+
+function knock(state: ReturnType<typeof sampleMatch>, victim: string, by: string) {
+  return applyDamage(state, victim, by, lethalHit()).state;
+}
+
+describe('revive (3.3)', () => {
+  it('canRevive requires same squad, alive reviver, downed target, range and height', () => {
+    let state = sampleMatch();
+    const [a0, a1] = idsBySquad(state, 'A');
+    const [b0] = idsBySquad(state, 'B');
+    state = knock(state, a0!, b0!);
+    state = place(state, a0!, 0, 0, 0);
+    state = place(state, a1!, 1, 0, 0);
+    expect(canRevive(state, a1!, a0!)).toBe(true);
+
+    // enemy cannot revive
+    expect(canRevive(state, b0!, a0!)).toBe(false);
+    // too far
+    state = place(state, a1!, 5, 0, 0);
+    expect(canRevive(state, a1!, a0!)).toBe(false);
+    // height
+    state = place(state, a1!, 1, 2, 0);
+    expect(canRevive(state, a1!, a0!)).toBe(false);
+  });
+
+  it('rejects a second reviver on the same target and a busy reviver', () => {
+    let state = sampleMatch();
+    const [a0, a1, a2] = idsBySquad(state, 'A');
+    const [b0] = idsBySquad(state, 'B');
+    state = knock(state, a0!, b0!);
+    state = place(state, a0!, 0, 0, 0);
+    state = place(state, a1!, 1, 0, 0);
+    state = place(state, a2!, 1.2, 0, 0);
+    state = startRevive(state, a1!, a0!).state;
+    expect(canRevive(state, a2!, a0!)).toBe(false); // target already taken
+    // knock another mate and try the same reviver
+    state = knock(state, a2!, b0!);
+    state = place(state, a2!, 2, 0, 0);
+    expect(canRevive(state, a1!, a2!)).toBe(false); // reviver busy
+  });
+
+  it('completes after reviveSeconds with reviveHealth and keeps timesDowned and armor', () => {
+    let state = sampleMatch();
+    const [a0, a1] = idsBySquad(state, 'A');
+    const [b0] = idsBySquad(state, 'B');
+    state = knock(state, a0!, b0!);
+    expect(state.members[a0!]!.timesDowned).toBe(1);
+    // Armor is kept across the knock; set it on the downed combatant for the revive check.
+    state = {
+      ...state,
+      members: {
+        ...state.members,
+        [a0!]: {
+          ...state.members[a0!]!,
+          combatant: { ...state.members[a0!]!.combatant, armor: 40 },
+          pos: { ...state.members[a0!]!.pos },
+          reviving: null,
+        },
+      },
+    };
+    state = place(state, a0!, 0, 0, 0);
+    state = place(state, a1!, 1, 0, 0);
+    state = startRevive(state, a1!, a0!).state;
+    // Advance clock to just under, then over
+    state = { ...state, t: state.t + DOWN.reviveSeconds - 0.01 };
+    expect(tickRevive(state).events).toEqual([]);
+    state = { ...state, t: state.t + 0.02 };
+    const r = tickRevive(state);
+    expect(r.events).toEqual([{ type: 'revived', id: a0, by: a1 }]);
+    const m = r.state.members[a0!]!;
+    expect(m.life).toBe('alive');
+    expect(m.combatant.health).toBe(DOWN.reviveHealth);
+    expect(m.combatant.armor).toBe(40);
+    expect(m.timesDowned).toBe(1);
+    expect(m.downedAt).toBeNull();
+    expect(m.reviving).toBeNull();
+  });
+
+  it('cancelRevive clears progress and each interrupt reason works via step', () => {
+    let state = sampleMatch();
+    const [a0, a1] = idsBySquad(state, 'A');
+    const [b0] = idsBySquad(state, 'B');
+    state = knock(state, a0!, b0!);
+    state = place(state, a0!, 0, 0, 0);
+    state = place(state, a1!, 1, 0, 0);
+    state = startRevive(state, a1!, a0!).state;
+    const c = cancelRevive(state, a0!, 'released');
+    expect(c.events[0]).toEqual({ type: 'reviveCancelled', id: a0, reason: 'released' });
+    expect(c.state.members[a0!]!.reviving).toBeNull();
+
+    // release via step
+    state = startRevive(state, a1!, a0!).state;
+    const r1 = step(state, [{ id: a1!, holdRevive: false }], 0.1);
+    expect(r1.events.some((e) => e.type === 'reviveCancelled' && e.reason === 'released')).toBe(true);
+
+    // out of range
+    state = sampleMatch();
+    state = knock(state, a0!, b0!);
+    state = place(state, a0!, 0, 0, 0);
+    state = place(state, a1!, 1, 0, 0);
+    state = startRevive(state, a1!, a0!).state;
+    const r2 = step(state, [{ id: a1!, holdRevive: true, pos: { x: 10, y: 0, z: 0 } }], 0.1);
+    expect(r2.events.some((e) => e.type === 'reviveCancelled' && e.reason === 'out-of-range')).toBe(true);
+
+    // reviver damaged
+    state = sampleMatch();
+    state = knock(state, a0!, b0!);
+    state = place(state, a0!, 0, 0, 0);
+    state = place(state, a1!, 1, 0, 0);
+    state = startRevive(state, a1!, a0!).state;
+    const r3 = step(state, [{ id: a1!, holdRevive: true, tookDamage: true }], 0.1);
+    expect(r3.events.some((e) => e.type === 'reviveCancelled' && e.reason === 'reviver-damaged')).toBe(true);
+  });
+
+  it('bleed pauses while a revive is in progress', () => {
+    let state = sampleMatch();
+    const [a0, a1] = idsBySquad(state, 'A');
+    const [b0] = idsBySquad(state, 'B');
+    state = knock(state, a0!, b0!);
+    state = place(state, a0!, 0, 0, 0);
+    state = place(state, a1!, 1, 0, 0);
+    state = startRevive(state, a1!, a0!).state;
+    const before = state.members[a0!]!.downHp;
+    const r = tickBleed(state, 5);
+    expect(r.state.members[a0!]!.downHp).toBe(before);
+  });
+
+  it('horizontalDistance uses the XZ plane', () => {
+    let state = sampleMatch();
+    const [a0, a1] = idsBySquad(state, 'A');
+    state = place(state, a0!, 0, 10, 0);
+    state = place(state, a1!, 3, 0, 4);
+    expect(horizontalDistance(state.members[a0!]!, state.members[a1!]!)).toBeCloseTo(5);
+  });
+});
+
+describe('elimination (3.4)', () => {
+  it('wipes an all-downed squad, converts downed to dead, sets placement', () => {
+    let state = sampleMatch();
+    const mates = idsBySquad(state, 'A');
+    const [b0] = idsBySquad(state, 'B');
+    for (const id of mates) state = knock(state, id!, b0!);
+    // last one with no alive mate dies straight; force all downed for wipe path:
+    // re-build: knock 3, then manually set 4th downed
+    state = sampleMatch();
+    for (const id of mates.slice(0, 3)) state = knock(state, id!, b0!);
+    // 4th still alive - knock with a temporary mate alive already done for first 3
+    // Make the 4th downed by giving them a fake alive mate then... actually after 3 downed,
+    // 4th lethal -> dead. So set all four downed manually for wipe test:
+    state = sampleMatch();
+    const members = { ...state.members };
+    for (const id of mates) {
+      const m = members[id!]!;
+      members[id!] = {
+        ...m,
+        life: 'downed',
+        downHp: 50,
+        downedAt: 0,
+        timesDowned: 1,
+        killedBy: b0!,
+        combatant: { ...m.combatant, health: 0 },
+        reviving: null,
+        pos: { ...m.pos },
+      };
+    }
+    state = { ...state, members };
+    const r = checkWipe(state);
+    expect(r.state.squads.A!.eliminated).toBe(true);
+    expect(r.state.squads.A!.placement).toBe(2);
+    expect(r.state.squadsAlive).toBe(1);
+    expect(r.events.some((e) => e.type === 'squadWiped' && e.squad === 'A' && e.placement === 2)).toBe(true);
+    expect(r.events.some((e) => e.type === 'matchWon' && e.squad === 'B')).toBe(true);
+    for (const id of mates) {
+      expect(r.state.members[id!]!.life).toBe('dead');
+      expect(r.state.members[id!]!.killedBy).toBe(b0);
+    }
+  });
+
+  it('placement order is correct across 3 squads', () => {
+    let state = createMatch(
+      [
+        { id: 'A', names: ['A1', 'A2'], bots: [true, true] },
+        { id: 'B', names: ['B1', 'B2'], bots: [true, true] },
+        { id: 'C', names: ['C1', 'C2'], bots: [true, true] },
+      ],
+      7,
+    );
+    const downAll = (sid: string) => {
+      const members = { ...state.members };
+      for (const id of state.squads[sid]!.members) {
+        const m = members[id]!;
+        members[id] = {
+          ...m,
+          life: 'downed' as const,
+          downHp: 10,
+          downedAt: state.t,
+          timesDowned: 1,
+          killedBy: 'x',
+          combatant: { ...m.combatant, health: 0 },
+          reviving: null,
+          pos: { ...m.pos },
+        };
+      }
+      state = { ...state, members };
+    };
+    downAll('A');
+    let r = checkWipe(state);
+    state = r.state;
+    expect(state.squads.A!.placement).toBe(3);
+    downAll('C');
+    r = checkWipe(state);
+    state = r.state;
+    expect(state.squads.C!.placement).toBe(2);
+    expect(r.events.some((e) => e.type === 'matchWon' && e.squad === 'B')).toBe(true);
+  });
+});
+
+describe('spectate (3.5)', () => {
+  it('orders alive first then by slot; empty when wiped', () => {
+    let state = sampleMatch();
+    const [a0, a1, a2, a3] = idsBySquad(state, 'A');
+    const [b0] = idsBySquad(state, 'B');
+    state = knock(state, a1!, b0!);
+    state = knock(state, a2!, b0!);
+    // a0 dead
+    state = {
+      ...state,
+      members: {
+        ...state.members,
+        [a0!]: {
+          ...state.members[a0!]!,
+          life: 'dead',
+          combatant: { ...state.members[a0!]!.combatant, health: 0 },
+          reviving: null,
+          pos: { ...state.members[a0!]!.pos },
+        },
+      },
+    };
+    // from a0: targets should be a3 (alive), then a1, a2 (downed by slot)
+    const targets = spectateTargets(state, a0!);
+    expect(targets[0]).toBe(a3);
+    expect(targets.slice(1)).toEqual([a1, a2]);
+
+    // wipe A
+    const members = { ...state.members };
+    for (const id of [a1, a2, a3]) {
+      members[id!] = { ...members[id!]!, life: 'dead', reviving: null, pos: { ...members[id!]!.pos }, combatant: { ...members[id!]!.combatant } };
+    }
+    state = {
+      ...state,
+      members,
+      squads: { ...state.squads, A: { ...state.squads.A!, eliminated: true, placement: 2 } },
+      squadsAlive: 1,
+    };
+    expect(spectateTargets(state, a0!)).toEqual([]);
+  });
+
+  it('nextTarget cycles forward and backward', () => {
+    const t = ['a', 'b', 'c'];
+    expect(nextTarget(t, null, 1)).toBe('a');
+    expect(nextTarget(t, 'a', 1)).toBe('b');
+    expect(nextTarget(t, 'c', 1)).toBe('a');
+    expect(nextTarget(t, 'a', -1)).toBe('c');
+    expect(nextTarget([], null, 1)).toBeNull();
+  });
+});
+
+describe('step determinism and sim', () => {
+  it('same seed and inputs give identical state (snapshot)', () => {
+    const run = () => {
+      let state = sampleMatch(99);
+      const [a0, a1] = idsBySquad(state, 'A');
+      const [b0] = idsBySquad(state, 'B');
+      state = knock(state, a0!, b0!);
+      state = place(state, a0!, 0, 0, 0);
+      state = place(state, a1!, 1, 0, 0);
+      const inputs: PlayerInput[] = [
+        { id: a1!, holdRevive: true, pos: { x: 1, y: 0, z: 0 } },
+        { id: a0!, holdRevive: false, pos: { x: 0, y: 0, z: 0 } },
+      ];
+      for (let i = 0; i < 70; i++) state = step(state, inputs, 0.1).state;
+      return state;
+    };
+    const a = run();
+    const b = run();
+    expect(a).toEqual(b);
+    expect(a.members[idsBySquad(a, 'A')[0]!]!.life).toBe('alive');
+    expect(a.members[idsBySquad(a, 'A')[0]!]!.combatant.health).toBe(DOWN.reviveHealth);
+  });
+
+  it('1000-step random sim never has downed in a wiped squad or negative hp', () => {
+    const rng = mulberry32(12345);
+    let state = createMatch(
+      [
+        { id: 'A', names: ['A0', 'A1', 'A2', 'A3'], bots: [true, true, true, true] },
+        { id: 'B', names: ['B0', 'B1', 'B2', 'B3'], bots: [true, true, true, true] },
+        { id: 'C', names: ['C0', 'C1'], bots: [true, true] },
+      ],
+      12345,
+    );
+    // Spread positions
+    let i = 0;
+    for (const id of Object.keys(state.members)) {
+      state = place(state, id, (i % 5) * 2, 0, Math.floor(i / 5) * 2);
+      i++;
+    }
+    for (let stepI = 0; stepI < 1000; stepI++) {
+      // Random knocks / finishes / revives
+      const ids = Object.keys(state.members);
+      const attacker = ids[Math.floor(rng() * ids.length)]!;
+      const victim = ids[Math.floor(rng() * ids.length)]!;
+      if (attacker !== victim && state.members[attacker]!.life === 'alive' && state.members[victim]!.life === 'alive') {
+        if (rng() < 0.15) state = applyDamage(state, victim, attacker, lethalHit()).state;
+      }
+      if (state.members[victim]?.life === 'downed' && rng() < 0.1) {
+        state = applyDownedDamage(state, victim, attacker, 40).state;
+      }
+      const inputs: PlayerInput[] = ids.map((id) => {
+        const m = state.members[id]!;
+        return {
+          id,
+          holdRevive: m.life === 'alive' && rng() < 0.3,
+          pos: {
+            x: m.pos.x + (rng() - 0.5) * 0.4,
+            y: m.pos.y,
+            z: m.pos.z + (rng() - 0.5) * 0.4,
+          },
+        };
+      });
+      state = step(state, inputs, 0.2).state;
+
+      for (const m of Object.values(state.members)) {
+        expect(m.combatant.health).toBeGreaterThanOrEqual(0);
+        expect(m.downHp).toBeGreaterThanOrEqual(0);
+        const squad = state.squads[m.squad]!;
+        if (squad.eliminated) {
+          expect(m.life).not.toBe('downed');
+        }
+      }
+    }
+  });
+});
