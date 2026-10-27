@@ -539,6 +539,8 @@ class AnimatedCharacter implements CharacterVisual {
   private hipLift = 0;
   private deadTip = 0;
   private readonly flinchQ = new THREE.Quaternion();
+  private readonly flinchBase = [new THREE.Quaternion(), new THREE.Quaternion()];
+  private flinchApplied = false;
   private readonly flinchAxis = new THREE.Vector3(1, 0, 0);
   private readonly flinchDir = new THREE.Vector3(0, 0, 1);
   private groundProbe: GroundProbe | null = null;
@@ -693,6 +695,13 @@ class AnimatedCharacter implements CharacterVisual {
     this.flinchT = Math.max(0, this.flinchT - dt);
     if (this.hipLift && this.hips) this.hips.position.y -= this.hipLift;
     this.hipLift = 0;
+    // Undo last frame's additive flinch: the mixer does not rewrite spine bones that no active clip
+    // animates, and the kick would otherwise pile up frame after frame (a folded-over torso).
+    if (this.flinchApplied) {
+      if (this.spine) this.spine.quaternion.copy(this.flinchBase[0]);
+      if (this.spine1) this.spine1.quaternion.copy(this.flinchBase[1]);
+      this.flinchApplied = false;
+    }
     this.mixer.update(dt);
     if (deathW > 0 && this.hips) {
       const action = this.full.get('death')!;
@@ -702,6 +711,9 @@ class AnimatedCharacter implements CharacterVisual {
     if (this.flinchT > 0 && this.spine && deathW === 0) {
       const u = 1 - this.flinchT / 0.28;
       const amp = Math.sin(Math.min(1, Math.max(0, u)) * Math.PI) * 0.55;
+      this.flinchBase[0].copy(this.spine.quaternion);
+      if (this.spine1) this.flinchBase[1].copy(this.spine1.quaternion);
+      this.flinchApplied = true;
       this.flinchQ.setFromAxisAngle(this.flinchAxis, amp);
       this.spine.quaternion.multiply(this.flinchQ);
       // Slight additive on Spine1 if present (upper-chest kick).
