@@ -161,6 +161,12 @@ export class CombatHud {
     this.paintCross();
   }
 
+  /** Crosshair fades a little while the muzzle is blocked short of the aim point. */
+  setMuzzleBlocked(blocked: boolean): void {
+    this.cross.style.opacity = blocked ? '0.35' : '';
+    this.cross.dataset.blocked = blocked ? '1' : '0';
+  }
+
   showDeath(on: boolean): void {
     this.death.style.display = on ? 'flex' : 'none';
     this.cross.style.display = on ? 'none' : 'block';
