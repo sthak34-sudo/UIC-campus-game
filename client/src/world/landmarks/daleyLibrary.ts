@@ -37,6 +37,8 @@ export const LIB = {
   floorY: [0.05, 4.95, 9.15, 13.35],
   roofY: 17.55,
   parapetY: 18.05,
+  /** Invisible roof-edge lip height above the roof (collider only). */
+  roofLip: 1.1,
   slab: 0.35,
   /** Exterior columns: width along the facade and total depth (projection + wall). */
   colW: 0.8,
@@ -334,6 +336,17 @@ export function buildDaleyLibrary(world: World, b: CampusBuilding): LibraryInfo 
   ])
     ext.boxMinMax('concreteDark', x0, LIB.roofY, z0, x1, LIB.roofY + 1.9, z1);
   ext.boxMinMax('metal', -4, LIB.roofY, 40, 4, LIB.roofY + 1.2, 46);
+  // Walkable roof: slab collider over the whole footprint, the two penthouses + plant as solids,
+  // and an invisible 1.1 m lip (visible parapet is only 0.5 m) so nobody strolls off 17.5 m up.
+  col.boxMinMax(-hx, LIB.roofY - 0.3, -hz, hx, LIB.roofY, hz, 'floor');
+  for (const [x0, z0, x1, z1] of [[-12, -30, -2, -18], [2, 18, 12, 32]])
+    col.boxMinMax(x0, LIB.roofY, z0, x1, LIB.roofY + 1.9, z1, 'solid');
+  col.boxMinMax(-4, LIB.roofY, 40, 4, LIB.roofY + 1.2, 46, 'solid');
+  const lipTop = LIB.roofY + LIB.roofLip, lt = 0.2;
+  col.boxMinMax(-hx, LIB.roofY, -hz, hx, lipTop, -hz + lt, 'rail');
+  col.boxMinMax(-hx, LIB.roofY, hz - lt, hx, lipTop, hz, 'rail');
+  col.boxMinMax(-hx, LIB.roofY, -hz, -hx + lt, lipTop, hz, 'rail');
+  col.boxMinMax(hx - lt, LIB.roofY, -hz, hx, lipTop, hz, 'rail');
 
   // ------------------------------------------------------------------ aprons (paving outside doors)
   const yF = F[0];

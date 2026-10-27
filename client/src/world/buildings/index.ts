@@ -4,6 +4,7 @@ import { getMaterial, MATERIAL_NAMES, type MaterialName } from '../../render/mat
 import { landmarkFarLod } from '../landmarks/kit/lod';
 import { BUILDING_MODELS, type BuildingModel } from './manifest';
 import { classifyNode, isColliderKind } from './nodes';
+import { buildParapets } from './parapets';
 
 /**
  * Loads Atlas's building glbs (meshopt compressed, no textures), swaps materials by name for the
@@ -127,6 +128,17 @@ export function installBuilding(world: World, model: BuildingModel | string, sce
   }
 
   scene.updateMatrixWorld(true);
+
+  if (!farOnly) {
+    const roofs = res.colliders.filter((c) => c.userData.colliderTag === 'roof-col');
+    const others = res.colliders.filter((c) => c.userData.colliderTag === 'stair-col' || c.userData.colliderTag === 'floor-col');
+    for (const p of buildParapets(roofs, others)) {
+      scene.attach(p); // keep the world transform buildParapets computed
+      p.updateMatrixWorld(true);
+      world.addCollider(p);
+      res.colliders.push(p);
+    }
+  }
 
   if (farOnly && m.landmarkName) {
     const landmark = world.scene.getObjectByName(m.landmarkName);
