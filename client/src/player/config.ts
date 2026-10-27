@@ -12,6 +12,8 @@ export const PLAYER_CONFIG = {
   runSpeed: 4.5,
   /** Multiplies walk and run speed. 1 is a real human pace. */
   speedScale: 1,
+  /** When false, Shift never sprints (crawl / revive). */
+  allowRun: true,
   /** How fast horizontal speed approaches the target on the ground (m/s^2). */
   groundAccel: 14,
   /** Same, in the air (little air control). */

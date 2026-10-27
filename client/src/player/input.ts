@@ -159,6 +159,16 @@ export class InputController {
     return j;
   }
 
+  /** True while F is held (revive). Works even when movement is disabled for downed crawl. */
+  holdingRevive(): boolean {
+    return this.keys.has('KeyF');
+  }
+
+  /** Raw key peek for adapters (debug / revive). */
+  isKeyDown(code: string): boolean {
+    return this.keys.has(code);
+  }
+
   /** True once per left click. Combat applies the fire-rate limit. */
   consumeFire(): boolean {
     const f = this.fireQueued && this.controlsOn;
