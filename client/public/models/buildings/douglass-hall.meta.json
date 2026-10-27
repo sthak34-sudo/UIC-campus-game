@@ -14,16 +14,17 @@
  ],
  "lods": {
   "douglass-hall_LOD0": {
-   "tris0": 4713,
+   "tris0": 4749,
    "tris1": 28,
    "lod1_distance_m": 120
   }
  },
- "tris0": 4713,
+ "tris0": 4749,
  "tris1": 28,
  "colliders": {
   "douglass-hall_walls_col": 388,
   "douglass-hall_floor_col": 114,
+  "douglass-hall_roof01_col": 12,
   "douglass-hall_stair01_col": 12
  },
  "wall_boxes": 30,
@@ -31,5 +32,7 @@
  "door_overlaps_after_clip": 0,
  "wall_gaps": 0,
  "wall_gaps_patched": 0,
- "roof_walkable": false
+ "roof_walkable": true,
+ "roof_planes": 1,
+ "roof_boxes": 1
 }
