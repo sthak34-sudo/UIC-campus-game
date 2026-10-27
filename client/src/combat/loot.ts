@@ -9,6 +9,8 @@ import type { LootSpot, Vec3 } from './range';
 
 interface Crate {
   kind: LootKind;
+  /** Guns lie still on the floor; other pickups bob and spin. */
+  still: boolean;
   position: Vec3;
   group: THREE.Group;
   hiddenUntil: number;
@@ -89,6 +91,31 @@ function buildMesh(kind: LootKind): THREE.Object3D {
   return group;
 }
 
+/**
+ * A real rifle lying on its side on the floor: a clone of the held-rifle model (shared geometry
+ * and materials, so dispose skips it), centred and resting on the ground.
+ */
+export function buildGroundGun(template: THREE.Object3D, yaw: number): THREE.Object3D {
+  const gun = template.clone(true);
+  gun.traverse((o) => { o.userData.sharedAsset = true; });
+  const holder = new THREE.Group();
+  holder.name = 'ground-gun';
+  gun.rotation.set(0, 0, Math.PI / 2);
+  holder.add(gun);
+  holder.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(gun);
+  gun.position.set(-(box.min.x + box.max.x) / 2, -box.min.y + 0.003, -(box.min.z + box.max.z) / 2);
+  holder.rotation.y = yaw;
+  holder.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (m.isMesh) {
+      m.castShadow = true;
+      m.receiveShadow = true;
+    }
+  });
+  return holder;
+}
+
 const NAMES: Record<LootKind, string> = {
   gun: 'Rifle',
   ammo: 'Ammo',
@@ -100,15 +127,25 @@ export class LootField {
   private readonly crates: Crate[] = [];
   private readonly baseY: number[] = [];
 
-  constructor(scene: THREE.Scene, spots: readonly LootSpot[]) {
-    for (const spot of spots) {
+  /** `gunModel`: the held-rifle model; when given, gun pickups show it lying on the ground. */
+  constructor(scene: THREE.Scene, spots: readonly LootSpot[], gunModel: THREE.Object3D | null = null) {
+    for (let i = 0; i < spots.length; i++) {
+      const spot = spots[i]!;
       const group = new THREE.Group();
       group.name = `combat-loot-${spot.kind}`;
       group.position.set(spot.position.x, spot.position.y, spot.position.z);
-      group.add(buildMesh(spot.kind));
-      group.add(labelSprite(NAMES[spot.kind], '#f2f5f8'));
+      const still = spot.kind === 'gun' && gunModel !== null;
+      if (still) {
+        group.add(buildGroundGun(gunModel!, 0.6 + i * 1.3));
+        const tag = labelSprite(NAMES[spot.kind], '#f2f5f8');
+        tag.position.y = 0.45;
+        group.add(tag);
+      } else {
+        group.add(buildMesh(spot.kind));
+        group.add(labelSprite(NAMES[spot.kind], '#f2f5f8'));
+      }
       scene.add(group);
-      this.crates.push({ kind: spot.kind, position: spot.position, group, hiddenUntil: 0 });
+      this.crates.push({ kind: spot.kind, still, position: spot.position, group, hiddenUntil: 0 });
       this.baseY.push(spot.position.y);
     }
   }
@@ -148,6 +185,7 @@ export class LootField {
       }
       c.group.visible = true;
       c.hiddenUntil = 0;
+      if (c.still) continue;
       const bob = Math.sin(now * 1.6 + i) * 0.05;
       c.group.position.y = this.baseY[i]! + bob;
       c.group.rotation.y = now * 0.4 + i;
@@ -159,7 +197,7 @@ export class LootField {
       scene.remove(c.group);
       c.group.traverse((o) => {
         const m = o as THREE.Mesh;
-        if (m.isMesh) {
+        if (m.isMesh && !m.userData.sharedAsset) {
           m.geometry.dispose();
           const mat = m.material as THREE.MeshStandardMaterial;
           mat.map?.dispose();
