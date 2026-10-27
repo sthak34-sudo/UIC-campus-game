@@ -22,6 +22,7 @@ import {
 import { LootField } from './loot';
 import { practiceLayout } from './range';
 import { castHitscan, WeaponFx } from './weapon';
+import { createAvatar, loadCharacterAssets, peekCharacterAssets } from '../player/characterLoader';
 import { yawFromDirection } from '../player/math';
 
 /** Thin hooks the squad adapter installs so combat stays free of squad imports. */
@@ -53,21 +54,29 @@ export interface CombatMount {
   setVitals(c: Combatant): void;
 }
 
-export function mountCombat(opts: {
+export async function mountCombat(opts: {
   world: World;
   player: Player | null;
   camera: THREE.PerspectiveCamera;
   dom: HTMLElement;
   /** Extra loot crates (building glb markers). Appended after the practice-range spots. */
   extraLoot?: import('./range').LootSpot[];
-}): CombatMount {
+}): Promise<CombatMount> {
   const yaw = opts.world.spawnYaw ?? 0;
   const spawn = { x: opts.world.spawn.x, y: opts.world.spawn.y, z: opts.world.spawn.z };
   const layout = practiceLayout(spawn, yaw);
   const faceYaw = yawFromDirection(spawn.x - layout.dummies[1]!.x, spawn.z - layout.dummies[1]!.z);
 
   const physics: RAPIER.World | null = opts.player ? opts.player.rapier.world : null;
-  const dummies = new PracticeDummies(opts.world.scene, layout.dummies, faceYaw, physics);
+  if (!peekCharacterAssets()) await loadCharacterAssets();
+  const bodies = peekCharacterAssets();
+  const dummies = new PracticeDummies(
+    opts.world.scene,
+    layout.dummies,
+    faceYaw,
+    physics,
+    bodies ? () => createAvatar(bodies) : null,
+  );
   const allLoot = opts.extraLoot?.length
     ? [...layout.loot, ...opts.extraLoot]
     : layout.loot;
@@ -145,6 +154,7 @@ export function mountCombat(opts: {
       const r = squad.applyPlayerDamage(amount, attackerId);
       vitals = r.combatant;
       if (r.dead) killPlayer();
+      else opts.player.flinch();
       syncHud();
       return;
     }
@@ -152,6 +162,7 @@ export function mountCombat(opts: {
     const r = takeDirectDamage(vitals, amount);
     vitals = r.combatant;
     if (r.died) killPlayer();
+    else opts.player.flinch();
     syncHud();
   };
 
@@ -180,6 +191,7 @@ export function mountCombat(opts: {
     );
     lastShotAt = now();
     inventory = spendRound(inventory);
+    player.playFire();
     const muzzle = player.position.clone();
     muzzle.y += 1.4;
     muzzle.addScaledVector(dir, 0.4);
@@ -204,6 +216,7 @@ export function mountCombat(opts: {
     }
     reloading = true;
     reloadReadyAt = now() + COMBAT.reloadTime;
+    opts.player.playReload(COMBAT.reloadTime);
     syncHud();
   };
 

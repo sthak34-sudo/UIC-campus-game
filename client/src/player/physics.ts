@@ -70,7 +70,10 @@ export class PlayerPhysics {
     meshes: 0, instances: 0, cuboids: 0, trimeshes: 0, triangles: 0,
   };
   private maxWindowStart = 0;
-  private readonly halfHeight: number;
+  private readonly standHalf: number;
+  private readonly crouchHalf: number;
+  private currentHalf: number;
+  private _crouching = false;
   private readonly ball: RAPIER.Ball;
   private readonly capsuleShape: RAPIER.Capsule;
   private readonly hit = new RAPIER.CharacterCollision();
@@ -80,9 +83,11 @@ export class PlayerPhysics {
     this.cfg = cfg;
     this.world = new RAPIER.World({ x: 0, y: 0, z: 0 });
     this.world.timestep = cfg.fixedDt;
-    this.halfHeight = Math.max(0.05, cfg.height / 2 - cfg.radius);
+    this.standHalf = Math.max(0.05, cfg.height / 2 - cfg.radius);
+    this.crouchHalf = Math.max(0.05, cfg.crouchHeight / 2 - cfg.radius);
+    this.currentHalf = this.standHalf;
     this.body = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased());
-    this.collider = this.world.createCollider(RAPIER.ColliderDesc.capsule(this.halfHeight, cfg.radius), this.body);
+    this.collider = this.world.createCollider(RAPIER.ColliderDesc.capsule(this.standHalf, cfg.radius), this.body);
     this.kcc = this.world.createCharacterController(cfg.skin);
     this.kcc.setUp(UP);
     this.kcc.setSlideEnabled(true);
@@ -92,13 +97,47 @@ export class PlayerPhysics {
     this.kcc.setMinSlopeSlideAngle(cfg.slideSlope);
     this.kcc.setApplyImpulsesToDynamicBodies(false);
     this.ball = new RAPIER.Ball(cfg.camProbeRadius);
-    this.capsuleShape = new RAPIER.Capsule(this.halfHeight, cfg.radius - 0.01);
+    this.capsuleShape = new RAPIER.Capsule(this.standHalf, cfg.radius - 0.01);
     this.placeAt(spawn);
   }
 
   /** Height of the capsule centre above the feet. */
   get centerOffset(): number {
-    return this.cfg.skin + this.halfHeight + this.cfg.radius;
+    return this.cfg.skin + this.currentHalf + this.cfg.radius;
+  }
+
+  get crouching(): boolean {
+    return this._crouching;
+  }
+
+  /**
+   * Shrinks or restores the capsule. Standing back up fails when the head would be inside something,
+   * and the character stays crouched. Feet stay where they are.
+   */
+  setCrouching(on: boolean): boolean {
+    if (on === this._crouching) return true;
+    const next = on ? this.crouchHalf : this.standHalf;
+    if (!on && !this.shapeIsFree(this.standHalf)) return false;
+    this.currentHalf = next;
+    this.capsuleShape.halfHeight = next;
+    this.collider.setHalfHeight(next);
+    this._crouching = on;
+    const c = { x: this.feet.x, y: this.feet.y + this.centerOffset, z: this.feet.z };
+    this.body.setTranslation(c, true);
+    this.body.setNextKinematicTranslation(c);
+    return true;
+  }
+
+  /** True if a standing-height capsule at the feet touches nothing. */
+  private shapeIsFree(half: number): boolean {
+    const savedShape = this.capsuleShape.halfHeight;
+    const savedHalf = this.currentHalf;
+    this.capsuleShape.halfHeight = half;
+    this.currentHalf = half;
+    const free = this.isFree(this.feet);
+    this.capsuleShape.halfHeight = savedShape;
+    this.currentHalf = savedHalf;
+    return free;
   }
 
   private placeAt(p: THREE.Vector3): void {

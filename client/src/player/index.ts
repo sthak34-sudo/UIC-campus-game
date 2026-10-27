@@ -2,7 +2,7 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { World } from '../core/world';
 import { CameraRig, type CameraMode } from './camera';
-import { tryLoadAnimatedCharacter } from './characterLoader';
+import { tryLoadAnimatedCharacter, type CharacterVisual } from './characterLoader';
 import { CharacterModel } from './character';
 import { PLAYER_CONFIG } from './config';
 import { Emitter, type PlayerEvents } from './events';
@@ -17,8 +17,8 @@ import { buildTestCourse } from './testCourse';
  * Player character, physics (Rapier), controls and camera. OWNER: Player Engineer.
  *
  * Controls: click = capture mouse (Esc releases), mouse = look, WASD/arrows = move, Shift = run,
- * Space = jump, left click = fire, R = reload, Q = med kit, H = practice damage,
- * V = first/third person, mouse wheel = zoom, E = interact, F3 = debug line.
+ * C = crouch, right mouse = aim, Space = jump, left click = fire, R = reload, Q = med kit,
+ * H = practice damage, V = first/third person, mouse wheel = zoom, E = interact, F3 = debug line.
  *
  * Other modules:
  *   player.events.on('interact', ({ position, facing }) => { ... })
@@ -52,8 +52,14 @@ export interface Player {
   stats(): PhysicsStats;
   /** Rapier world used for movement. Combat casts shots through it. */
   readonly rapier: { world: RAPIER.World; playerCollider: RAPIER.Collider };
-  /** False while the death screen is up. */
+  /** False while the death screen is up. Plays the death animation while controls are off. */
   setControlsEnabled(enabled: boolean): void;
+  /** Upper-body fire clip. Combat calls this when a shot actually leaves the gun. */
+  playFire(): void;
+  /** Upper-body reload clip, timed to the gameplay reload. */
+  playReload(seconds: number): void;
+  /** Short flinch. There is no hit animation in the clip file. */
+  flinch(): void;
   dispose(): void;
 }
 
@@ -79,6 +85,10 @@ export interface PlayerTestApi {
   eventLog: string[];
   /** Perf probe results (`?playertest=perf`). */
   perf?: Record<string, number>;
+  /** Which figure is on screen, and the detail level it picked for the camera distance. */
+  getAvatar(): { kind: 'gltf' | 'procedural'; lod: number; missingTracks: number; crouched: boolean; aiming: boolean; dead: boolean };
+  setCrouch(on: boolean): void;
+  setAiming(on: boolean): void;
 }
 
 declare global {
@@ -127,7 +137,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     });
   }
 
-  const model = (await tryLoadAnimatedCharacter()) ?? new CharacterModel();
+  const model: CharacterVisual = (await tryLoadAnimatedCharacter()) ?? new CharacterModel();
   world.scene.add(model.root);
   const rig = new CameraRig(camera, cfg, phys);
   rig.yaw = initialYaw(world, phys.feet, testMode === '1');
@@ -157,12 +167,22 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
   let acc = 0;
   let simTime = 0;
   let lastMoveYaw: number | null = null;
+  let jumpLatch = false;
+  let dead = false;
+  events.on('jump', () => {
+    jumpLatch = true;
+  });
+  events.on('land', () => {
+    jumpLatch = false;
+  });
 
   /** Fixed-step simulation of `dt` seconds of input. */
   const simulate = (dt: number, maxSteps: number) => {
     const inp = input.read();
+    if (input.crouching) phys.setCrouching(true);
+    else phys.setCrouching(false);
     const dir = moveDirection(inp.forward, inp.right, rig.yaw);
-    const speed = (inp.run && cfg.allowRun ? cfg.runSpeed : cfg.walkSpeed) * cfg.speedScale;
+    const speed = (phys.crouching ? cfg.crouchSpeed : inp.run && cfg.allowRun ? cfg.runSpeed : cfg.walkSpeed) * cfg.speedScale;
     acc += dt;
     let n = 0;
     while (acc >= cfg.fixedDt && n < maxSteps) {
@@ -186,9 +206,24 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
   const present = (dt: number) => {
     const alpha = Math.min(1, acc / cfg.fixedDt);
     position.lerpVectors(phys.prevFeet, phys.feet, alpha);
-    rig.update(dt, position);
+    rig.update(dt, position, phys.crouching);
     model.root.position.copy(position);
-    model.update(dt, Math.min(phys.actualSpeed, Math.hypot(phys.velocity.x, phys.velocity.z) + 0.05), phys.grounded, lastMoveYaw);
+    const aiming = input.aiming && !dead;
+    model.setFlags({
+      crouch: phys.crouching,
+      aiming,
+      jumping: !dead && !phys.grounded && (jumpLatch || Math.abs(phys.velocity.y) > 0.08),
+      dead,
+    });
+    const face = aiming ? rig.yaw : lastMoveYaw;
+    const viewDistance = camera.position.distanceTo(position);
+    model.update(
+      dt,
+      Math.min(phys.actualSpeed, Math.hypot(phys.velocity.x, phys.velocity.z) + 0.05),
+      phys.grounded,
+      face,
+      viewDistance,
+    );
     // Hidden in first person, and when the camera is squeezed right up against the head.
     model.root.visible = rig.mode === 'third' && rig.arm > 0.45;
   };
@@ -256,7 +291,18 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     syncColliders: () => phys.syncColliders(world.colliders),
     stats: () => ({ ...phys.stats }),
     rapier: { world: phys.world, playerCollider: phys.collider },
-    setControlsEnabled: (enabled) => input.setEnabled(enabled),
+    setControlsEnabled: (enabled) => {
+      input.setEnabled(enabled);
+      dead = !enabled;
+      if (enabled) {
+        jumpLatch = false;
+        input.setCrouch(false);
+        phys.setCrouching(false);
+      }
+    },
+    playFire: () => model.playFire(),
+    playReload: (seconds) => model.playReload(seconds),
+    flinch: () => model.flinch(),
     dispose: () => {
       input.dispose();
       hud.dispose();
@@ -288,6 +334,16 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     getStats: () => ({ ...phys.stats, fps: hud.fps, fallbackGround: phys.hasFallbackGround }),
     eventLog,
     perf: perfInfo,
+    getAvatar: () => ({
+      kind: model.kind,
+      lod: model.lod,
+      missingTracks: model.missingTracks,
+      crouched: phys.crouching,
+      aiming: input.aiming,
+      dead,
+    }),
+    setCrouch: (on) => input.setCrouch(on),
+    setAiming: (on) => input.setAiming(on),
   };
   if (import.meta.env.DEV || testMode !== null || params.has('test')) window.__player = api;
 
