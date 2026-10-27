@@ -34,9 +34,9 @@ export const HDRI_PRESETS = {
     url: 'https://polyhaven.com/a/kloofendal_overcast_puresky',
     sunDir: [0.80, 0.39, 0.45],
     sunColor: [1.0, 0.98, 0.95],
-    sunIntensity: 2.15,
-    exposure: 1.05,
-    envIntensity: 0.85,
+    sunIntensity: 2.6,
+    exposure: 0.98,
+    envIntensity: 0.8,
   },
   bridges: {
     id: 'bridges',

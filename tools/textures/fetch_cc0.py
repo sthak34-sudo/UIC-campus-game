@@ -48,7 +48,7 @@ ASSETS: dict[str, dict] = {
     'ph_concrete_layers_02': dict(src='polyhaven', id='concrete_layers_02', why='concrete: board-formed cast-in-place, horizontal board/lift marks'),
     'ph_concrete_wall_007': dict(src='polyhaven', id='concrete_wall_007', why='concreteWarm: warm grey weathered wall with pour lines'),
     'ph_concrete_wall_006': dict(src='polyhaven', id='concrete_wall_006', why='concreteDark: dark, stained, tie holes'),
-    'acg_Concrete046': dict(src='ambientcg', id='Concrete046', why='concreteSmooth: smooth light precast'),
+    'ph_concrete_wall_009': dict(src='polyhaven', id='concrete_wall_009', why='concreteSmooth: weathered precast'),
     'ph_gravel_embedded_concrete': dict(src='polyhaven', id='gravel_embedded_concrete', nsize=512, why='concreteExposedAggregate: exposed-aggregate precast'),
     # ---- brick
     'ph_red_brick_03': dict(src='polyhaven', id='red_brick_03', why='brick: red-brown face brick'),
@@ -56,9 +56,9 @@ ASSETS: dict[str, dict] = {
     'ph_brick_wall_001': dict(src='polyhaven', id='brick_wall_001', why='brickUIC, brickDouble (2x scale), brickCommon: mixed-color brick (tinted to the Netsch palette for brickUIC)'),
     # ---- ground
     'ph_asphalt_02': dict(src='polyhaven', id='asphalt_02', nsize=512, why='asphalt: grey street asphalt with cracks'),
-    'ph_concrete_floor_worn_001': dict(src='polyhaven', id='concrete_floor_worn_001', why='sidewalk: worn cast-concrete pavement'),
+    'ph_concrete_pavement': dict(src='polyhaven', id='concrete_pavement', why='sidewalk: slabs with saw-cut joints'),
     'ph_white_sandstone_blocks_02': dict(src='polyhaven', id='white_sandstone_blocks_02', why='limestone and plaza: pale cut stone (Poly Haven has no asset named limestone)'),
-    'acg_Grass004': dict(src='ambientcg', id='Grass004', nsize=512, why='grass: mown lawn'),
+    'ph_leafy_grass': dict(src='polyhaven', id='leafy_grass', why='grass: lawn with clover'),
     'ph_yellow_flower_mulch': dict(src='polyhaven', id='yellow_flower_mulch', size=512, why='soil: planting-bed mulch'),
     'ph_bicolour_gravel': dict(src='polyhaven', id='bicolour_gravel', nsize=512, why='roof: gravel ballast'),
     # ---- interiors

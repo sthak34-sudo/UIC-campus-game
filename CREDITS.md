@@ -33,16 +33,16 @@ The GPU transcoder is `client/public/basis/basis_transcoder.js` and `basis_trans
 - `concrete` ← Poly Haven "Concrete Layers 02" (https://polyhaven.com/a/concrete_layers_02), 2 m tile, by Rob Tuytel — CC0 1.0
 - `concreteExposedAggregate` ← Poly Haven "Gravel Embedded Concrete" (https://polyhaven.com/a/gravel_embedded_concrete), 2 m tile, by Charlotte Baglioni — CC0 1.0
 - `concreteDark` ← Poly Haven "Concrete Wall 006" (https://polyhaven.com/a/concrete_wall_006), 2 m tile, by Dario Barresi, Charlotte Baglioni — CC0 1.0
-- `concreteSmooth` ← ambientCG "Concrete 046" (https://ambientcg.com/view?id=Concrete046), 2.4 m tile, by ambientCG (Lennart Demes) — CC0 1.0
+- `concreteSmooth` ← Poly Haven "Concrete Wall 009" (https://polyhaven.com/a/concrete_wall_009), 2 m tile, by Poly Haven — CC0 1.0
 - `concreteWarm` ← Poly Haven "Concrete Wall 007" (https://polyhaven.com/a/concrete_wall_007), 2.16 m tile, by Dario Barresi, Rico Cilliers, Charlotte Baglioni — CC0 1.0
-- `grass` ← ambientCG "Grass 004" (https://ambientcg.com/view?id=Grass004), 1.4 m tile, by ambientCG (Lennart Demes) — CC0 1.0
+- `grass` ← Poly Haven "Leafy Grass" (https://polyhaven.com/a/leafy_grass), 2 m tile, by Poly Haven — CC0 1.0
 - `interiorCeiling` ← ambientCG "Office Ceiling 001" (https://ambientcg.com/view?id=OfficeCeiling001), 3.85 m tile, by ambientCG (Lennart Demes) — CC0 1.0
 - `interiorFloor` ← ambientCG "Carpet 012" (https://ambientcg.com/view?id=Carpet012), 1 m tile, by ambientCG (Lennart Demes) — CC0 1.0
 - `interiorFloorHard` ← Poly Haven "Terrazzo Tiles" (https://polyhaven.com/a/terrazzo_tiles), 2 m tile, by Amal Kumar — CC0 1.0
 - `interiorWall` ← Poly Haven "Painted Plaster Wall" (https://polyhaven.com/a/painted_plaster_wall), 2 m tile, by Amal Kumar — CC0 1.0
 - `metalPanel` ← Poly Haven "Blue Metal Plate" (https://polyhaven.com/a/blue_metal_plate), 2.5 m tile, by Rob Tuytel — CC0 1.0
 - `plaza`, `limestone` ← Poly Haven "White Sandstone Blocks 02" (https://polyhaven.com/a/white_sandstone_blocks_02), 2 m tile, by Rob Tuytel — CC0 1.0. Poly Haven has no scan named limestone; this pale cut stone is the stand-in for limestone and for the granite plaza.
-- `sidewalk` ← Poly Haven "Concrete Floor Worn 001" (https://polyhaven.com/a/concrete_floor_worn_001), 3 m tile, by Dimitrios Savva, Rico Cilliers — CC0 1.0
+- `sidewalk` ← Poly Haven "Concrete Pavement" (https://polyhaven.com/a/concrete_pavement), 3 m tile, by Poly Haven — CC0 1.0
 - `roof` ← Poly Haven "Bicolour Gravel" (https://polyhaven.com/a/bicolour_gravel), 1.9 m tile, by Dimitrios Savva — CC0 1.0
 - `soil` ← Poly Haven "Yellow Flower Mulch" (https://polyhaven.com/a/yellow_flower_mulch), 2 m tile, by Dimitrios Savva — CC0 1.0
 - `wood` ← Poly Haven "Oak Veneer 01" (https://polyhaven.com/a/oak_veneer_01), 1.83 m tile, by Jenelle van Heerden — CC0 1.0
