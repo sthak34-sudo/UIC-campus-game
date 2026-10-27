@@ -2,7 +2,7 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { World } from '../core/world';
 import { CameraRig, type CameraMode } from './camera';
-import { tryLoadAnimatedCharacter, type CharacterVisual } from './characterLoader';
+import { tryLoadAnimatedCharacter, type CharacterVisual, type HitDir } from './characterLoader';
 import { CharacterModel } from './character';
 import { PLAYER_CONFIG } from './config';
 import { Emitter, type PlayerEvents } from './events';
@@ -58,8 +58,11 @@ export interface Player {
   playFire(): void;
   /** Upper-body reload clip, timed to the gameplay reload. */
   playReload(seconds: number): void;
-  /** Short flinch. There is no hit animation in the clip file. */
-  flinch(): void;
+  /**
+   * Short flinch + camera kick. There is no hit animation in the clip file.
+   * `hitDir` is world-space impulse (attacker → victim).
+   */
+  flinch(hitDir?: HitDir): void;
   dispose(): void;
 }
 
@@ -89,6 +92,8 @@ export interface PlayerTestApi {
   getAvatar(): { kind: 'gltf' | 'procedural'; lod: number; missingTracks: number; crouched: boolean; aiming: boolean; dead: boolean };
   setCrouch(on: boolean): void;
   setAiming(on: boolean): void;
+  /** Trigger a hit reaction (screenshot / debug). */
+  flinch(hitDir?: { x: number; y: number; z: number }): void;
 }
 
 declare global {
@@ -139,6 +144,14 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
 
   const model: CharacterVisual = (await tryLoadAnimatedCharacter()) ?? new CharacterModel();
   world.scene.add(model.root);
+  const groundScratch = new THREE.Vector3();
+  model.setGroundProbe({
+    sample: (x, yFrom, z, maxDrop) => {
+      groundScratch.set(x, yFrom, z);
+      const d = phys.groundDistance(groundScratch, maxDrop);
+      return d === null ? null : yFrom - d;
+    },
+  });
   const rig = new CameraRig(camera, cfg, phys);
   rig.yaw = initialYaw(world, phys.feet, testMode === '1');
   model.yaw = rig.yaw;
@@ -302,7 +315,10 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     },
     playFire: () => model.playFire(),
     playReload: (seconds) => model.playReload(seconds),
-    flinch: () => model.flinch(),
+    flinch: (hitDir) => {
+      model.flinch(hitDir);
+      rig.kick(hitDir, 1);
+    },
     dispose: () => {
       input.dispose();
       hud.dispose();
@@ -344,6 +360,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     }),
     setCrouch: (on) => input.setCrouch(on),
     setAiming: (on) => input.setAiming(on),
+    flinch: (hitDir) => player.flinch(hitDir),
   };
   if (import.meta.env.DEV || testMode !== null || params.has('test')) window.__player = api;
 

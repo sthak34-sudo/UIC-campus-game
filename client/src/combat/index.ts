@@ -145,7 +145,17 @@ export async function mountCombat(opts: {
     syncHud();
   };
 
-  const applyLocalDamage = (amount: number, attackerId: string | null) => {
+  const flinchFrom = (from: { x: number; y: number; z: number } | null) => {
+    if (!opts.player) return;
+    if (!from) {
+      opts.player.flinch();
+      return;
+    }
+    const p = opts.player.position;
+    opts.player.flinch({ x: p.x - from.x, y: p.y - from.y, z: p.z - from.z });
+  };
+
+  const applyLocalDamage = (amount: number, attackerId: string | null, from: { x: number; y: number; z: number } | null = null) => {
     if (!opts.player || amount <= 0) return;
     if (squad) {
       if (squad.isDead()) return;
@@ -154,7 +164,7 @@ export async function mountCombat(opts: {
       const r = squad.applyPlayerDamage(amount, attackerId);
       vitals = r.combatant;
       if (r.dead) killPlayer();
-      else opts.player.flinch();
+      else flinchFrom(from);
       syncHud();
       return;
     }
@@ -162,7 +172,7 @@ export async function mountCombat(opts: {
     const r = takeDirectDamage(vitals, amount);
     vitals = r.combatant;
     if (r.died) killPlayer();
-    else opts.player.flinch();
+    else flinchFrom(from);
     syncHud();
   };
 
@@ -199,7 +209,7 @@ export async function mountCombat(opts: {
     if (hit) {
       const target = dummies.lookup(hit.colliderHandle);
       if (target) {
-        const outcome = dummies.damage(target.index, target.zone, hit.distance, player.rapier.world);
+        const outcome = dummies.damage(target.index, target.zone, hit.distance, player.rapier.world, { x: dir.x, y: dir.y, z: dir.z });
         if (outcome) hud.flashCrosshair(outcome.headshot ? 'head' : 'hit');
       } else {
         fx.decal(hit.point, hit.normal);
@@ -221,7 +231,12 @@ export async function mountCombat(opts: {
   };
 
   const hurt = () => {
-    applyLocalDamage(COMBAT.debugHurt, null);
+    // Invent a hit coming from ahead of the camera so the procedural flinch reads clearly.
+    const from = opts.camera.position.clone();
+    const ahead = new THREE.Vector3();
+    opts.camera.getWorldDirection(ahead);
+    from.addScaledVector(ahead, 2);
+    applyLocalDamage(COMBAT.debugHurt, null, from);
   };
 
   const useMedkit = () => {
