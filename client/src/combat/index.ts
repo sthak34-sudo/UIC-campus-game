@@ -1,6 +1,9 @@
 /**
  * Practice combat: shooting, dummies, loot, and the combat HUD.
  * Wired from main.ts. Damage numbers stay in the pure modules next to this file.
+ *
+ * Optional `squad` bridge (S3): routes player damage through applyDamage so a lethal
+ * hit knocks instead of killing when a teammate is alive. Downed players cannot fire.
  */
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
@@ -21,10 +24,33 @@ import { practiceLayout } from './range';
 import { castHitscan, WeaponFx } from './weapon';
 import { yawFromDirection } from '../player/math';
 
+/** Thin hooks the squad adapter installs so combat stays free of squad imports. */
+export interface CombatSquadBridge {
+  /** True while the local player is knocked (crawl, no fire). */
+  isDowned(): boolean;
+  /** True after the local player is fully dead (death screen). */
+  isDead(): boolean;
+  /**
+   * Apply raw damage to the local player through squad rules.
+   * Returns the synced combatant and whether they are now dead (not merely downed).
+   */
+  applyPlayerDamage(amount: number, attackerId: string | null): { combatant: Combatant; dead: boolean };
+  /** Pull the latest combatant snapshot from the squad match. */
+  getCombatant(): Combatant;
+  /** Write combatant back (medkit / heal-all). */
+  setCombatant(c: Combatant): void;
+}
+
 export interface CombatMount {
   dispose(): void;
-  /** Safe-zone damage. Ignores armor. Does nothing if the player is already down. */
+  /** Safe-zone damage. Ignores armor. Does nothing if the player is already down / dead. */
   applyZoneDamage(amount: number): void;
+  /** Install or clear the squad bridge (called by mountSquad). */
+  setSquadBridge(bridge: CombatSquadBridge | null): void;
+  /** Current vitals (for squad sync / debug). */
+  getVitals(): Combatant;
+  /** Replace vitals after a revive / heal-all. */
+  setVitals(c: Combatant): void;
 }
 
 export function mountCombat(opts: {
@@ -57,6 +83,7 @@ export function mountCombat(opts: {
   let reloading = false;
   let reloadReadyAt = 0;
   let clock = 0;
+  let squad: CombatSquadBridge | null = null;
 
   const hudParent = document.getElementById('hud') ?? opts.dom;
   const hud = opts.player
@@ -65,10 +92,15 @@ export function mountCombat(opts: {
 
   const now = () => performance.now() / 1000;
 
+  const playerDowned = () => (squad ? squad.isDowned() : false);
+  const playerDead = () => (squad ? squad.isDead() : isDown(vitals));
+  const playerBlocked = () => playerDowned() || playerDead();
+
   const syncHud = () => {
     if (!hud || !opts.player) return;
+    if (squad) vitals = squad.getCombatant();
     const feet = opts.player.position;
-    const near = isDown(vitals) ? null : loot.nearest({ x: feet.x, y: feet.y, z: feet.z }, clock);
+    const near = playerBlocked() ? null : loot.nearest({ x: feet.x, y: feet.y, z: feet.z }, clock);
     hud.setState({
       health: vitals.health,
       maxHealth: vitals.maxHealth,
@@ -99,14 +131,34 @@ export function mountCombat(opts: {
     syncHud();
   };
 
+  const applyLocalDamage = (amount: number, attackerId: string | null) => {
+    if (!opts.player || amount <= 0) return;
+    if (squad) {
+      if (squad.isDead()) return;
+      // While downed, zone / finish damage is handled by the squad adapter via applyDownedDamage.
+      if (squad.isDowned()) return;
+      const r = squad.applyPlayerDamage(amount, attackerId);
+      vitals = r.combatant;
+      if (r.dead) killPlayer();
+      syncHud();
+      return;
+    }
+    if (isDown(vitals)) return;
+    const r = takeDirectDamage(vitals, amount);
+    vitals = r.combatant;
+    if (r.died) killPlayer();
+    syncHud();
+  };
+
   const fire = () => {
     const player = opts.player;
     if (!player || !hud) return;
-    const alive = !isDown(vitals);
+    const alive = !playerDead();
+    const downed = playerDowned();
     if (!canFire({
-      now: now(), lastShotAt, mag: inventory.mag, reloading, hasGun: inventory.hasGun, alive,
+      now: now(), lastShotAt, mag: inventory.mag, reloading, hasGun: inventory.hasGun, alive, downed,
     })) {
-      if (alive && inventory.hasGun && !reloading && inventory.mag <= 0) {
+      if (alive && !downed && inventory.hasGun && !reloading && inventory.mag <= 0) {
         hud.flashHint(inventory.reserve > 0 ? 'Empty — press R to reload' : 'Out of ammo');
       }
       return;
@@ -140,7 +192,7 @@ export function mountCombat(opts: {
   };
 
   const reload = () => {
-    if (!opts.player || isDown(vitals) || reloading) return;
+    if (!opts.player || playerBlocked() || reloading) return;
     if (!canReload(inventory.mag, inventory.reserve)) {
       hud?.flashHint(inventory.mag >= COMBAT.magSize ? 'Magazine full' : 'No ammo left');
       return;
@@ -151,15 +203,11 @@ export function mountCombat(opts: {
   };
 
   const hurt = () => {
-    if (!opts.player || isDown(vitals)) return;
-    const r = takeDirectDamage(vitals, COMBAT.debugHurt);
-    vitals = r.combatant;
-    if (r.died) killPlayer();
-    syncHud();
+    applyLocalDamage(COMBAT.debugHurt, null);
   };
 
   const useMedkit = () => {
-    if (!opts.player || isDown(vitals)) return;
+    if (!opts.player || playerBlocked()) return;
     if (inventory.medkits <= 0) {
       hud?.flashHint('No med kit');
       return;
@@ -172,12 +220,13 @@ export function mountCombat(opts: {
     const pulled = pullMedkit(inventory);
     inventory = pulled.inventory;
     vitals = healed.combatant;
+    squad?.setCombatant(vitals);
     hud?.flashHint(`Med kit +${healed.healed}`);
     syncHud();
   };
 
   const onInteract = (e: { position: { x: number; y: number; z: number } }) => {
-    if (!opts.player || isDown(vitals)) return;
+    if (!opts.player || playerBlocked()) return;
     const near = loot.nearest(e.position, clock);
     if (!near) return;
     const kind = loot.take(near.index, clock);
@@ -217,10 +266,16 @@ export function mountCombat(opts: {
 
   return {
     applyZoneDamage(amount: number) {
-      if (!opts.player || amount <= 0 || isDown(vitals)) return;
-      const r = takeDirectDamage(vitals, amount);
-      vitals = r.combatant;
-      if (r.died) killPlayer();
+      applyLocalDamage(amount, null);
+    },
+    setSquadBridge(bridge: CombatSquadBridge | null) {
+      squad = bridge;
+      if (bridge) vitals = bridge.getCombatant();
+      syncHud();
+    },
+    getVitals: () => (squad ? squad.getCombatant() : vitals),
+    setVitals(c: Combatant) {
+      vitals = c;
       syncHud();
     },
     dispose() {

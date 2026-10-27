@@ -38,6 +38,13 @@ export interface Player {
   setCameraMode(mode: CameraMode): void;
   /** Multiplies walk/run speed (1 = real human pace). */
   setSpeedScale(scale: number): void;
+  /** First-person eye height above feet (m). */
+  setEyeHeight(h: number): void;
+  /** Third-person pivot height above feet (m). */
+  setCamPivotHeight(h: number): void;
+  /** True while F is held (squad revive). */
+  holdingRevive(): boolean;
+  setAllowRun(on: boolean): void;
   /** Move the character (feet position). */
   teleport(p: THREE.Vector3): void;
   /** Adds colliders registered since the last sync now (also done automatically every frame). */
@@ -81,7 +88,7 @@ declare global {
 }
 
 export async function createPlayer(world: World, camera: THREE.PerspectiveCamera, dom: HTMLElement): Promise<Player> {
-  const cfg = PLAYER_CONFIG;
+  const cfg = { ...PLAYER_CONFIG };
   const params = new URLSearchParams(location.search);
   const testMode = params.get('playertest');
   const perfInfo: Record<string, number> = {};
@@ -155,7 +162,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
   const simulate = (dt: number, maxSteps: number) => {
     const inp = input.read();
     const dir = moveDirection(inp.forward, inp.right, rig.yaw);
-    const speed = (inp.run ? cfg.runSpeed : cfg.walkSpeed) * cfg.speedScale;
+    const speed = (inp.run && cfg.allowRun ? cfg.runSpeed : cfg.walkSpeed) * cfg.speedScale;
     acc += dt;
     let n = 0;
     while (acc >= cfg.fixedDt && n < maxSteps) {
@@ -229,6 +236,16 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     setCameraMode: setMode,
     setSpeedScale: (s) => {
       cfg.speedScale = s;
+    },
+    setEyeHeight: (h) => {
+      cfg.eyeHeight = h;
+    },
+    setCamPivotHeight: (h) => {
+      cfg.camPivotHeight = h;
+    },
+    holdingRevive: () => input.holdingRevive(),
+    setAllowRun: (on) => {
+      cfg.allowRun = on;
     },
     teleport: (p) => {
       phys.teleport(p);

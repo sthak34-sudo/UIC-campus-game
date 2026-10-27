@@ -56,6 +56,7 @@ describe('damage math', () => {
     expect(canFire({ ...base, reloading: true })).toBe(false);
     expect(canFire({ ...base, hasGun: false })).toBe(false);
     expect(canFire({ ...base, alive: false })).toBe(false);
+    expect(canFire({ ...base, downed: true })).toBe(false);
   });
 
   it('moves reserve rounds into the magazine and refuses a full mag or an empty reserve', () => {

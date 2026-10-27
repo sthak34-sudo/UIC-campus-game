@@ -34,7 +34,7 @@ function lethalHit() {
 
 describe('squad import ban', () => {
   it('no squad file imports three, rapier, or touches window', () => {
-    const files = readdirSync(squadDir).filter((f: string) => f.endsWith('.ts') && !f.endsWith('.test.ts'));
+    const files = readdirSync(squadDir).filter((f: string) => f.endsWith('.ts') && !f.endsWith('.test.ts') && f !== 'adapter.ts');
     expect(files.length).toBeGreaterThan(0);
     const banned: string[] = [];
     for (const f of files) {
