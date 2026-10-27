@@ -35,9 +35,14 @@ export const UH = {
   groundH: 6.1,
   typicalH: 3.58,
   /** Facade layering (m). */
-  pierW: 0.55,
+  pierW: 0.42,
   /** Depth of the exterior piers and of the floor-edge upstand (m). */
-  pierDepth: 0.55,
+  pierDepth: 0.35,
+  /** Thin vertical window fins that project past the pier face (Atlas / Netsch look). */
+  finW: 0.16,
+  finOut: 0.75,
+  /** Extra collar thickness at tier step bands so the 3 setbacks read from the plaza. */
+  tierCollar: 0.55,
   upstandDepth: 0.3,
   upstandH: 0.85,
   /** Window wall set back behind the pier face: open gallery ledge on floors 3-28. */
@@ -80,6 +85,10 @@ export interface UniversityHallInfo {
   /** Local z of the east/west lobby doors. */
   eastEntranceZ: number;
   lobbyCenter: THREE.Vector3;
+  /** Exterior MeshBatch mesh count (one per material). Used by B5 draw-call budget tests. */
+  exteriorDrawCalls: number;
+  /** Number of projecting fin boxes added (per-floor vertical fins). */
+  finCount: number;
 }
 
 export function buildUniversityHall(world: World, b: CampusBuilding): UniversityHallInfo {
@@ -98,6 +107,7 @@ export function buildUniversityHall(world: World, b: CampusBuilding): University
   const ext = new MeshBatch(); // casts shadows
   const inner = new MeshBatch(); // lobby interior
   const col = new ColliderSet();
+  let finCount = 0;
 
   // ------------------------------------------------------------------ tower floors 2..28
   // Each face is built in "face coordinates": u runs along the face, depth runs inward from the
@@ -150,6 +160,13 @@ export function buildUniversityHall(world: World, b: CampusBuilding): University
         const gd = ledge ? GD : UH.pierDepth + 0.15; // floor 2 has no gallery
         // floor-edge upstand (the horizontal line of the grid)
         fbox(F, C, ua, ub, 0, UH.upstandDepth, y0 - 0.35, y0 + UH.upstandH, out(F) | FACE.PY | FACE.NY);
+        // per-floor projecting fins (thin boxes past the pier face; batched with concrete)
+        for (let i = 1; i < F.n; i++) {
+          const u = -F.a + i * m;
+          if (u - UH.finW / 2 < ua - 0.01 || u + UH.finW / 2 > ub + 0.01) continue;
+          fbox(F, C, u - UH.finW / 2, u + UH.finW / 2, -UH.finOut, 0.02, y0 + 0.05, y1 - 0.05, out(F) | sides(F));
+          finCount++;
+        }
         // gallery ledge floor; its underside is the ceiling of the gallery below
         if (ledge) fbox(F, P, ua, ub, UH.upstandDepth, gd, y0 - 0.3, y0, FACE.PY | FACE.NY);
         const sill = y0 + 0.15;
@@ -203,10 +220,19 @@ export function buildUniversityHall(world: World, b: CampusBuilding): University
     if (t > 0) {
       // cantilever soffit where the north/south faces step out (also roofs the gallery below)
       const prev = tierHalfZ[t - 1];
+      const collar = UH.tierCollar;
       for (const s of [1, -1]) {
         const za = s * (prev - GD - 0.1);
         const zb = s * hz;
-        ext.boxMinMax(C, -hx, ty0 - 0.45, Math.min(za, zb), hx, ty0, Math.max(za, zb), FACE.NY | FACE.PX | FACE.NX | (s > 0 ? FACE.PZ : FACE.NZ));
+        const stepFace = FACE.NY | FACE.PY | FACE.PX | FACE.NX | (s > 0 ? FACE.PZ : FACE.NZ);
+        // thicker collar band so the stepped tiers read from the plaza
+        ext.boxMinMax(C, -hx, ty0 - collar, Math.min(za, zb), hx, ty0, Math.max(za, zb), stepFace);
+        // outer lip on the stepped face
+        const lipZ0 = s > 0 ? zb - 0.15 : zb;
+        const lipZ1 = s > 0 ? zb + 0.08 : zb + 0.15;
+        ext.boxMinMax(C, -hx - 0.04, ty0 - collar, Math.min(lipZ0, lipZ1), hx + 0.04, ty0 + 0.4, Math.max(lipZ0, lipZ1), stepFace);
+        // walkable setback collider on the cantilever ledge (new setbacks only)
+        col.boxMinMax(-hx + 0.4, ty0 - 0.35, Math.min(za, zb), hx - 0.4, ty0, Math.max(za, zb), 'floor');
       }
     }
   }
@@ -328,5 +354,7 @@ export function buildUniversityHall(world: World, b: CampusBuilding): University
     eastEntrance: localToWorld(frame, hx + 0.5, 0, doorZ),
     eastEntranceZ: doorZ,
     lobbyCenter: localToWorld(frame, 0, 0, 0),
+    exteriorDrawCalls: exterior.children.length,
+    finCount,
   };
 }
