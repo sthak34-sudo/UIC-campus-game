@@ -61,12 +61,14 @@ for (const model of BUILDING_MODELS) {
         const e = n.extras as { lod_level: number; lod_group: string; lod1_distance_m: number };
         expect(e.lod1_distance_m).toBeGreaterThan(0);
         groups.set(e.lod_group, [...(groups.get(e.lod_group) ?? []), e.lod_level]);
-        if (e.lod_level === 0) expect(meshTriangles(j, n.mesh!)).toBeLessThanOrEqual(MAX_LOD0_TRIS);
+        // farOnly: UH LOD0 is over budget on purpose; we never load it in-game.
+        if (e.lod_level === 0 && !model.farOnly) expect(meshTriangles(j, n.mesh!)).toBeLessThanOrEqual(MAX_LOD0_TRIS);
       }
       for (const levels of groups.values()) expect(levels.sort()).toEqual([0, 1]);
     });
 
     it('has wall and floor colliders as meshes without materials', () => {
+      // farOnly glbs still ship colliders for a full install; we strip them at load time.
       const cols = [...byKind('wall-col'), ...byKind('floor-col'), ...byKind('stair-col')];
       expect(byKind('wall-col')).toHaveLength(1);
       expect(byKind('floor-col')).toHaveLength(1);
@@ -81,6 +83,8 @@ for (const model of BUILDING_MODELS) {
 
     it('has door markers with sane sizes', () => {
       const doors = byKind('door');
+      // University Hall has 0 doors by design; farOnly skips doors at install anyway.
+      if (model.farOnly && doors.length === 0) return;
       expect(doors.length).toBeGreaterThan(0);
       for (const d of doors) {
         const e = d.extras as { width_m: number; height_m: number; part: string };
@@ -104,8 +108,23 @@ for (const model of BUILDING_MODELS) {
       for (const id of model.replaces) {
         const b = data.buildings.find((x) => x.id === id);
         expect(b, id).toBeDefined();
-        expect(isReplacedByModel(b!)).toBe(true);
+        // farOnly keeps the code landmark; those ids stay out of REPLACED_BUILDING_IDS.
+        if (!model.farOnly) expect(isReplacedByModel(b!)).toBe(true);
       }
     });
   });
 }
+
+describe('farOnly install', () => {
+  it('university-hall and daley-library are flagged farOnly with landmark names', () => {
+    const uh = BUILDING_MODELS.find((m) => m.slug === 'university-hall');
+    const lib = BUILDING_MODELS.find((m) => m.slug === 'daley-library');
+    expect(uh?.farOnly).toBe(true);
+    expect(lib?.farOnly).toBe(true);
+    expect(uh?.landmarkName).toBe('landmark:university-hall');
+    expect(lib?.landmarkName).toBe('landmark:daley-library');
+    // farOnly ids must NOT hide the code landmarks via isReplacedByModel
+    expect(isReplacedByModel({ id: '8361c008-0116-4088-850e-4dbb545e6c45' })).toBe(false);
+    expect(isReplacedByModel({ id: 'e47537c2-8f14-45a7-87e9-5ffaaa6c1856' })).toBe(false);
+  });
+});

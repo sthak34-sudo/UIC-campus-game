@@ -2,6 +2,9 @@
  * Atlas-made building models (client/public/models/buildings/<slug>.glb) that REPLACE the
  * procedural campus building for the listed campus.json ids. Kept static so buildCampus() can
  * skip those footprints before any glb is loaded. A test checks these ids against the glb parts.
+ *
+ * farOnly: University Hall and Daley Library stay as code landmarks up close; we only show their
+ * glb LOD1 past the landmark far distance (no colliders, doors, loot or LOD0).
  */
 export interface BuildingModel {
   slug: string;
@@ -9,6 +12,15 @@ export interface BuildingModel {
   replaces: readonly string[];
   /** Extra campus.json ids to hide that are not modeled parts (tiny OSM slivers inside the model). */
   alsoHides?: readonly string[];
+  /**
+   * Load only *_LOD1 meshes. Skip colliders, doors, loot and LOD0. Paired with a code landmark
+   * whose group is named landmark:<slug>; past farDistance_m the landmark hides and the LOD1 shows.
+   */
+  farOnly?: boolean;
+  /** Scene name of the code landmark group this far shell swaps with. */
+  landmarkName?: string;
+  /** Distance (m) at which the glb LOD1 takes over. Default 120. */
+  farDistance_m?: number;
 }
 
 export const BUILDING_MODELS: readonly BuildingModel[] = [
@@ -55,10 +67,26 @@ export const BUILDING_MODELS: readonly BuildingModel[] = [
     slug: 'architecture-design-studios',
     replaces: [0, 1].map((i) => `02eea501-41af-4a13-b500-0790ffbfa0a0#${i}`),
   },
+  {
+    slug: 'university-hall',
+    replaces: ['8361c008-0116-4088-850e-4dbb545e6c45'],
+    farOnly: true,
+    landmarkName: 'landmark:university-hall',
+    farDistance_m: 120,
+  },
+  {
+    slug: 'daley-library',
+    replaces: ['e47537c2-8f14-45a7-87e9-5ffaaa6c1856'],
+    farOnly: true,
+    landmarkName: 'landmark:daley-library',
+    farDistance_m: 120,
+  },
 ];
 
+/** Ids that hide the procedural campus mesh. farOnly landmarks stay as code builds; their ids are
+ * listed for part matching but campus already skips them via the landmark flag. */
 export const REPLACED_BUILDING_IDS: ReadonlySet<string> = new Set(
-  BUILDING_MODELS.flatMap((m) => [...m.replaces, ...(m.alsoHides ?? [])]),
+  BUILDING_MODELS.filter((m) => !m.farOnly).flatMap((m) => [...m.replaces, ...(m.alsoHides ?? [])]),
 );
 
 /** True when a glb model replaces this campus.json building (match by id or shared buildingId). */

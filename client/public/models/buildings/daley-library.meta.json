@@ -1,0 +1,35 @@
+{
+ "plan": [
+  8.1,
+  -37.82
+ ],
+ "loot": 12,
+ "doors": 3,
+ "parts": [
+  {
+   "node": "part_richard_j_daley_library",
+   "osm_id": "e47537c2-8f14-45a7-87e9-5ffaaa6c1856",
+   "osm_name": "Richard J. Daley Library"
+  }
+ ],
+ "lods": {
+  "daley-library_LOD0": {
+   "tris0": 13852,
+   "tris1": 88,
+   "lod1_distance_m": 120
+  }
+ },
+ "tris0": 13852,
+ "tris1": 88,
+ "colliders": {
+  "daley-library_walls_col": 736,
+  "daley-library_floor_col": 234,
+  "daley-library_stair01_col": 12
+ },
+ "wall_boxes": 54,
+ "door_overlaps_before_clip": 2,
+ "door_overlaps_after_clip": 0,
+ "wall_gaps": 0,
+ "wall_gaps_patched": 0,
+ "roof_walkable": false
+}

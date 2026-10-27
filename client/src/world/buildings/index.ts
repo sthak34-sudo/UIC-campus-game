@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import type { World } from '../../core/world';
 import { getMaterial, MATERIAL_NAMES, type MaterialName } from '../../render/materials';
-import { BUILDING_MODELS } from './manifest';
+import { landmarkFarLod } from '../landmarks/kit/lod';
+import { BUILDING_MODELS, type BuildingModel } from './manifest';
 import { classifyNode, isColliderKind } from './nodes';
 
 /**
@@ -9,9 +10,12 @@ import { classifyNode, isColliderKind } from './nodes';
  * repo materials, builds THREE.LOD per lod_group, registers *_col meshes as invisible colliders
  * and collects door / loot / part markers. The procedural copies are skipped in world/campus via
  * manifest.isReplacedByModel().
+ *
+ * farOnly slugs (UH, Daley): only *_LOD1 is kept; colliders, doors, loot and LOD0 are stripped.
+ * The code landmark hides past farDistance_m and this LOD1 takes over.
  */
 export interface BuildingDoor { slug: string; name: string; position: THREE.Vector3; inward: THREE.Vector3; width: number; height: number; part: string }
-export interface LoadedBuilding { slug: string; root: THREE.Object3D; colliders: THREE.Mesh[]; doors: BuildingDoor[]; loot: THREE.Vector3[] }
+export interface LoadedBuilding { slug: string; root: THREE.Object3D; colliders: THREE.Mesh[]; doors: BuildingDoor[]; loot: THREE.Vector3[]; farOnly: boolean }
 
 const INVISIBLE = new THREE.MeshBasicMaterial({ visible: false });
 const KNOWN = new Set<string>(MATERIAL_NAMES);
@@ -27,7 +31,7 @@ export async function buildBuildingModels(world: World): Promise<LoadedBuilding[
   for (const m of BUILDING_MODELS) {
     try {
       const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/buildings/${m.slug}.glb`);
-      out.push(installBuilding(world, m.slug, gltf.scene));
+      out.push(installBuilding(world, m, gltf.scene));
     } catch (err) {
       console.warn(`[buildings] ${m.slug}.glb failed to load`, err);
     }
@@ -35,17 +39,47 @@ export async function buildBuildingModels(world: World): Promise<LoadedBuilding[
   return out;
 }
 
-export function installBuilding(world: World, slug: string, scene: THREE.Object3D): LoadedBuilding {
+export function installBuilding(world: World, model: BuildingModel | string, scene: THREE.Object3D): LoadedBuilding {
+  const m: BuildingModel = typeof model === 'string'
+    ? { slug: model, replaces: [] }
+    : model;
+  const slug = m.slug;
+  const farOnly = !!m.farOnly;
   scene.name = `building:${slug}`;
   world.scene.add(scene);
   scene.updateMatrixWorld(true);
-  const res: LoadedBuilding = { slug, root: scene, colliders: [], doors: [], loot: [] };
+  const res: LoadedBuilding = { slug, root: scene, colliders: [], doors: [], loot: [], farOnly };
   const lodGroups = new Map<string, { levels: THREE.Mesh[]; dist: number }>();
   const nodes: THREE.Object3D[] = [];
   scene.traverse((o) => nodes.push(o));
+  const toRemove: THREE.Object3D[] = [];
+
   for (const o of nodes) {
     const kind = classifyNode(o.name);
     const mesh = (o as THREE.Mesh).isMesh ? (o as THREE.Mesh) : null;
+    if (farOnly) {
+      if (mesh && isColliderKind(kind)) {
+        toRemove.push(o);
+        continue;
+      }
+      if (kind === 'door' || kind === 'loot') {
+        toRemove.push(o);
+        continue;
+      }
+      if (kind === 'lod') {
+        const e = o.userData as { lod_level?: number; lod_group?: string; lod1_distance_m?: number };
+        if ((e.lod_level ?? 0) === 0) {
+          toRemove.push(o);
+          continue;
+        }
+        swapMaterials(o);
+        o.traverse((c) => { if ((c as THREE.Mesh).isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+        // Keep LOD1 in place (no THREE.LOD wrapper); landmarkFarLod toggles the whole root.
+        continue;
+      }
+      continue;
+    }
+
     if (mesh && isColliderKind(kind)) {
       mesh.visible = false;
       mesh.material = INVISIBLE;
@@ -71,17 +105,34 @@ export function installBuilding(world: World, slug: string, scene: THREE.Object3
       o.traverse((c) => { if ((c as THREE.Mesh).isMesh) { c.castShadow = true; c.receiveShadow = true; } });
     }
   }
-  for (const [group, g] of lodGroups) {
-    const lod = new THREE.LOD();
-    lod.name = `${slug}:${group}`;
-    g.levels.forEach((lvl, i) => {
-      if (!lvl) return;
-      lvl.parent?.remove(lvl);
-      lod.addLevel(lvl, i === 0 ? 0 : g.dist);
-    });
-    scene.add(lod);
+
+  for (const o of toRemove) o.parent?.remove(o);
+
+  if (!farOnly) {
+    for (const [group, g] of lodGroups) {
+      const lod = new THREE.LOD();
+      lod.name = `${slug}:${group}`;
+      g.levels.forEach((lvl, i) => {
+        if (!lvl) return;
+        lvl.parent?.remove(lvl);
+        lod.addLevel(lvl, i === 0 ? 0 : g.dist);
+      });
+      scene.add(lod);
+    }
   }
+
   scene.updateMatrixWorld(true);
+
+  if (farOnly && m.landmarkName) {
+    const landmark = world.scene.getObjectByName(m.landmarkName);
+    if (landmark) {
+      landmarkFarLod(world, landmark, scene, m.farDistance_m ?? 120);
+    } else {
+      // Landmark not built yet (unit tests): keep the far shell hidden so it does not double-draw.
+      scene.visible = false;
+    }
+  }
+
   return res;
 }
 
