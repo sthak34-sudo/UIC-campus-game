@@ -26,7 +26,7 @@ async function loadGlb(slug: string): Promise<THREE.Object3D> {
   return gltf.scene;
 }
 
-for (const model of BUILDING_MODELS) {
+for (const model of BUILDING_MODELS.filter((m) => !m.farOnly)) {
   describe(`walk test: ${model.slug}`, () => {
     const world = new World();
     let b: LoadedBuilding;
