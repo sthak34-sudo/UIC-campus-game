@@ -15,6 +15,7 @@ import { jumpSpeed } from './math';
 
 let initPromise: Promise<void> | null = null;
 /** Loads the Rapier WASM once (the compat build has it inlined, so no extra file to serve). */
+export { RAPIER };
 export function initRapier(): Promise<void> {
   // rapier3d-compat 0.21 init() takes no arguments.
   initPromise ??= RAPIER.init();

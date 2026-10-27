@@ -36,7 +36,7 @@ export const PLAYER_CONFIG = {
   /** Walk speed while crouched. Shift does not sprint in this stance. */
   crouchSpeed: 1.15,
   /** Small gap Rapier keeps between the capsule and the world. */
-  skin: 0.02,
+  skin: 0.01,
   /** Max stair riser / curb the character steps up automatically. */
   stepHeight: 0.22,
   /** Free space needed on top of a step (stair tread is usually 0.28). */
