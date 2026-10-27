@@ -19,16 +19,18 @@
  ],
  "lods": {
   "grant-hall_LOD0": {
-   "tris0": 4133,
+   "tris0": 4169,
    "tris1": 52,
    "lod1_distance_m": 120
   }
  },
- "tris0": 4133,
+ "tris0": 4169,
  "tris1": 52,
  "colliders": {
   "grant-hall_walls_col": 436,
   "grant-hall_floor_col": 136,
+  "grant-hall_roof01_col": 12,
+  "grant-hall_roof02_col": 12,
   "grant-hall_stair01_col": 12
  },
  "wall_boxes": 33,
@@ -36,5 +38,7 @@
  "door_overlaps_after_clip": 0,
  "wall_gaps": 0,
  "wall_gaps_patched": 0,
- "roof_walkable": false
+ "roof_walkable": true,
+ "roof_planes": 2,
+ "roof_boxes": 2
 }

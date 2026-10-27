@@ -11,6 +11,7 @@ import { installBuilding, type LoadedBuilding } from './index';
 import type { CampusData } from '../../core/campusData';
 import { planToWorld } from '../../core/geo';
 import { BUILDING_MODELS } from './manifest';
+import { castHitscan } from '../../combat/weapon';
 
 const data = Object.values(import.meta.glob('../../../public/data/campus.json', { eager: true, import: 'default' }))[0] as CampusData;
 
@@ -62,6 +63,58 @@ for (const model of BUILDING_MODELS.filter((m) => !m.farOnly)) {
       world.addCollider(ground);
       world.scene.updateMatrixWorld(true);
     }, 120000);
+
+    /** A spot on top of each roof collider (downward raycast onto that mesh, nearest its bbox centre). */
+    const roofSpots = (): { name: string; p: THREE.Vector3 }[] => {
+      const out: { name: string; p: THREE.Vector3 }[] = [];
+      for (const roof of b.colliders.filter((c) => /_roof\d{2}_col$/.test(c.name))) {
+        const box = new THREE.Box3().setFromObject(roof);
+        const c = box.getCenter(new THREE.Vector3());
+        const ray = new THREE.Raycaster();
+        const mat = roof.material as THREE.Material;
+        const side = mat.side; mat.side = THREE.DoubleSide;
+        let found: THREE.Vector3 | null = null;
+        const sx = box.max.x - box.min.x, sz = box.max.z - box.min.z;
+        for (let r = 0; r <= 6 && !found; r++) for (let k = 0; k < Math.max(1, r * 8) && !found; k++) {
+          const a = (k / Math.max(1, r * 8)) * Math.PI * 2;
+          const o = new THREE.Vector3(c.x + Math.cos(a) * sx * r / 14, box.max.y + 5, c.z + Math.sin(a) * sz * r / 14);
+          ray.set(o, new THREE.Vector3(0, -1, 0));
+          const h = ray.intersectObject(roof, false)[0];
+          if (h) found = h.point.clone();
+        }
+        mat.side = side;
+        if (found) out.push({ name: roof.name, p: found });
+      }
+      return out;
+    };
+
+    it('ships walkable roof colliders (Rev 5) and a player standing on one stays on it', () => {
+      const spots = roofSpots();
+      expect(spots.length, `${model.slug} roof colliders`).toBeGreaterThan(0);
+      const fell: string[] = [];
+      for (const { name, p } of spots) {
+        const phys = new PlayerPhysics(p.clone().setY(p.y + 0.3));
+        phys.syncColliders(world.colliders);
+        for (let i = 0; i < 120; i++) phys.step(0, 0, 0, false);
+        for (let i = 0; i < 30; i++) phys.step(1, 0, PLAYER_CONFIG.walkSpeed, false); // a half-second stroll
+        for (let i = 0; i < 30; i++) phys.step(-1, 0, PLAYER_CONFIG.walkSpeed, false);
+        for (let i = 0; i < 60; i++) phys.step(0, 0, 0, false);
+        if (phys.feet.y < p.y - 0.5) fell.push(`${name}: top ${p.y.toFixed(2)} feet ${phys.feet.y.toFixed(2)}`);
+      }
+      expect(fell).toEqual([]);
+    }, 120000);
+
+    it('roofs block shots fired upward from below', () => {
+      const leaks: string[] = [];
+      for (const { name, p } of roofSpots()) {
+        const phys = new PlayerPhysics(new THREE.Vector3(p.x, 400, p.z));
+        phys.syncColliders(world.colliders);
+        const origin = { x: p.x, y: p.y - 1.5, z: p.z };
+        const hit = castHitscan(phys.world, origin, { x: 0, y: 1, z: 0 }, 50, phys.collider);
+        if (!hit || hit.point.y > p.y + 0.05) leaks.push(`${name}: shot from y=${origin.y.toFixed(1)} ${hit ? `hit at ${hit.point.y.toFixed(2)}` : 'went through'}`);
+      }
+      expect(leaks).toEqual([]);
+    });
 
     it('registers colliders and hides them', () => {
       expect(b.colliders.length).toBeGreaterThanOrEqual(2);
