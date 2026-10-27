@@ -17,7 +17,7 @@ import {
   addArmor, createCombatant, healCombatant, isDown, takeDirectDamage, type Combatant,
 } from './health';
 import {
-  finishReload, grantLoot, lootLabel, pickupPrompt, pullMedkit, spendRound, startingInventory, type Inventory,
+  finishReload, grantLoot, lootLabel, pickupPrompt, pullMedkit, spendRound, emptyInventory, type Inventory,
 } from './inventory';
 import { LootField } from './loot';
 import { practiceLayout } from './range';
@@ -91,7 +91,8 @@ export async function mountCombat(opts: {
   });
 
   const fx = new WeaponFx(opts.world.scene);
-  let inventory: Inventory = startingInventory();
+  // PUBG-style: the player starts empty-handed and loots a rifle (one lies on the ground by the spawn).
+  let inventory: Inventory = emptyInventory();
   let vitals: Combatant = createCombatant();
   let lastShotAt = -1;
   let reloading = false;
@@ -111,6 +112,7 @@ export async function mountCombat(opts: {
   const playerBlocked = () => playerDowned() || playerDead();
 
   const syncHud = () => {
+    opts.player?.setArmed(inventory.hasGun);
     if (!hud || !opts.player) return;
     if (squad) vitals = squad.getCombatant();
     const feet = opts.player.position;
