@@ -26,8 +26,9 @@ export interface SquadMount {
 
 export function parseSquadOptions(search: string): { mode: SquadMode; bleedFast: boolean } {
   const q = new URLSearchParams(search.startsWith('?') ? search : `?${search}`);
-  const raw = (q.get('squad') ?? 'bots').toLowerCase();
-  const mode: SquadMode = raw === 'solo' ? 'solo' : 'bots';
+  // Default solo (main behavior). Only an explicit ?squad=bots turns bots on.
+  const raw = (q.get('squad') ?? 'solo').toLowerCase();
+  const mode: SquadMode = raw === 'bots' ? 'bots' : 'solo';
   const bleed = q.get('bleedFast');
   return { mode, bleedFast: bleed === '1' || bleed === 'true' };
 }
@@ -45,8 +46,9 @@ interface BotBody {
 }
 
 /**
- * Mount squad mode. `?squad=solo` is a no-op (main behavior). Otherwise spawns 3 bot
- * teammates that follow and revive. Combat damage goes through applyDamage.
+ * Mount squad mode. Default / missing / `?squad=solo` is a no-op (main behavior).
+ * Only `?squad=bots` spawns 3 bot teammates that follow and revive.
+ * Combat damage goes through applyDamage.
  */
 export function mountSquad(opts: {
   world: World;
@@ -204,7 +206,7 @@ export function mountSquad(opts: {
     }
   };
 
-  // Debug keys K / J / H (and track F for revive).
+  // Debug keys K / J / L (and track F for revive). H stays combat practice hurt.
   const onKey = (e: KeyboardEvent) => {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target as HTMLElement | null;
@@ -228,8 +230,8 @@ export function mountSquad(opts: {
       const r = applyDamage(state, bot, 'debug', outcome);
       state = r.state;
       eventsLog.push(...r.events);
-    } else if (e.code === 'KeyH') {
-      // Heal all squadmates.
+    } else if (e.code === 'KeyL') {
+      // Heal all squadmates (L = life; H is combat practice hurt).
       const next = { ...state, members: { ...state.members } };
       for (const id of Object.keys(next.members)) {
         const m = next.members[id]!;
@@ -271,7 +273,7 @@ export function mountSquad(opts: {
     if (!player) {
       // Viewpoint / screenshot demo: keep bot meshes posed, no match stepping.
       panel.textContent =
-        `Squad A demo (3 bot teammates)\n` +
+        `Squad A demo (3 bot teammates · K/J knock · L heal · hold F revive)\n` +
         botIds.map((id, i) => `${i + 1} ${state.members[id]!.name}(bot) alive`).join('\n');
       return;
     }
@@ -377,7 +379,7 @@ export function mountSquad(opts: {
       .sort((a, b) => a.slot - b.slot)
       .map((m) => formatMember(m));
     panel.textContent =
-      `Squad A  (K knock you · J knock Bot1 · H heal · hold F revive)${bleedFast ? '  bleedFast' : ''}\n` +
+      `Squad A  (K knock you · J knock Bot1 · L heal · hold F revive)${bleedFast ? '  bleedFast' : ''}\n` +
       lines.join('\n');
   };
 

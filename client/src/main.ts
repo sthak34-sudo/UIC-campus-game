@@ -11,7 +11,7 @@ import { createPlayer } from './player';
 //   ?hour=<0-24>            time of day
 //   ?zoneFast=1             safe-zone timers run at 10× (damage per second stays the same)
 //   ?zoneSeed=<number>      picks where the circles land. Default is 1.
-//   ?squad=bots|solo        squad bots (default) or solo (= main). ?bleedFast=1 speeds bleed/revive.
+//   ?squad=bots|solo        only ?squad=bots enables bots; missing/solo = main. ?bleedFast=1 speeds bleed/revive.
 declare global {
   interface Window {
     __ready?: boolean;
@@ -48,7 +48,7 @@ async function start(): Promise<void> {
     search: location.search,
     applyDamage: (amount) => combat.applyZoneDamage(amount),
   });
-  // Squads (S3): bots + downed/revive. ?squad=solo keeps main solo behavior.
+  // Squads (S3): bots + downed/revive. Default/missing/?squad=solo = main solo behavior.
   const { mountSquad } = await import('./squad/adapter');
   mountSquad({ world, player, camera, combat, search: location.search });
 
