@@ -159,11 +159,11 @@ export function addCampusViewpoints(world: World, data: CampusDataExt): void {
   // B4: SEL bridge close-up (part_c between East/West), and UH/Daley far shells.
   // SEL bridge close-up: same framing as b3-sel-close (shows elevated span with clear air under it).
   portrait('b4-sel-bridge', 'Science and Engineering Laboratories', 180, 18, EYE, 8, 65);
-  // Looking up from plaza under the span; empty sky = no pier / underdeck mesh.
+  // South of the elevated span looking north-up at the soffit and pier grid.
   world.addViewpoint('b4-sel-bridge-under', {
-    position: new THREE.Vector3(152.3, 2.2, 194),
-    target: new THREE.Vector3(152.3, 16, 194),
-    fov: 65,
+    position: new THREE.Vector3(152.3, 1.8, 210),
+    target: new THREE.Vector3(152.3, 11, 194),
+    fov: 70,
   });
   portrait('b4-uh-far', 'University Hall', 90, 160, 25, 40, 50);
   portrait('b4-daley-far', 'Richard J. Daley Library', 45, 150, 20, 12, 55);
