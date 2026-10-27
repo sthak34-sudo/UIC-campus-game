@@ -18,6 +18,7 @@ import * as THREE from 'three';
 import { sharedKtx2Loader } from '../render/textures';
 import { damp, turnToward } from './math';
 import { applyFootIk, findLegBones, type GroundProbe, type LegBones } from './footIk';
+import { blendHold, HeldRifle, loadRifleTemplate, RIFLE_URL } from './rifle';
 export type { GroundProbe } from './footIk';
 
 export const PLAYER_BODY_URL = 'models/characters/player_base.glb';
@@ -93,6 +94,8 @@ export interface CharacterVisual {
    */
   flinch(hitDir?: HitDir): void;
   playFire(): void;
+  /** World position of the held rifle's muzzle, or null when unarmed. */
+  getMuzzleWorld(out: THREE.Vector3): THREE.Vector3 | null;
   /** `seconds` is how long the gameplay reload lasts, so the clip finishes with it. */
   playReload(seconds: number): void;
   dispose(): void;
@@ -307,6 +310,8 @@ interface CharacterAssets {
   upper: Set<string>;
   missingTracks: number;
   clone: (source: THREE.Object3D) => THREE.Object3D;
+  /** CC0 rifle every character holds, or null when the file is missing. */
+  rifle: THREE.Object3D | null;
 }
 
 let loading: Promise<CharacterAssets | null> | null = null;
@@ -432,7 +437,8 @@ async function fetchAssets(): Promise<CharacterAssets | null> {
       ...prepared.full.keys(),
     ];
     console.info(`Realistic character loaded from ${animSource} clips (${loadedNames.join(', ')}). ${missing} unbound tracks.`);
-    return { template: model, prepared, upper, missingTracks: missing, clone };
+    const rifle = await loadRifleTemplate(publicUrl(RIFLE_URL));
+    return { template: model, prepared, upper, missingTracks: missing, clone, rifle };
   } catch (err) {
     console.warn('Character glTF failed to parse. Using the simple figure.', err);
     return null;
@@ -533,12 +539,17 @@ class AnimatedCharacter implements CharacterVisual {
   private hipLift = 0;
   private deadTip = 0;
   private readonly flinchQ = new THREE.Quaternion();
+  private readonly flinchBase = [new THREE.Quaternion(), new THREE.Quaternion()];
+  private flinchApplied = false;
   private readonly flinchAxis = new THREE.Vector3(1, 0, 0);
   private readonly flinchDir = new THREE.Vector3(0, 0, 1);
   private groundProbe: GroundProbe | null = null;
   private leftLeg: LegBones | null = null;
   private rightLeg: LegBones | null = null;
   private readonly pelvisIk = { y: 0 };
+  private readonly rifle: HeldRifle | null;
+  private fireHold = 0;
+  private holdAim = 0;
 
   constructor(assets: CharacterAssets, shadow: boolean) {
     this.shadow = shadow;
@@ -578,6 +589,7 @@ class AnimatedCharacter implements CharacterVisual {
     this.spine1 = findNamed(rig, 'mixamorig:Spine1', 'mixamorigSpine1');
     this.leftLeg = findLegBones(rig, 'Left');
     this.rightLeg = findLegBones(rig, 'Right');
+    this.rifle = HeldRifle.create(assets.rifle, rig);
     this.applyWeights({ idle: 1, walk: 0, run: 0, crouch_idle: 0, crouch_walk: 0 }, 0, 0, 0);
     this.mixer.update(0);
     this.setLod(0);
@@ -610,10 +622,21 @@ class AnimatedCharacter implements CharacterVisual {
 
   playFire(): void {
     if (this.flags.dead || this.reloading) return;
+    this.fireHold = 0.45;
+    if (this.rifle && this.rifle.object.visible) {
+      // The CC0 fire clip is authored unarmed (arms over the head, hunched spine); with a held rifle
+      // the hold IK owns the arms, so only the muzzle flash and the aim hold play.
+      this.rifle.fire();
+      return;
+    }
     const action = this.upperSpecial.get('fire');
     if (!action) return;
     action.reset().play();
     this.firing = true;
+  }
+
+  getMuzzleWorld(out: THREE.Vector3): THREE.Vector3 | null {
+    return this.rifle && this.rifle.object.visible ? this.rifle.getMuzzleWorld(out) : null;
   }
 
   playReload(seconds: number): void {
@@ -672,6 +695,13 @@ class AnimatedCharacter implements CharacterVisual {
     this.flinchT = Math.max(0, this.flinchT - dt);
     if (this.hipLift && this.hips) this.hips.position.y -= this.hipLift;
     this.hipLift = 0;
+    // Undo last frame's additive flinch: the mixer does not rewrite spine bones that no active clip
+    // animates, and the kick would otherwise pile up frame after frame (a folded-over torso).
+    if (this.flinchApplied) {
+      if (this.spine) this.spine.quaternion.copy(this.flinchBase[0]);
+      if (this.spine1) this.spine1.quaternion.copy(this.flinchBase[1]);
+      this.flinchApplied = false;
+    }
     this.mixer.update(dt);
     if (deathW > 0 && this.hips) {
       const action = this.full.get('death')!;
@@ -681,6 +711,9 @@ class AnimatedCharacter implements CharacterVisual {
     if (this.flinchT > 0 && this.spine && deathW === 0) {
       const u = 1 - this.flinchT / 0.28;
       const amp = Math.sin(Math.min(1, Math.max(0, u)) * Math.PI) * 0.55;
+      this.flinchBase[0].copy(this.spine.quaternion);
+      if (this.spine1) this.flinchBase[1].copy(this.spine1.quaternion);
+      this.flinchApplied = true;
       this.flinchQ.setFromAxisAngle(this.flinchAxis, amp);
       this.spine.quaternion.multiply(this.flinchQ);
       // Slight additive on Spine1 if present (upper-chest kick).
@@ -689,6 +722,7 @@ class AnimatedCharacter implements CharacterVisual {
         this.spine1.quaternion.multiply(this.flinchQ);
       }
     }
+    this.updateRifle(dt, speed, deathW > 0 || !!this.flags.dead);
     // Foot IK after animation + death lift so plants sit on the final pose.
     if (
       this.groundProbe &&
@@ -717,7 +751,18 @@ class AnimatedCharacter implements CharacterVisual {
     this.setLod(lodIndexForDistance(viewDistance));
   }
 
+  /** Rifle hold: blends idle / walk / run / aim, then IK puts both hands on it. */
+  private updateRifle(dt: number, speed: number, dead: boolean): void {
+    if (!this.rifle) return;
+    this.fireHold = Math.max(0, this.fireHold - dt);
+    this.rifle.visible = !dead && this.lod < 3;
+    const want = Math.max(this.aimBlend, this.fireHold > 0 ? 1 : 0, this.reloading ? 0.6 : 0);
+    this.holdAim += (want - this.holdAim) * damp(16, dt);
+    this.rifle.update(dt, this.root, blendHold(locomotionWeights(speed), this.holdAim), !this.reloading);
+  }
+
   dispose(): void {
+    this.rifle?.dispose();
     this.mixer.stopAllAction();
     this.root.removeFromParent();
   }

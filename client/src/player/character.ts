@@ -224,6 +224,10 @@ export class CharacterModel implements CharacterVisual {
     }
   }
 
+  getMuzzleWorld(_out: THREE.Vector3): THREE.Vector3 | null {
+    return null;
+  }
+
   playFire(): void {
     if (!this.flags.dead) this.fireT = 0.25;
   }
