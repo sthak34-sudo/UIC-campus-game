@@ -1,6 +1,8 @@
+import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { World } from '../core/world';
 import { CameraRig, type CameraMode } from './camera';
+import { tryLoadAnimatedCharacter, type CharacterVisual, type HitDir } from './characterLoader';
 import { CharacterModel } from './character';
 import { PLAYER_CONFIG } from './config';
 import { Emitter, type PlayerEvents } from './events';
@@ -15,11 +17,13 @@ import { buildTestCourse } from './testCourse';
  * Player character, physics (Rapier), controls and camera. OWNER: Player Engineer.
  *
  * Controls: click = capture mouse (Esc releases), mouse = look, WASD/arrows = move, Shift = run,
- * Space = jump, V = first/third person, mouse wheel = zoom, E = interact, F3 = debug line.
+ * C = crouch, right mouse = aim, Space = jump, left click = fire, R = reload, Q = med kit,
+ * H = practice damage, V = first/third person, mouse wheel = zoom, E = interact, F3 = debug line.
  *
  * Other modules:
- *   player.events.on('interact', ({ position, facing }) => { ... })   // also 'jump', 'land', 'cameraMode'
- *   player.setSpeedScale(2)   // missions: ~2x real speed
+ *   player.events.on('interact', ({ position, facing }) => { ... })
+ *   also 'jump', 'land', 'cameraMode', 'fire', 'reload', 'debugHurt', 'useMedkit'
+ *   player.setSpeedScale(2)   // optional faster pace
  *
  * URL options: `?playertest=1` builds the player test course and spawns there;
  * `?playertest=perf` adds invisible extruded campus buildings as colliders (timing probe).
@@ -34,11 +38,31 @@ export interface Player {
   setCameraMode(mode: CameraMode): void;
   /** Multiplies walk/run speed (1 = real human pace). */
   setSpeedScale(scale: number): void;
+  /** First-person eye height above feet (m). */
+  setEyeHeight(h: number): void;
+  /** Third-person pivot height above feet (m). */
+  setCamPivotHeight(h: number): void;
+  /** True while F is held (squad revive). */
+  holdingRevive(): boolean;
+  setAllowRun(on: boolean): void;
   /** Move the character (feet position). */
   teleport(p: THREE.Vector3): void;
   /** Adds colliders registered since the last sync now (also done automatically every frame). */
   syncColliders(): number;
   stats(): PhysicsStats;
+  /** Rapier world used for movement. Combat casts shots through it. */
+  readonly rapier: { world: RAPIER.World; playerCollider: RAPIER.Collider };
+  /** False while the death screen is up. Plays the death animation while controls are off. */
+  setControlsEnabled(enabled: boolean): void;
+  /** Upper-body fire clip. Combat calls this when a shot actually leaves the gun. */
+  playFire(): void;
+  /** Upper-body reload clip, timed to the gameplay reload. */
+  playReload(seconds: number): void;
+  /**
+   * Short flinch + camera kick. There is no hit animation in the clip file.
+   * `hitDir` is world-space impulse (attacker → victim).
+   */
+  flinch(hitDir?: HitDir): void;
   dispose(): void;
 }
 
@@ -64,6 +88,12 @@ export interface PlayerTestApi {
   eventLog: string[];
   /** Perf probe results (`?playertest=perf`). */
   perf?: Record<string, number>;
+  /** Which figure is on screen, and the detail level it picked for the camera distance. */
+  getAvatar(): { kind: 'gltf' | 'procedural'; lod: number; missingTracks: number; crouched: boolean; aiming: boolean; dead: boolean };
+  setCrouch(on: boolean): void;
+  setAiming(on: boolean): void;
+  /** Trigger a hit reaction (screenshot / debug). */
+  flinch(hitDir?: { x: number; y: number; z: number }): void;
 }
 
 declare global {
@@ -73,7 +103,7 @@ declare global {
 }
 
 export async function createPlayer(world: World, camera: THREE.PerspectiveCamera, dom: HTMLElement): Promise<Player> {
-  const cfg = PLAYER_CONFIG;
+  const cfg = { ...PLAYER_CONFIG };
   const params = new URLSearchParams(location.search);
   const testMode = params.get('playertest');
   const perfInfo: Record<string, number> = {};
@@ -105,15 +135,23 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
 
   const events = new Emitter<PlayerEvents>();
   const eventLog: string[] = [];
-  for (const type of ['interact', 'jump', 'land', 'cameraMode'] as const) {
+  for (const type of ['interact', 'jump', 'land', 'cameraMode', 'fire', 'reload', 'debugHurt', 'useMedkit'] as const) {
     events.on(type, () => {
       eventLog.push(type);
       if (eventLog.length > 200) eventLog.shift();
     });
   }
 
-  const model = new CharacterModel();
+  const model: CharacterVisual = (await tryLoadAnimatedCharacter()) ?? new CharacterModel();
   world.scene.add(model.root);
+  const groundScratch = new THREE.Vector3();
+  model.setGroundProbe({
+    sample: (x, yFrom, z, maxDrop) => {
+      groundScratch.set(x, yFrom, z);
+      const d = phys.groundDistance(groundScratch, maxDrop);
+      return d === null ? null : yFrom - d;
+    },
+  });
   const rig = new CameraRig(camera, cfg, phys);
   rig.yaw = initialYaw(world, phys.feet, testMode === '1');
   model.yaw = rig.yaw;
@@ -133,18 +171,31 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
       const f = rig.forward();
       events.emit('interact', { position: { x: phys.feet.x, y: phys.feet.y, z: phys.feet.z }, facing: f });
     },
+    onReload: () => events.emit('reload', {}),
+    onDebugHurt: () => events.emit('debugHurt', {}),
+    onUseMedkit: () => events.emit('useMedkit', {}),
   });
 
   const position = phys.feet.clone();
   let acc = 0;
   let simTime = 0;
   let lastMoveYaw: number | null = null;
+  let jumpLatch = false;
+  let dead = false;
+  events.on('jump', () => {
+    jumpLatch = true;
+  });
+  events.on('land', () => {
+    jumpLatch = false;
+  });
 
   /** Fixed-step simulation of `dt` seconds of input. */
   const simulate = (dt: number, maxSteps: number) => {
     const inp = input.read();
+    if (input.crouching) phys.setCrouching(true);
+    else phys.setCrouching(false);
     const dir = moveDirection(inp.forward, inp.right, rig.yaw);
-    const speed = (inp.run ? cfg.runSpeed : cfg.walkSpeed) * cfg.speedScale;
+    const speed = (phys.crouching ? cfg.crouchSpeed : inp.run && cfg.allowRun ? cfg.runSpeed : cfg.walkSpeed) * cfg.speedScale;
     acc += dt;
     let n = 0;
     while (acc >= cfg.fixedDt && n < maxSteps) {
@@ -168,15 +219,36 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
   const present = (dt: number) => {
     const alpha = Math.min(1, acc / cfg.fixedDt);
     position.lerpVectors(phys.prevFeet, phys.feet, alpha);
-    rig.update(dt, position);
+    rig.update(dt, position, phys.crouching);
     model.root.position.copy(position);
-    model.update(dt, Math.min(phys.actualSpeed, Math.hypot(phys.velocity.x, phys.velocity.z) + 0.05), phys.grounded, lastMoveYaw);
+    const aiming = input.aiming && !dead;
+    model.setFlags({
+      crouch: phys.crouching,
+      aiming,
+      jumping: !dead && !phys.grounded && (jumpLatch || Math.abs(phys.velocity.y) > 0.08),
+      dead,
+    });
+    const face = aiming ? rig.yaw : lastMoveYaw;
+    const viewDistance = camera.position.distanceTo(position);
+    model.update(
+      dt,
+      Math.min(phys.actualSpeed, Math.hypot(phys.velocity.x, phys.velocity.z) + 0.05),
+      phys.grounded,
+      face,
+      viewDistance,
+    );
     // Hidden in first person, and when the camera is squeezed right up against the head.
     model.root.visible = rig.mode === 'third' && rig.arm > 0.45;
   };
 
   const update = (dt: number) => {
     if (phys.syncColliders(world.colliders) > 0 && phys.hasFallbackGround) phys.maybeRemoveFallback(phys.feet);
+    if (!input.enabled) {
+      input.discardFrame();
+      present(dt);
+      hud.tick(dt);
+      return;
+    }
     // Look first, so this frame's movement uses this frame's camera yaw.
     const look = input.consumeLook();
     if (look.dx || look.dy) rig.addLook(look.dx, look.dy);
@@ -184,6 +256,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     if (wheel) rig.addZoom(wheel);
     simulate(dt, cfg.maxSubsteps);
     present(dt);
+    if (input.consumeFire()) events.emit('fire', {});
     hud.tick(dt);
     if (hud.debugVisible) {
       const s = phys.stats;
@@ -212,6 +285,16 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     setSpeedScale: (s) => {
       cfg.speedScale = s;
     },
+    setEyeHeight: (h) => {
+      cfg.eyeHeight = h;
+    },
+    setCamPivotHeight: (h) => {
+      cfg.camPivotHeight = h;
+    },
+    holdingRevive: () => input.holdingRevive(),
+    setAllowRun: (on) => {
+      cfg.allowRun = on;
+    },
     teleport: (p) => {
       phys.teleport(p);
       position.copy(p);
@@ -220,6 +303,22 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     },
     syncColliders: () => phys.syncColliders(world.colliders),
     stats: () => ({ ...phys.stats }),
+    rapier: { world: phys.world, playerCollider: phys.collider },
+    setControlsEnabled: (enabled) => {
+      input.setEnabled(enabled);
+      dead = !enabled;
+      if (enabled) {
+        jumpLatch = false;
+        input.setCrouch(false);
+        phys.setCrouching(false);
+      }
+    },
+    playFire: () => model.playFire(),
+    playReload: (seconds) => model.playReload(seconds),
+    flinch: (hitDir) => {
+      model.flinch(hitDir);
+      rig.kick(hitDir, 1);
+    },
     dispose: () => {
       input.dispose();
       hud.dispose();
@@ -251,6 +350,17 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     getStats: () => ({ ...phys.stats, fps: hud.fps, fallbackGround: phys.hasFallbackGround }),
     eventLog,
     perf: perfInfo,
+    getAvatar: () => ({
+      kind: model.kind,
+      lod: model.lod,
+      missingTracks: model.missingTracks,
+      crouched: phys.crouching,
+      aiming: input.aiming,
+      dead,
+    }),
+    setCrouch: (on) => input.setCrouch(on),
+    setAiming: (on) => input.setAiming(on),
+    flinch: (hitDir) => player.flinch(hitDir),
   };
   if (import.meta.env.DEV || testMode !== null || params.has('test')) window.__player = api;
 

@@ -830,7 +830,8 @@ def gen_bark():
 
 # Since round 3 most surfaces use photo-scanned CC0 textures (tools/textures/fetch_cc0.py). These are the
 # generated sets still in use; the other generators remain for reference (run them with --only).
-IN_USE = ['sidewalk', 'fabric', 'metal', 'water', 'foliage', 'macro']
+# sidewalk moved to the CC0 photo set ph_concrete_floor_worn_001 (KTX2). Don't regenerate the old jpg.
+IN_USE = ['fabric', 'metal', 'water', 'foliage', 'macro']
 
 GENERATORS = {
     'concrete': gen_concrete,

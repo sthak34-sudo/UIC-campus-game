@@ -1,0 +1,95 @@
+/**
+ * Atlas-made building models (client/public/models/buildings/<slug>.glb) that REPLACE the
+ * procedural campus building for the listed campus.json ids. Kept static so buildCampus() can
+ * skip those footprints before any glb is loaded. A test checks these ids against the glb parts.
+ *
+ * farOnly: University Hall and Daley Library stay as code landmarks up close; we only show their
+ * glb LOD1 past the landmark far distance (no colliders, doors, loot or LOD0).
+ */
+export interface BuildingModel {
+  slug: string;
+  /** campus.json building ids (CampusBuilding.id) this model replaces. */
+  replaces: readonly string[];
+  /** Extra campus.json ids to hide that are not modeled parts (tiny OSM slivers inside the model). */
+  alsoHides?: readonly string[];
+  /**
+   * Load only *_LOD1 meshes. Skip colliders, doors, loot and LOD0. Paired with a code landmark
+   * whose group is named landmark:<slug>; past farDistance_m the landmark hides and the LOD1 shows.
+   */
+  farOnly?: boolean;
+  /** Scene name of the code landmark group this far shell swaps with. */
+  landmarkName?: string;
+  /** Distance (m) at which the glb LOD1 takes over. Default 120. */
+  farDistance_m?: number;
+}
+
+export const BUILDING_MODELS: readonly BuildingModel[] = [
+  {
+    slug: 'quad-lecture-centers',
+    replaces: [
+      'f91c7f32-ff12-4bd0-b2c4-e232a1516de1', // Lecture Center A
+      'c77fb1ae-1ebd-4a1e-a5f3-0c5939b8a49a', // Lecture Center B
+      'eeb925ff-9b59-4859-9ddd-964375f75b00', // Lecture Center C
+      '33f76a96-9119-4bff-9ce5-d0a29df32a34', // Lecture Center D
+      '59ca1cfa-c292-4bfb-bf25-b64458616663', // Lecture Center E
+      '6d030286-61fc-4774-8f24-370f0bc5c5b1', // Lecture Center F
+    ],
+  },
+  {
+    slug: 'student-center-east',
+    replaces: [
+      'e0524bbe-eb73-4e33-a627-09c00e3326b4', // Student Center East
+      '8aa0a812-c6c7-4b6a-b8c0-db3e4a803bb6#0', // Student Center East Tower
+      '8aa0a812-c6c7-4b6a-b8c0-db3e4a803bb6#1',
+      '8aa0a812-c6c7-4b6a-b8c0-db3e4a803bb6#2',
+    ],
+  },
+  {
+    slug: 'sel-seo',
+    // part_sel_part_a = SEL East (OSM way 1546132225), part_sel_part_b = SEL West (way 1546132224),
+    // part_sel_part_c = the bridge from 12 m up, part_seo = SEO.
+    replaces: [
+      '9b7e76dc-14e9-4d85-ac12-7c12ffff317f#0', // SEL East (part_sel_part_a)
+      '9b7e76dc-14e9-4d85-ac12-7c12ffff317f#1', // SEL West (part_sel_part_b)
+      '9b7e76dc-14e9-4d85-ac12-7c12ffff317f#2', // SEL bridge (part_sel_part_c)
+      '3dadce5e-954e-4189-ab57-e82704ecc243', // SEO (part_seo)
+    ],
+  },
+  {
+    slug: 'behavioral-sciences',
+    replaces: [0, 1, 2, 3].map((i) => `a7ec57dd-7aa8-4f8e-9f29-bed200fe2ed4#${i}`),
+    alsoHides: ['a7ec57dd-7aa8-4f8e-9f29-bed200fe2ed4#4'], // 1 m2 sliver inside part #0
+  },
+  { slug: 'douglass-hall', replaces: ['d3bc6e4f-6363-42a0-8bed-1edfa8249ede'] },
+  { slug: 'grant-hall', replaces: [0, 1].map((i) => `b137170e-4135-4e53-8391-bc0c571b4fbc#${i}`) },
+  { slug: 'lincoln-hall', replaces: [0, 1].map((i) => `a971b33b-ac0f-4b1d-b711-4d4c857e6782#${i}`) },
+  {
+    slug: 'architecture-design-studios',
+    replaces: [0, 1].map((i) => `02eea501-41af-4a13-b500-0790ffbfa0a0#${i}`),
+  },
+  {
+    slug: 'university-hall',
+    replaces: ['8361c008-0116-4088-850e-4dbb545e6c45'],
+    farOnly: true,
+    landmarkName: 'landmark:university-hall',
+    farDistance_m: 120,
+  },
+  {
+    slug: 'daley-library',
+    replaces: ['e47537c2-8f14-45a7-87e9-5ffaaa6c1856'],
+    farOnly: true,
+    landmarkName: 'landmark:daley-library',
+    farDistance_m: 120,
+  },
+];
+
+/** Ids that hide the procedural campus mesh. farOnly landmarks stay as code builds; their ids are
+ * listed for part matching but campus already skips them via the landmark flag. */
+export const REPLACED_BUILDING_IDS: ReadonlySet<string> = new Set(
+  BUILDING_MODELS.filter((m) => !m.farOnly).flatMap((m) => [...m.replaces, ...(m.alsoHides ?? [])]),
+);
+
+/** True when a glb model replaces this campus.json building (match by id or shared buildingId). */
+export function isReplacedByModel(b: { id: string; buildingId?: string | null }): boolean {
+  return REPLACED_BUILDING_IDS.has(b.id) || (!!b.buildingId && REPLACED_BUILDING_IDS.has(b.buildingId));
+}

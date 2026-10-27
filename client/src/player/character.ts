@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import type { AnimFlags, CharacterVisual, HitDir } from './characterLoader';
+import type { GroundProbe } from './footIk';
 import { advancePhase, damp, turnToward, walkPose, type LimbPose } from './math';
 
 /**
@@ -56,8 +58,11 @@ function limb(radiusTop: number, radiusBottom: number, length: number, material:
   return m;
 }
 
-export class CharacterModel {
+export class CharacterModel implements CharacterVisual {
   readonly root = new THREE.Group();
+  readonly kind = 'procedural' as const;
+  readonly lod = 0;
+  readonly missingTracks = 0;
   /** Moves up/down with the walk bob and leans forward when running. */
   private readonly body = new THREE.Group();
   private readonly hipL = new THREE.Group();
@@ -74,6 +79,15 @@ export class CharacterModel {
   private pose: LimbPose = walkPose(0, 0);
   private airBlend = 0;
   private idleT = 0;
+  private flags: AnimFlags = {};
+  private crouchBlend = 0;
+  private aimBlend = 0;
+  private fireT = 0;
+  private reloadT = 0;
+  private flinchT = 0;
+  private flinchCooldown = 0;
+  private flinchSide = 0;
+  private deadTip = 0;
   /** Current facing (three.js yaw). */
   yaw = 0;
 
@@ -189,16 +203,55 @@ export class CharacterModel {
     this.applyPose(this.pose);
   }
 
+  setFlags(flags: AnimFlags): void {
+    this.flags = flags;
+  }
+
+  /** Procedural figure has no feet to plant; probe is accepted and ignored. */
+  setGroundProbe(_probe: GroundProbe | null): void {}
+
+  /** Short chest twitch. The realistic body has no hit clip, and neither does this fallback. */
+  flinch(hitDir?: HitDir): void {
+    if (this.flags.dead || this.flinchCooldown > 0) return;
+    this.flinchT = 0.28;
+    this.flinchCooldown = 0.45;
+    if (hitDir) {
+      // Store yaw-relative lean: bend torso away from the hit in XZ.
+      const len = Math.hypot(hitDir.x, hitDir.z);
+      this.flinchSide = len > 1e-6 ? Math.atan2(hitDir.x, hitDir.z) : 0;
+    } else {
+      this.flinchSide = 0;
+    }
+  }
+
+  playFire(): void {
+    if (!this.flags.dead) this.fireT = 0.25;
+  }
+
+  playReload(seconds: number): void {
+    if (!this.flags.dead) this.reloadT = Math.max(0.2, seconds);
+  }
+
   /**
    * Per-frame animation.
    * @param speed actual horizontal speed (m/s)
    * @param moveYaw yaw of the movement direction (used when speed > ~0.2)
    */
-  update(dt: number, speed: number, grounded: boolean, moveYaw: number | null): void {
-    if (moveYaw !== null && speed > 0.15) {
+  update(dt: number, speed: number, grounded: boolean, moveYaw: number | null, viewDistance = 0): void {
+    void viewDistance;
+    if (!this.flags.dead && moveYaw !== null && (this.flags.aiming || speed > 0.15)) {
       this.yaw = turnToward(this.yaw, moveYaw, 10 * dt);
     }
     this.root.rotation.y = this.yaw;
+    this.deadTip = this.flags.dead ? Math.min(1, this.deadTip + dt / 0.7) : 0;
+    this.root.rotation.x = -this.deadTip * (Math.PI / 2);
+    if (this.flags.dead) return;
+    this.crouchBlend += ((this.flags.crouch ? 1 : 0) - this.crouchBlend) * damp(8, dt);
+    this.aimBlend += ((this.flags.aiming ? 1 : 0) - this.aimBlend) * damp(12, dt);
+    this.fireT = Math.max(0, this.fireT - dt);
+    this.reloadT = Math.max(0, this.reloadT - dt);
+    this.flinchT = Math.max(0, this.flinchT - dt);
+    this.flinchCooldown = Math.max(0, this.flinchCooldown - dt);
     this.airBlend += ((grounded ? 0 : 1) - this.airBlend) * damp(10, dt);
     this.phase = advancePhase(this.phase, speed, dt);
     this.idleT += dt;
@@ -218,16 +271,21 @@ export class CharacterModel {
   }
 
   private applyPose(p: LimbPose): void {
-    this.hipL.rotation.x = p.leftHip;
-    this.hipR.rotation.x = p.rightHip;
-    this.kneeL.rotation.x = -p.leftKnee;
-    this.kneeR.rotation.x = -p.rightKnee;
-    this.shoulderL.rotation.x = p.leftShoulder;
-    this.shoulderR.rotation.x = p.rightShoulder;
-    this.elbowL.rotation.x = p.leftElbow;
-    this.elbowR.rotation.x = p.rightElbow;
-    this.body.position.y = p.bob - 0.02;
-    this.torso.rotation.x = -p.lean;
+    const c = this.crouchBlend;
+    const aim = Math.max(this.aimBlend, this.fireT > 0 ? 1 : 0, this.reloadT > 0 ? 0.85 : 0);
+    this.hipL.rotation.x = p.leftHip + c * 0.85;
+    this.hipR.rotation.x = p.rightHip + c * 0.85;
+    this.kneeL.rotation.x = -p.leftKnee - c * 1.15;
+    this.kneeR.rotation.x = -p.rightKnee - c * 1.15;
+    const aimArm = -1.15 * aim;
+    this.shoulderL.rotation.x = p.leftShoulder * (1 - aim) + aimArm;
+    this.shoulderR.rotation.x = p.rightShoulder * (1 - aim) + aimArm;
+    this.elbowL.rotation.x = p.leftElbow + aim * 0.7;
+    this.elbowR.rotation.x = p.rightElbow + aim * 0.9 + (this.reloadT > 0 ? 0.4 : 0);
+    this.body.position.y = p.bob - 0.02 - c * 0.48;
+    const flinch = this.flinchT > 0 ? Math.sin((1 - this.flinchT / 0.28) * Math.PI) * 0.55 : 0;
+    this.torso.rotation.x = -p.lean + c * 0.35 + flinch * Math.cos(this.flinchSide - this.yaw);
+    this.torso.rotation.z = flinch * 0.6 * Math.sin(this.flinchSide - this.yaw);
   }
 
   dispose(): void {

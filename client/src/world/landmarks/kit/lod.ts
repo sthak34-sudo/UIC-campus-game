@@ -47,3 +47,25 @@ export function interiorLod(world: World, f: LocalFrame, footprint: Rect, levels
     });
   });
 }
+
+/**
+ * Far shell swap for UH / Daley: up close the code landmark draws; past `farDistance` it hides and
+ * the Atlas glb LOD1 shows. Colliders stay on the landmark (physics is independent of visibility).
+ */
+export function landmarkFarLod(
+  world: World,
+  landmark: THREE.Object3D,
+  farShell: THREE.Object3D,
+  farDistance: number,
+): void {
+  const tracker = getFocusTracker(world);
+  const center = landmark.position.clone();
+  farShell.visible = false;
+  landmark.visible = true;
+  world.onUpdate(() => {
+    if (!tracker.known()) return;
+    const far = tracker.position.distanceTo(center) >= farDistance;
+    landmark.visible = !far;
+    farShell.visible = far;
+  });
+}

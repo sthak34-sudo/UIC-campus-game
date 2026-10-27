@@ -42,6 +42,31 @@ describe('player physics on the test course', () => {
     expect(phys.stats.instances).toBe(11);
   });
 
+  it('shrinks the capsule to crouch and refuses to stand under a low ceiling', () => {
+    const { world, phys } = setup();
+    settle(phys);
+    const stand = phys.centerOffset;
+    expect(phys.setCrouching(true)).toBe(true);
+    expect(phys.crouching).toBe(true);
+    expect(phys.centerOffset).toBeLessThan(stand - 0.2);
+    settle(phys);
+    expect(phys.grounded).toBe(true);
+    expect(phys.feet.y).toBeLessThan(0.2);
+
+    const ceil = new THREE.Mesh(new THREE.BoxGeometry(3, 0.3, 3));
+    ceil.position.set(phys.feet.x, phys.feet.y + 1.45, phys.feet.z);
+    world.addCollider(ceil);
+    phys.syncColliders(world.colliders);
+    expect(phys.setCrouching(false)).toBe(false);
+    expect(phys.crouching).toBe(true);
+
+    phys.teleport(new THREE.Vector3(phys.feet.x + 8, phys.feet.y, phys.feet.z));
+    settle(phys);
+    expect(phys.setCrouching(false)).toBe(true);
+    expect(phys.crouching).toBe(false);
+    expect(phys.centerOffset).toBeCloseTo(stand);
+  });
+
   it('spawns grounded on the ground', () => {
     const { phys } = setup();
     settle(phys);

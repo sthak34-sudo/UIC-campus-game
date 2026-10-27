@@ -12,9 +12,10 @@ import { applySurfaceFx, surfaceUniforms, type SurfaceFx } from './surfaceShader
  * real scale.
  *
  * Textures: photo-scanned CC0 PBR sets from Poly Haven and ambientCG (tools/textures/fetch_cc0.py,
- * credited in CREDITS.md) plus a few self-made ones (tools/textures/generate.py). Colors are tinted
- * toward the campus palette in docs/research/facades.md. Large-scale variation, rain streaks and base
- * grime are added in world space by the shader (surfaceShader.ts).
+ * credited in CREDITS.md) plus a few self-made ones (tools/textures/generate.py). The outdoor hero
+ * sets (concrete, brick, sidewalk, asphalt, grass, limestone) are KTX2; everything else is JPEG.
+ * Colors are tinted toward the campus palette in docs/research/facades.md. Large-scale variation,
+ * rain streaks and base grime are added in world space by the shader (surfaceShader.ts).
  *
  * Materials are shared: don't mutate them (color, opacity …). If you need a variant, ask the
  * Graphics Engineer for a new name.
@@ -44,8 +45,9 @@ export type MaterialName =
   | 'metal' // galvanized / painted steel (rails, posts, benches)
   // --- ground
   | 'asphalt'
-  | 'sidewalk' // 1.5 m broom-finish concrete slabs with tooled joints
-  | 'plaza' // light granite pavers, running bond
+  | 'sidewalk' // worn cast-concrete pavement
+  | 'plaza' // pale cut stone (quads and granite stand-in)
+  | 'limestone' // same pale cut stone, untinted
   | 'grass'
   | 'soil' // mulch planting beds
   | 'water'
@@ -70,7 +72,7 @@ export const MATERIAL_NAMES: readonly MaterialName[] = [
   'concrete', 'concreteWarm', 'concreteDark', 'concreteSmooth', 'concreteExposedAggregate',
   'brick', 'brickUIC', 'brickDouble', 'brickDark', 'brickCommon',
   'glass', 'glassBronze', 'glassFritted', 'glassClear', 'glassBronzeClear', 'windowFrame', 'metalBronze', 'metalPanel', 'metal',
-  'asphalt', 'sidewalk', 'plaza', 'grass', 'soil', 'water', 'roof', 'roadMarking', 'roadMarkingYellow',
+  'asphalt', 'sidewalk', 'plaza', 'limestone', 'grass', 'soil', 'water', 'roof', 'roadMarking', 'roadMarkingYellow',
   'interiorWall', 'interiorFloor', 'interiorFloorHard', 'interiorCeiling', 'lightFixture', 'wood', 'fabric', 'bookshelf', 'screen',
   'foliage', 'bark',
 ];
@@ -89,7 +91,8 @@ export const TILE: Record<string, [number, number]> = {
   ph_brick_wall_10: [1.9, 1.9],
   ph_brick_wall_001: [3.0, 3.0],
   ph_asphalt_02: [3.0, 3.0],
-  acg_PavingStones128: [3.5, 3.5],
+  ph_concrete_floor_worn_001: [3.0, 3.0],
+  ph_white_sandstone_blocks_02: [2.0, 2.0],
   acg_Grass004: [1.4, 1.4],
   ph_yellow_flower_mulch: [2.0, 2.0],
   ph_bicolour_gravel: [1.9, 1.9],
@@ -101,7 +104,6 @@ export const TILE: Record<string, [number, number]> = {
   ph_dark_wood: [2.0, 2.0],
   ph_bark_brown_02: [1.0, 1.0],
   ph_blue_metal_plate: [2.5, 2.5],
-  sidewalk: [3.0, 3.0],
   fabric: [0.2, 0.2],
   metal: [1.0, 1.0],
   foliage: [1.5, 1.5],
@@ -133,6 +135,19 @@ export function tintTo(dir: string, target: number): THREE.Color {
   return new THREE.Color(t.r / m[0], t.g / m[1], t.b / m[2]);
 }
 
+/** Photo sets stored as KTX2 (ETC1S color, UASTC normal). JPG originals are not in git. */
+export const KTX_TEXTURE_DIRS = [
+  'ph_concrete_layers_02',
+  'ph_red_brick_03',
+  'ph_brick_wall_001',
+  'ph_asphalt_02',
+  'acg_Grass004',
+  'ph_concrete_floor_worn_001',
+  'ph_white_sandstone_blocks_02',
+] as const;
+
+const KTX_EXT = new Set<string>(KTX_TEXTURE_DIRS);
+
 interface TexSet {
   /** texture folder under client/public/textures */
   dir: string;
@@ -149,13 +164,14 @@ function textured(m: THREE.MeshStandardMaterial, t: TexSet, normalScale = 1, aoI
   const base = TILE[t.dir];
   const k = t.scale ?? 1;
   const tile: [number, number] = [base[0] * k, base[1] * k];
-  if (t.albedo !== false) m.map = loadTexture(`${t.dir}/${t.albedoFile ?? 'albedo.jpg'}`, { srgb: true, tile });
+  const ext = KTX_EXT.has(t.dir) ? 'ktx2' : 'jpg';
+  if (t.albedo !== false) m.map = loadTexture(`${t.dir}/${t.albedoFile ?? `albedo.${ext}`}`, { srgb: true, tile });
   if (t.normal !== false) {
-    m.normalMap = loadTexture(`${t.dir}/normal.jpg`, { tile });
+    m.normalMap = loadTexture(`${t.dir}/normal.${ext}`, { tile });
     m.normalScale.set(normalScale, normalScale);
   }
   if (t.orm !== false) {
-    const orm = loadTexture(`${t.dir}/orm.jpg`, { tile });
+    const orm = loadTexture(`${t.dir}/orm.${ext}`, { tile });
     m.roughnessMap = orm;
     m.aoMap = orm;
     m.aoMapIntensity = aoIntensity;
@@ -186,14 +202,26 @@ function windowGlass(name: MaterialName, kind: 'clear' | 'bronze' | 'fritted'): 
   return g;
 }
 
-/** Transparent glass; reflections stay full strength (see surfaceShader clearGlass). */
-function seeThroughGlass(name: MaterialName, tint: THREE.Color, opacity: number): THREE.Material {
-  const g = new THREE.MeshPhysicalMaterial({
-    name, color: tint, metalness: 0, roughness: 0.03, ior: 1.6,
-    transparent: true, opacity, premultipliedAlpha: true, depthWrite: false, side: THREE.DoubleSide,
+/**
+ * See-through architectural glass. Transmission lets the real room show through
+ * (University Hall, Daley Library). Opaque window materials keep the fake-interior shader.
+ */
+function seeThroughGlass(name: MaterialName, tint: THREE.Color, transmission: number): THREE.Material {
+  return new THREE.MeshPhysicalMaterial({
+    name,
+    color: tint,
+    metalness: 0,
+    roughness: 0.05,
+    ior: 1.5,
+    transmission,
+    thickness: 0.015,
+    attenuationColor: tint,
+    attenuationDistance: 0.55,
+    transparent: true,
+    opacity: 1,
+    depthWrite: false,
+    side: THREE.DoubleSide,
   });
-  applySurfaceFx(g, { clearGlass: true }, name);
-  return g;
 }
 
 function build(name: MaterialName): THREE.Material {
@@ -257,9 +285,9 @@ function build(name: MaterialName): THREE.Material {
     case 'glassFritted':
       return windowGlass(name, 'fritted');
     case 'glassClear':
-      return seeThroughGlass(name, new THREE.Color(0.02, 0.03, 0.03), 0.16);
+      return seeThroughGlass(name, new THREE.Color().setRGB(0.94, 0.97, 0.96), 1);
     case 'glassBronzeClear':
-      return seeThroughGlass(name, new THREE.Color(0.05, 0.035, 0.02), 0.42);
+      return seeThroughGlass(name, new THREE.Color().setRGB(0.55, 0.36, 0.2), 0.86);
     case 'windowFrame':
       m = std({ name, color: new THREE.Color(0x3d3329), metalness: 0.85, roughness: 1 });
       m.roughnessMap = loadTexture('metal/orm.jpg', { tile: TILE.metal });
@@ -288,12 +316,14 @@ function build(name: MaterialName): THREE.Material {
       return m;
     case 'sidewalk':
       m = std({ name, roughness: 1 });
-      textured(m, { dir: 'sidewalk' }, 1, 1);
+      textured(m, { dir: 'ph_concrete_floor_worn_001' }, 1, 1);
       applySurfaceFx(m, { macroScale: 29, macroAmp: 0.1, macroAmp2: 0.06, roughAmp: 0.04 }, name);
       return m;
+    case 'limestone':
     case 'plaza':
-      m = std({ name, color: new THREE.Color(0.9, 0.9, 0.92), roughness: 1.4 });
-      textured(m, { dir: 'acg_PavingStones128' }, 1, 1);
+      // Poly Haven has no scan named limestone. White sandstone blocks are the pale cut stone.
+      m = std({ name, roughness: 1 });
+      textured(m, { dir: 'ph_white_sandstone_blocks_02' }, 1, 1);
       applySurfaceFx(m, { macroScale: 33, macroAmp: 0.08, macroAmp2: 0.05, roughAmp: 0.05 }, name);
       return m;
     case 'grass':
@@ -323,8 +353,8 @@ function build(name: MaterialName): THREE.Material {
       const c = name === 'roadMarking' ? new THREE.Color(0.62, 0.62, 0.6) : new THREE.Color(0.62, 0.42, 0.06);
       m = std({ name, color: c, roughness: 0.65, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
       // reuse asphalt texture detail so paint looks worn and grainy
-      m.normalMap = loadTexture('ph_asphalt_02/normal.jpg', { tile: TILE.ph_asphalt_02 });
-      m.aoMap = loadTexture('ph_asphalt_02/orm.jpg', { tile: TILE.ph_asphalt_02 });
+      m.normalMap = loadTexture('ph_asphalt_02/normal.ktx2', { tile: TILE.ph_asphalt_02 });
+      m.aoMap = loadTexture('ph_asphalt_02/orm.ktx2', { tile: TILE.ph_asphalt_02 });
       applySurfaceFx(m, { macroScale: 11, macroAmp: 0.18, macroAmp2: 0.12 }, name);
       return m;
     }

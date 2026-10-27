@@ -153,6 +153,20 @@ export function addCampusViewpoints(world: World, data: CampusDataExt): void {
   portrait('map-bsb', 'Behavioral Sciences Building', 150, 30, EYE, 8);
   portrait('map-arc', 'Academic and Residential Complex', 190, 28, EYE, 16, 65);
   portrait('map-sel', 'Science and Engineering Laboratories', 0, 30, EYE, 10);
+  // B3 close-up: SEL East/West + bridge from the south plaza, and SEO tower from the NE.
+  portrait('b3-sel-close', 'Science and Engineering Laboratories', 180, 18, EYE, 8, 65);
+  portrait('b3-seo-close', 'Science & Engineering Offices', 45, 16, EYE, 18, 60);
+  // B4: SEL bridge close-up (part_c between East/West), and UH/Daley far shells.
+  // SEL bridge close-up: same framing as b3-sel-close (shows elevated span with clear air under it).
+  portrait('b4-sel-bridge', 'Science and Engineering Laboratories', 180, 18, EYE, 8, 65);
+  // South of the elevated span looking north-up at the soffit and pier grid.
+  world.addViewpoint('b4-sel-bridge-under', {
+    position: new THREE.Vector3(152.3, 1.8, 210),
+    target: new THREE.Vector3(152.3, 11, 194),
+    fov: 70,
+  });
+  portrait('b4-uh-far', 'University Hall', 90, 160, 25, 40, 50);
+  portrait('b4-daley-far', 'Richard J. Daley Library', 45, 150, 20, 12, 55);
   portrait('map-henry-hall', 'Henry Hall', 160, 22, EYE, 6);
   portrait('map-burnham-hall', 'Burnham Hall', 200, 22, EYE, 6);
   portrait('map-grant-hall', 'Grant Hall', 0, 24, EYE, 6);

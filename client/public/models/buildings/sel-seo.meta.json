@@ -1,0 +1,49 @@
+{
+ "plan": [
+  67.03,
+  -166.23
+ ],
+ "loot": 12,
+ "doors": 9,
+ "parts": [
+  {
+   "node": "part_sel_part_a",
+   "osm_id": "9b7e76dc-14e9-4d85-ac12-7c12ffff317f#0",
+   "osm_name": "Science and Engineering Laboratories"
+  },
+  {
+   "node": "part_sel_part_b",
+   "osm_id": "9b7e76dc-14e9-4d85-ac12-7c12ffff317f#1",
+   "osm_name": "Science and Engineering Laboratories"
+  },
+  {
+   "node": "part_sel_part_c",
+   "osm_id": "9b7e76dc-14e9-4d85-ac12-7c12ffff317f#2",
+   "osm_name": "Science and Engineering Laboratories"
+  },
+  {
+   "node": "part_seo",
+   "osm_id": "3dadce5e-954e-4189-ab57-e82704ecc243",
+   "osm_name": "Science & Engineering Offices"
+  }
+ ],
+ "lods": {
+  "sel-seo_LOD0": {
+   "tris0": 23056,
+   "tris1": 332,
+   "lod1_distance_m": 120
+  }
+ },
+ "tris0": 23056,
+ "tris1": 332,
+ "colliders": {
+  "sel-seo_walls_col": 1300,
+  "sel-seo_floor_col": 208
+ },
+ "wall_boxes": 100,
+ "door_overlaps_before_clip": 9,
+ "door_overlaps_after_clip": 0,
+ "wall_gaps": 0,
+ "wall_gaps_patched": 0,
+ "roof_walkable": false
+}

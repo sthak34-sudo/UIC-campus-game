@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { getMaterial, MATERIAL_NAMES, MEAN_ALBEDO, TILE, type MaterialName } from './materials';
+import { getMaterial, KTX_TEXTURE_DIRS, MATERIAL_NAMES, MEAN_ALBEDO, TILE, type MaterialName } from './materials';
+
+const ktxFiles = import.meta.glob('../../public/textures/**/*.ktx2');
+const jpgFiles = import.meta.glob('../../public/textures/**/*.jpg');
 import creditsJson from '../../public/textures/credits.json?raw';
 import tilesJson from '../../public/textures/tiles.json?raw';
 
@@ -21,7 +24,20 @@ describe('material library', () => {
   });
   it('glass variants: opaque window glass vs. see-through glass', () => {
     expect(getMaterial('glass').transparent).toBe(false);
-    expect(getMaterial('glassClear').transparent).toBe(true);
+    const clear = getMaterial('glassClear') as THREE.MeshPhysicalMaterial;
+    expect(clear).toBeInstanceOf(THREE.MeshPhysicalMaterial);
+    expect(clear.transparent).toBe(true);
+    expect(clear.transmission).toBeGreaterThan(0.5);
+  });
+  it('ships KTX2 for the hero surfaces and leaves their JPG sources out of git', () => {
+    for (const dir of KTX_TEXTURE_DIRS) {
+      for (const map of ['albedo', 'normal', 'orm']) {
+        const key = `../../public/textures/${dir}/${map}.ktx2`;
+        expect(ktxFiles[key], key).toBeTypeOf('function');
+      }
+      const jpgs = Object.keys(jpgFiles).filter((k) => k.includes(`/${dir}/`));
+      expect(jpgs, dir).toEqual([]);
+    }
   });
   it('screens and light fixtures glow', () => {
     for (const n of ['screen', 'lightFixture'] as const) {

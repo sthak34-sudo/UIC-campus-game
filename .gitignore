@@ -5,6 +5,11 @@ __pycache__/
 *.pyc
 tools/map-pipeline/cache/
 screenshots/tmp/
+screenshots/lighting/
 .DS_Store
 .claude/worktrees/
 screenshots/final/
+
+# Mixamo (raw or baked), RenderPeople, and any other non-redistributable file.
+# Allowed at runtime. Never commit. The game falls back if this folder is missing.
+client/public/models/private/

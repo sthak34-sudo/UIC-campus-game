@@ -11,8 +11,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "three": "0.186.1",
-    "@dimforge/rapier3d-compat": "0.21.0"
+    "@dimforge/rapier3d-compat": "0.21.0",
+    "n8ao": "1.10.3",
+    "postprocessing": "6.39.5",
+    "three": "0.186.1"
   },
   "devDependencies": {
     "@types/three": "0.186.0",

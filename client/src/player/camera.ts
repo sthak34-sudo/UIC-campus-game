@@ -30,6 +30,11 @@ export class CameraRig {
   private readonly dir = new THREE.Vector3();
   private readonly right = new THREE.Vector3();
   private readonly euler = new THREE.Euler(0, 0, 0, 'YXZ');
+  /** 0 standing, 1 crouched. Smoothed so the view does not pop. */
+  private crouch = 0;
+  /** Procedural hit reaction: additive look kick that eases out. */
+  private kickYaw = 0;
+  private kickPitch = 0;
 
   constructor(
     readonly camera: THREE.PerspectiveCamera,
@@ -62,6 +67,28 @@ export class CameraRig {
     this.clampPitch();
   }
 
+  /**
+   * Camera punch from a hit. `hitDir` is world-space direction of the impulse (attacker → victim).
+   * The view kicks opposite the hit so you feel the shove.
+   */
+  kick(hitDir?: { x: number; y: number; z: number }, strength = 1): void {
+    const s = Math.min(1.5, Math.max(0.25, strength));
+    if (hitDir && (hitDir.x || hitDir.z)) {
+      // Project onto camera right / up.
+      const forwardX = -Math.sin(this.yaw);
+      const forwardZ = -Math.cos(this.yaw);
+      const rightX = Math.cos(this.yaw);
+      const rightZ = -Math.sin(this.yaw);
+      const side = hitDir.x * rightX + hitDir.z * rightZ;
+      const along = hitDir.x * forwardX + hitDir.z * forwardZ;
+      this.kickYaw += -side * 0.12 * s;
+      this.kickPitch += -along * 0.08 * s - Math.max(0, hitDir.y) * 0.05 * s;
+    } else {
+      this.kickPitch += 0.1 * s;
+      this.kickYaw += (Math.random() - 0.5) * 0.06 * s;
+    }
+  }
+
   private clampPitch(): void {
     const c = this.cfg;
     this.pitch = this.mode === 'first' ? clamp(this.pitch, c.fpPitchMin, c.fpPitchMax) : clamp(this.pitch, c.camPitchMin, c.camPitchMax);
@@ -78,8 +105,9 @@ export class CameraRig {
     return { x: -Math.sin(this.yaw), z: -Math.cos(this.yaw) };
   }
 
-  update(dt: number, feet: THREE.Vector3): void {
+  update(dt: number, feet: THREE.Vector3, crouching = false): void {
     const c = this.cfg;
+    this.crouch += ((crouching ? 1 : 0) - this.crouch) * damp(8, dt);
     if (!this.initialised) this.reset(feet);
     // Follow: tight horizontally, softer vertically so stair steps don't jolt the view.
     const kh = damp(c.camFollowRate, dt);
@@ -89,17 +117,25 @@ export class CameraRig {
     this.follow.y += (feet.y - this.follow.y) * kv;
     if (this.follow.distanceToSquared(feet) > 25) this.follow.copy(feet); // teleport / respawn
 
-    this.euler.set(-this.pitch, this.yaw, 0);
+    // Ease kick back to zero.
+    this.kickYaw *= Math.exp(-12 * dt);
+    this.kickPitch *= Math.exp(-12 * dt);
+    if (Math.abs(this.kickYaw) < 1e-4) this.kickYaw = 0;
+    if (Math.abs(this.kickPitch) < 1e-4) this.kickPitch = 0;
+    this.euler.set(-(this.pitch + this.kickPitch), this.yaw + this.kickYaw, 0);
     this.camera.quaternion.setFromEuler(this.euler);
 
+    const stance = c.crouchHeight / c.height;
+    const eye = c.eyeHeight + (c.eyeHeight * stance - c.eyeHeight) * this.crouch;
+    const pivotH = c.camPivotHeight + (c.camPivotHeight * stance - c.camPivotHeight) * this.crouch;
     if (this.mode === 'first') {
-      this.camera.position.set(this.follow.x, this.follow.y + c.eyeHeight, this.follow.z);
+      this.camera.position.set(this.follow.x, this.follow.y + eye, this.follow.z);
       this.arm = 0;
       return;
     }
 
     // Head point is inside the capsule, so it is always free.
-    this.head.set(this.follow.x, this.follow.y + c.camPivotHeight, this.follow.z);
+    this.head.set(this.follow.x, this.follow.y + pivotH, this.follow.z);
     // Shoulder offset (to the right), shortened if a wall is right there.
     this.right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     let shoulder = c.camShoulder;

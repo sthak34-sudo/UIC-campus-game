@@ -1,0 +1,40 @@
+{
+ "plan": [
+  89.57,
+  77.43
+ ],
+ "loot": 7,
+ "doors": 3,
+ "parts": [
+  {
+   "node": "part_grant_hall_a",
+   "osm_id": "b137170e-4135-4e53-8391-bc0c571b4fbc#0",
+   "osm_name": "Grant Hall"
+  },
+  {
+   "node": "part_grant_hall_b",
+   "osm_id": "b137170e-4135-4e53-8391-bc0c571b4fbc#1",
+   "osm_name": "Grant Hall"
+  }
+ ],
+ "lods": {
+  "grant-hall_LOD0": {
+   "tris0": 4133,
+   "tris1": 52,
+   "lod1_distance_m": 120
+  }
+ },
+ "tris0": 4133,
+ "tris1": 52,
+ "colliders": {
+  "grant-hall_walls_col": 436,
+  "grant-hall_floor_col": 136,
+  "grant-hall_stair01_col": 12
+ },
+ "wall_boxes": 33,
+ "door_overlaps_before_clip": 3,
+ "door_overlaps_after_clip": 0,
+ "wall_gaps": 0,
+ "wall_gaps_patched": 0,
+ "roof_walkable": false
+}

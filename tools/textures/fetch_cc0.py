@@ -56,7 +56,8 @@ ASSETS: dict[str, dict] = {
     'ph_brick_wall_001': dict(src='polyhaven', id='brick_wall_001', why='brickUIC, brickDouble (2x scale), brickCommon: mixed-color brick (tinted to the Netsch palette for brickUIC)'),
     # ---- ground
     'ph_asphalt_02': dict(src='polyhaven', id='asphalt_02', nsize=512, why='asphalt: grey street asphalt with cracks'),
-    'acg_PavingStones128': dict(src='ambientcg', id='PavingStones128', why='plaza: light granite pavers, running bond'),
+    'ph_concrete_floor_worn_001': dict(src='polyhaven', id='concrete_floor_worn_001', why='sidewalk: worn cast-concrete pavement'),
+    'ph_white_sandstone_blocks_02': dict(src='polyhaven', id='white_sandstone_blocks_02', why='limestone and plaza: pale cut stone (Poly Haven has no asset named limestone)'),
     'acg_Grass004': dict(src='ambientcg', id='Grass004', nsize=512, why='grass: mown lawn'),
     'ph_yellow_flower_mulch': dict(src='polyhaven', id='yellow_flower_mulch', size=512, why='soil: planting-bed mulch'),
     'ph_bicolour_gravel': dict(src='polyhaven', id='bicolour_gravel', nsize=512, why='roof: gravel ballast'),

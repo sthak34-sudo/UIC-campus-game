@@ -2,8 +2,7 @@
  * Tunable player constants. OWNER: Player Engineer.
  * Everything is in meters, seconds and radians unless the name says otherwise.
  *
- * Other modules (e.g. missions) may change `speedScale` at runtime (the plan uses ~2x real speed
- * for timed missions): `player.setSpeedScale(2)`.
+ * Other modules may change `speedScale` at runtime: `player.setSpeedScale(2)`.
  */
 export const PLAYER_CONFIG = {
   // --- movement -----------------------------------------------------------------------------
@@ -11,8 +10,10 @@ export const PLAYER_CONFIG = {
   walkSpeed: 1.4,
   /** Jog / run (Shift). */
   runSpeed: 4.5,
-  /** Multiplies walk and run speed (missions may use 2). */
+  /** Multiplies walk and run speed. 1 is a real human pace. */
   speedScale: 1,
+  /** When false, Shift never sprints (crawl / revive). */
+  allowRun: true,
   /** How fast horizontal speed approaches the target on the ground (m/s^2). */
   groundAccel: 14,
   /** Same, in the air (little air control). */
@@ -30,6 +31,10 @@ export const PLAYER_CONFIG = {
   radius: 0.35,
   /** Total capsule height (feet to top of head). */
   height: 1.75,
+  /** Capsule height while crouched (C). Must stay taller than two radii. */
+  crouchHeight: 1.2,
+  /** Walk speed while crouched. Shift does not sprint in this stance. */
+  crouchSpeed: 1.15,
   /** Small gap Rapier keeps between the capsule and the world. */
   skin: 0.02,
   /** Max stair riser / curb the character steps up automatically. */

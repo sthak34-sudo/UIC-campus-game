@@ -79,26 +79,6 @@
    0.909
   ]
  },
- "acg_PavingStones128": {
-  "folder": "acg_PavingStones128",
-  "id": "PavingStones128",
-  "source": "ambientCG",
-  "name": "Paving Stones 128",
-  "url": "https://ambientcg.com/view?id=PavingStones128",
-  "license": "CC0 1.0",
-  "authors": "ambientCG (Lennart Demes)",
-  "tile_m": [
-   3.5,
-   3.5
-  ],
-  "px": 1024,
-  "use": "plaza: light granite pavers, running bond",
-  "meanLinearAlbedo": [
-   0.359,
-   0.335,
-   0.276
-  ]
- },
  "ph_asphalt_02": {
   "folder": "ph_asphalt_02",
   "id": "asphalt_02",
@@ -217,6 +197,26 @@
    0.061,
    0.037,
    0.029
+  ]
+ },
+ "ph_concrete_floor_worn_001": {
+  "folder": "ph_concrete_floor_worn_001",
+  "id": "concrete_floor_worn_001",
+  "source": "Poly Haven",
+  "name": "Concrete Floor Worn 001",
+  "url": "https://polyhaven.com/a/concrete_floor_worn_001",
+  "license": "CC0 1.0",
+  "authors": "Dimitrios Savva, Rico Cilliers",
+  "tile_m": [
+   3.0,
+   3.0
+  ],
+  "px": 1024,
+  "use": "sidewalk: worn cast-concrete pavement",
+  "meanLinearAlbedo": [
+   0.093,
+   0.094,
+   0.089
   ]
  },
  "ph_concrete_layers_02": {
@@ -397,6 +397,26 @@
    0.251,
    0.152,
    0.095
+  ]
+ },
+ "ph_white_sandstone_blocks_02": {
+  "folder": "ph_white_sandstone_blocks_02",
+  "id": "white_sandstone_blocks_02",
+  "source": "Poly Haven",
+  "name": "White Sandstone Blocks 02",
+  "url": "https://polyhaven.com/a/white_sandstone_blocks_02",
+  "license": "CC0 1.0",
+  "authors": "Rob Tuytel",
+  "tile_m": [
+   2.0,
+   2.0
+  ],
+  "px": 1024,
+  "use": "limestone and plaza: pale cut stone (Poly Haven has no asset named limestone)",
+  "meanLinearAlbedo": [
+   0.454,
+   0.376,
+   0.284
   ]
  },
  "ph_yellow_flower_mulch": {
