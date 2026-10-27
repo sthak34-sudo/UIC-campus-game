@@ -51,4 +51,8 @@ export interface SquadMatchState {
 
 export type SquadEvent =
   | { type: 'downed'; id: PlayerId; by: PlayerId | null }
-  | { type: 'killed'; id: PlayerId; by: PlayerId | null };
+  | { type: 'killed'; id: PlayerId; by: PlayerId | null }
+  | { type: 'revived'; id: PlayerId; by: PlayerId }
+  | { type: 'reviveCancelled'; id: PlayerId; reason: string }
+  | { type: 'squadWiped'; squad: SquadId; placement: number }
+  | { type: 'matchWon'; squad: SquadId };
