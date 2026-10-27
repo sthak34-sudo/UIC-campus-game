@@ -21,6 +21,8 @@ export interface FootIkConfig {
   rayDropM: number;
   pelvisGain: number;
   maxPelvisM: number;
+  /** Feet closer than this to the ground are left exactly as animated. */
+  deadbandM: number;
 }
 
 export const DEFAULT_FOOT_IK: FootIkConfig = {
@@ -29,6 +31,7 @@ export const DEFAULT_FOOT_IK: FootIkConfig = {
   rayDropM: 0.6,
   pelvisGain: 0.5,
   maxPelvisM: 0.16,
+  deadbandM: 0.015,
 };
 
 export function clamp(n: number, lo: number, hi: number): number {
@@ -173,6 +176,12 @@ export function applyFootIk(opts: {
   dt: number;
   /** Character facing yaw (radians, game space: 0 = -Z). Used as the knee pole hint. */
   yaw: number;
+  /**
+   * World height the clip treats as the floor (the character root). When set, IK only applies the
+   * terrain difference under each foot (hit - floorY) on top of the animated ankle height, instead of
+   * dragging the ankle joint itself down to the ground (which sank the pelvis and splayed the knees).
+   */
+  floorY?: number;
 }): FootIkResult | null {
   const cfg = { ...DEFAULT_FOOT_IK, ...opts.cfg };
   const ease = Math.min(1, opts.dt * 10);
@@ -188,7 +197,7 @@ export function applyFootIk(opts: {
     const p = new THREE.Vector3();
     foot.getWorldPosition(p);
     const hit = opts.probe.sample(p.x, p.y + cfg.rayLiftM, p.z, cfg.rayLiftM + cfg.rayDropM);
-    const delta = hit === null ? 0 : footPlantDelta(p.y, hit, cfg.maxPlantM);
+    const delta = hit === null ? 0 : opts.floorY === undefined ? footPlantDelta(p.y, hit, cfg.maxPlantM) : clamp(hit - opts.floorY, -cfg.maxPlantM, cfg.maxPlantM);
     return { p, delta };
   };
 
@@ -207,14 +216,24 @@ export function applyFootIk(opts: {
     const hit = opts.probe.sample(foot.x, foot.y + cfg.rayLiftM, foot.z, cfg.rayLiftM + cfg.rayDropM);
     if (hit === null) return;
     _target.copy(foot);
-    _target.y = hit;
-    // Soft clamp so we never yank more than maxPlantM after pelvis move.
-    _target.y = foot.y + footPlantDelta(foot.y, hit, cfg.maxPlantM);
+    if (opts.floorY === undefined) {
+      // Soft clamp so we never yank more than maxPlantM after pelvis move.
+      _target.y = foot.y + footPlantDelta(foot.y, hit, cfg.maxPlantM);
+    } else {
+      // Animated ankle height (before the pelvis shift) + terrain offset under this foot.
+      _target.y = foot.y - opts.pelvisState.y + clamp(hit - opts.floorY, -cfg.maxPlantM, cfg.maxPlantM);
+    }
+    // Small-adjustment layer only: if the animated foot is already on the ground, leave the clip's
+    // leg alone (re-solving would re-aim the knee and fight the authored stance).
+    if (Math.abs(_target.y - foot.y) < cfg.deadbandM) return;
+    // Pole: the animated knee pushed a little forward, so the IK keeps the clip's knee plane
+    // instead of imposing its own (the old outward pole splayed the knees).
     opts.hips.getWorldPosition(_hip);
+    leg.mid.getWorldPosition(_knee);
     const fx = -Math.sin(opts.yaw);
     const fz = -Math.cos(opts.yaw);
-    // Pole: a bit forward and to the outside of the leg so knees bend naturally.
-    _pole.set(_hip.x + fx * 0.6 + (-fz) * sideSign * 0.25, _hip.y, _hip.z + fz * 0.6 + fx * sideSign * 0.25);
+    _pole.set(_knee.x + fx * 0.3, _knee.y, _knee.z + fz * 0.3);
+    void sideSign;
     solveTwoBoneIk(leg.upper, leg.mid, leg.end, _target, _pole);
   };
   plant(opts.left, 1);

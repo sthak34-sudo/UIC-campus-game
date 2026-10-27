@@ -24,6 +24,7 @@ export const PLAYER_BODY_URL = 'models/characters/player_base.glb';
 declare const __HAS_PRIVATE_ANIMS__: boolean | undefined;
 export const PLAYER_ANIMS_URL = 'models/private/anims.glb';
 /** CC0 clips (Quaternius Universal Animation Library) baked onto the player_base skeleton. Committed. */
+const _floorP = new THREE.Vector3();
 export const PLAYER_PUBLIC_ANIMS_URL = 'models/characters/player_anims_cc0.glb';
 
 /** Which clip file the loaded character uses: private Mixamo or the public CC0 set. */
@@ -707,6 +708,7 @@ class AnimatedCharacter implements CharacterVisual {
         pelvisState: this.pelvisIk,
         dt,
         yaw: this.yaw,
+        floorY: this.root.getWorldPosition(_floorP).y,
       });
     } else if (this.hips) {
       this.pelvisIk.y += (0 - this.pelvisIk.y) * Math.min(1, dt * 8);
