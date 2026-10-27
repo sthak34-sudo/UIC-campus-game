@@ -33,6 +33,17 @@ export const BUILDING_MODELS: readonly BuildingModel[] = [
     ],
   },
   {
+    slug: 'sel-seo',
+    // part_sel_part_a = SEL East (OSM way 1546132225), part_sel_part_b = SEL West (way 1546132224),
+    // part_sel_part_c = the bridge from 12 m up, part_seo = SEO.
+    replaces: [
+      '9b7e76dc-14e9-4d85-ac12-7c12ffff317f#0', // SEL East (part_sel_part_a)
+      '9b7e76dc-14e9-4d85-ac12-7c12ffff317f#1', // SEL West (part_sel_part_b)
+      '9b7e76dc-14e9-4d85-ac12-7c12ffff317f#2', // SEL bridge (part_sel_part_c)
+      '3dadce5e-954e-4189-ab57-e82704ecc243', // SEO (part_seo)
+    ],
+  },
+  {
     slug: 'behavioral-sciences',
     replaces: [0, 1, 2, 3].map((i) => `a7ec57dd-7aa8-4f8e-9f29-bed200fe2ed4#${i}`),
     alsoHides: ['a7ec57dd-7aa8-4f8e-9f29-bed200fe2ed4#4'], // 1 m2 sliver inside part #0
