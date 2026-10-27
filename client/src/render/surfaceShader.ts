@@ -52,34 +52,49 @@ export const surfaceUniforms = {
   gfxInterior: { value: new THREE.Vector2(0.05, 0.02) },
 };
 
-const f = (n: number) => (Number.isInteger(n) ? `${n}.0` : `${n}`);
 
-export function applySurfaceFx(mat: THREE.MeshStandardMaterial, fx: SurfaceFx, key: string): void {
-  const defs: string[] = [];
-  defs.push(`#define GFX_MACRO_SCALE ${f(fx.macroScale ?? 41)}`);
-  defs.push(`#define GFX_MACRO_AMP ${f(fx.macroAmp ?? 0)}`);
-  defs.push(`#define GFX_MACRO_AMP2 ${f(fx.macroAmp2 ?? 0)}`);
-  defs.push(`#define GFX_ROUGH_AMP ${f(fx.roughAmp ?? 0)}`);
-  if (fx.streaks || fx.baseGrime || fx.topDirt) {
-    defs.push('#define GFX_WEATHER');
-    defs.push(`#define GFX_STREAKS ${f(fx.streaks ?? 0)}`);
-    defs.push(`#define GFX_BASE ${f(fx.baseGrime ?? 0)}`);
-    defs.push(`#define GFX_TOP ${f(fx.topDirt ?? 0)}`);
-  }
-  if (fx.antiTile) defs.push('#define GFX_ANTITILE');
-  if (fx.antiTileShift) defs.push(`#define GFX_ANTITILE_SHIFT vec2( ${f(fx.antiTileShift[0])}, ${f(fx.antiTileShift[1])} )`);
-  if (fx.dryTint) defs.push(`#define GFX_DRY ${f(fx.dryTint)}`);
-  if (fx.interior) defs.push('#define GFX_INTERIOR');
+export function applySurfaceFx(mat: THREE.MeshStandardMaterial, fx: SurfaceFx, _key?: string): void {
+  // Only feature switches are #defines; every tuning number is a per-material uniform. Materials
+  // with the same switches therefore share one shader program (cache key = switch list) instead
+  // of compiling one program per material name.
+  const flags: string[] = [];
+  if (fx.streaks || fx.baseGrime || fx.topDirt) flags.push('GFX_WEATHER');
+  if (fx.antiTile) flags.push('GFX_ANTITILE');
+  if (fx.antiTileShift) flags.push('GFX_ANTITILE_SHIFT_ON');
+  if (fx.dryTint) flags.push('GFX_DRY_ON');
+  if (fx.interior) flags.push('GFX_INTERIOR');
+  if (fx.clearGlass) flags.push('GFX_CLEAR_GLASS');
   const gt = fx.glassTint ?? [0.72, 0.8, 0.78];
   const sc = fx.interiorScale ?? 1;
-  defs.push(`#define GFX_GLASS_TINT vec3( ${f(gt[0] * sc)}, ${f(gt[1] * sc)}, ${f(gt[2] * sc)} )`);
-  if (fx.clearGlass) defs.push('#define GFX_CLEAR_GLASS');
-  const header = defs.join('\n');
+  const gfxP = {
+    value: [
+      new THREE.Vector4(fx.macroScale ?? 41, fx.macroAmp ?? 0, fx.macroAmp2 ?? 0, fx.roughAmp ?? 0),
+      new THREE.Vector4(fx.streaks ?? 0, fx.baseGrime ?? 0, fx.topDirt ?? 0, fx.dryTint ?? 0),
+      new THREE.Vector4(fx.antiTileShift?.[0] ?? 0, fx.antiTileShift?.[1] ?? 0, 0, 0),
+      new THREE.Vector4(gt[0] * sc, gt[1] * sc, gt[2] * sc, 0),
+    ],
+  };
+  const header = [
+    ...flags.map((d) => `#define ${d}`),
+    '#ifdef GFX_ANTITILE_SHIFT_ON\n#define GFX_ANTITILE_SHIFT gfxP[ 2 ].xy\n#endif',
+    '#ifdef GFX_DRY_ON\n#define GFX_DRY gfxP[ 1 ].w\n#endif',
+    'uniform vec4 gfxP[ 4 ];',
+    '#define GFX_MACRO_SCALE gfxP[ 0 ].x',
+    '#define GFX_MACRO_AMP gfxP[ 0 ].y',
+    '#define GFX_MACRO_AMP2 gfxP[ 0 ].z',
+    '#define GFX_ROUGH_AMP gfxP[ 0 ].w',
+    '#define GFX_STREAKS gfxP[ 1 ].x',
+    '#define GFX_BASE gfxP[ 1 ].y',
+    '#define GFX_TOP gfxP[ 1 ].z',
+    '#define GFX_GLASS_TINT gfxP[ 3 ].xyz',
+  ].join('\n');
+  const cacheKey = `gfx:${flags.join(',')}`;
 
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.gfxMacro = surfaceUniforms.gfxMacro;
     shader.uniforms.gfxTime = surfaceUniforms.gfxTime;
     shader.uniforms.gfxInterior = surfaceUniforms.gfxInterior;
+    shader.uniforms.gfxP = gfxP;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\nvarying vec3 vGfxWPos;\nvarying vec3 vGfxWNrm;`)
       .replace(
@@ -99,7 +114,8 @@ export function applySurfaceFx(mat: THREE.MeshStandardMaterial, fx: SurfaceFx, k
         .replace('#include <premultiplied_alpha_fragment>', '');
     }
   };
-  mat.customProgramCacheKey = () => `gfx-${key}`;
+  mat.customProgramCacheKey = () => cacheKey;
+  mat.userData.gfxP = gfxP;
 }
 
 const FRAG_PARS = /* glsl */ `
