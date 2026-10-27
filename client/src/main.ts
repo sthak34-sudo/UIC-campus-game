@@ -12,6 +12,7 @@ import { createPlayer } from './player';
 //   ?zoneFast=1             safe-zone timers run at 10× (damage per second stays the same)
 //   ?zoneSeed=<number>      picks where the circles land. Default is 1.
 //   ?squad=bots|solo        only ?squad=bots enables bots; missing/solo = main. ?bleedFast=1 speeds bleed/revive.
+//                           Squad HUD (S4): P ping (Q is medkit), K/J knock, L heal-all, hold F revive.
 declare global {
   interface Window {
     __ready?: boolean;
@@ -41,16 +42,16 @@ async function start(): Promise<void> {
   const { mountCombat } = await import('./combat');
   const combat = mountCombat({ world, player, camera, dom: container });
   const { mountZone } = await import('./zone');
-  mountZone({
+  const zone = mountZone({
     world,
     player,
     bounds: data.bounds,
     search: location.search,
     applyDamage: (amount) => combat.applyZoneDamage(amount),
   });
-  // Squads (S3): bots + downed/revive. Default/missing/?squad=solo = main solo behavior.
+  // Squads (S3+S4): bots + downed/revive + HUD. Default/missing/?squad=solo = main solo behavior.
   const { mountSquad } = await import('./squad/adapter');
-  mountSquad({ world, player, camera, combat, search: location.search });
+  mountSquad({ world, player, camera, combat, search: location.search, zone });
 
   const vp = view ? world.viewpoints.get(view) : undefined;
   world.focus.copy(player ? player.position : (vp?.position ?? camera.position));
