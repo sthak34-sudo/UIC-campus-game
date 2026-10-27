@@ -57,11 +57,18 @@ for (const model of BUILDING_MODELS) {
       expect(b.doors.length).toBeGreaterThan(0);
     });
 
-    it('builds a THREE.LOD per group', () => {
+    it('builds a THREE.LOD per group with the planned swap distances', () => {
       const lods: THREE.LOD[] = [];
       b.root.traverse((o) => { if ((o as THREE.LOD).isLOD) lods.push(o as THREE.LOD); });
       expect(lods.length).toBeGreaterThan(0);
       for (const l of lods) expect(l.levels.length).toBe(2);
+      const distances = lods.map((l) => l.levels[1]!.distance).sort((a, b) => a - b);
+      if (model.slug === 'student-center-east') {
+        // low SCE block at 120 m, tower at 160 m
+        expect(distances).toEqual([120, 160]);
+      } else {
+        for (const d of distances) expect(d).toBe(120);
+      }
     });
 
     it('door +X points into the building (3 m inward is inside the OSM footprint, 3 m outward is not)', () => {
@@ -121,6 +128,49 @@ for (const model of BUILDING_MODELS) {
       if (skipped) console.log(`[walk] ${model.slug}: ${skipped} of ${b.doors.length * 2} door sides past a corner, skipped`);
       expect(leaks).toEqual([]);
       expect(skipped).toBeLessThanOrEqual(Math.ceil(b.doors.length / 2)); // at most a quarter of sides may sit past a corner
+    }, 120000);
+
+    it('every stair climbs to above 2.5 m', () => {
+      const stairs = b.colliders.filter((c) => /_stair\d{2}_col$/.test(c.name));
+      if (stairs.length === 0) return; // buildings without stairs skip
+      const failed: string[] = [];
+      for (const stair of stairs) {
+        const g = stair.geometry as THREE.BufferGeometry;
+        const pos = g.attributes.position!;
+        const v = new THREE.Vector3();
+        let minY = Infinity, maxY = -Infinity;
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i).applyMatrix4(stair.matrixWorld);
+          minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
+        }
+        // average the low and high ends so we walk the center of the ramp, not a corner vertex
+        const lows: THREE.Vector3[] = [], highs: THREE.Vector3[] = [];
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i).applyMatrix4(stair.matrixWorld);
+          if (v.y <= minY + 0.15) lows.push(v.clone());
+          if (v.y >= maxY - 0.15) highs.push(v.clone());
+        }
+        const avg = (arr: THREE.Vector3[]) => arr.reduce((a, pt) => a.add(pt), new THREE.Vector3()).multiplyScalar(1 / arr.length);
+        const low = avg(lows), high = avg(highs);
+        const dir = high.clone().sub(low).setY(0);
+        if (dir.lengthSq() < 1e-4) { failed.push(`${stair.name}: no horizontal run`); continue; }
+        dir.normalize();
+        const start = low.clone().setY(0.15);
+        const end = high.clone().addScaledVector(dir, 0.5);
+        const phys = new PlayerPhysics(start);
+        phys.syncColliders(world.colliders);
+        for (let i = 0; i < 30; i++) phys.step(0, 0, 0, false);
+        let t = 0;
+        for (;;) {
+          const dx = end.x - phys.feet.x, dz = end.z - phys.feet.z, dist = Math.hypot(dx, dz);
+          if (dist < 0.3) break;
+          t += PLAYER_CONFIG.fixedDt;
+          if (t > 25) { failed.push(`${stair.name}: stuck at y=${phys.feet.y.toFixed(2)} after 25s`); break; }
+          phys.step(dx / dist, dz / dist, PLAYER_CONFIG.walkSpeed, false);
+        }
+        if (phys.feet.y <= 2.5) failed.push(`${stair.name}: ended at y=${phys.feet.y.toFixed(2)} (need > 2.5)`);
+      }
+      expect(failed).toEqual([]);
     }, 120000);
   });
 }

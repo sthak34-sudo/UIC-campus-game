@@ -24,6 +24,15 @@ export const BUILDING_MODELS: readonly BuildingModel[] = [
     ],
   },
   {
+    slug: 'student-center-east',
+    replaces: [
+      'e0524bbe-eb73-4e33-a627-09c00e3326b4', // Student Center East
+      '8aa0a812-c6c7-4b6a-b8c0-db3e4a803bb6#0', // Student Center East Tower
+      '8aa0a812-c6c7-4b6a-b8c0-db3e4a803bb6#1',
+      '8aa0a812-c6c7-4b6a-b8c0-db3e4a803bb6#2',
+    ],
+  },
+  {
     slug: 'behavioral-sciences',
     replaces: [0, 1, 2, 3].map((i) => `a7ec57dd-7aa8-4f8e-9f29-bed200fe2ed4#${i}`),
     alsoHides: ['a7ec57dd-7aa8-4f8e-9f29-bed200fe2ed4#4'], // 1 m2 sliver inside part #0
