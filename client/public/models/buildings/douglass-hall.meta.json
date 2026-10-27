@@ -1,0 +1,35 @@
+{
+ "plan": [
+  113.96,
+  66.23
+ ],
+ "loot": 8,
+ "doors": 3,
+ "parts": [
+  {
+   "node": "part_douglass_hall",
+   "osm_id": "d3bc6e4f-6363-42a0-8bed-1edfa8249ede",
+   "osm_name": "Douglass Hall"
+  }
+ ],
+ "lods": {
+  "douglass-hall_LOD0": {
+   "tris0": 4713,
+   "tris1": 28,
+   "lod1_distance_m": 120
+  }
+ },
+ "tris0": 4713,
+ "tris1": 28,
+ "colliders": {
+  "douglass-hall_walls_col": 388,
+  "douglass-hall_floor_col": 114,
+  "douglass-hall_stair01_col": 12
+ },
+ "wall_boxes": 30,
+ "door_overlaps_before_clip": 3,
+ "door_overlaps_after_clip": 0,
+ "wall_gaps": 0,
+ "wall_gaps_patched": 0,
+ "roof_walkable": false
+}

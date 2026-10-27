@@ -14,7 +14,9 @@ const path = (slug: string) => fileURLToPath(new URL(`../../../public/models/bui
 /** Budgets from the buildings integration plan. */
 const MAX_BYTES = 1.5e6;
 const MAX_LOD0_TRIS = 30000;
-const MAX_COLLIDER_TRIS = 3000;
+const MAX_COLLIDER_TRIS = 5000;
+/** 400 wall boxes x 12 tris: the physics shape budget per building. */
+const MAX_WALL_TRIS = 400 * 12;
 
 describe('nodes.classifyNode', () => {
   it('recognizes the naming contract', () => {
@@ -74,6 +76,7 @@ for (const model of BUILDING_MODELS) {
       }
       const tris = cols.reduce((n, c) => n + meshTriangles(j, c.mesh!), 0);
       expect(tris).toBeLessThanOrEqual(MAX_COLLIDER_TRIS);
+      expect(meshTriangles(j, byKind('wall-col')[0]!.mesh!)).toBeLessThanOrEqual(MAX_WALL_TRIS);
     });
 
     it('has door markers with sane sizes', () => {

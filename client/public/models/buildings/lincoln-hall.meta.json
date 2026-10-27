@@ -1,0 +1,40 @@
+{
+ "plan": [
+  109.61,
+  38.81
+ ],
+ "loot": 8,
+ "doors": 3,
+ "parts": [
+  {
+   "node": "part_lincoln_hall_a",
+   "osm_id": "a971b33b-ac0f-4b1d-b711-4d4c857e6782#0",
+   "osm_name": "Lincoln Hall"
+  },
+  {
+   "node": "part_lincoln_hall_b",
+   "osm_id": "a971b33b-ac0f-4b1d-b711-4d4c857e6782#1",
+   "osm_name": "Lincoln Hall"
+  }
+ ],
+ "lods": {
+  "lincoln-hall_LOD0": {
+   "tris0": 5182,
+   "tris1": 36,
+   "lod1_distance_m": 120
+  }
+ },
+ "tris0": 5182,
+ "tris1": 36,
+ "colliders": {
+  "lincoln-hall_walls_col": 432,
+  "lincoln-hall_floor_col": 104,
+  "lincoln-hall_stair01_col": 12
+ },
+ "wall_boxes": 34,
+ "door_overlaps_before_clip": 3,
+ "door_overlaps_after_clip": 0,
+ "wall_gaps": 0,
+ "wall_gaps_patched": 0,
+ "roof_walkable": false
+}

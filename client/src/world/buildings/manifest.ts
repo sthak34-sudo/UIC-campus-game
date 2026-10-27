@@ -7,6 +7,8 @@ export interface BuildingModel {
   slug: string;
   /** campus.json building ids (CampusBuilding.id) this model replaces. */
   replaces: readonly string[];
+  /** Extra campus.json ids to hide that are not modeled parts (tiny OSM slivers inside the model). */
+  alsoHides?: readonly string[];
 }
 
 export const BUILDING_MODELS: readonly BuildingModel[] = [
@@ -21,9 +23,23 @@ export const BUILDING_MODELS: readonly BuildingModel[] = [
       '6d030286-61fc-4774-8f24-370f0bc5c5b1', // Lecture Center F
     ],
   },
+  {
+    slug: 'behavioral-sciences',
+    replaces: [0, 1, 2, 3].map((i) => `a7ec57dd-7aa8-4f8e-9f29-bed200fe2ed4#${i}`),
+    alsoHides: ['a7ec57dd-7aa8-4f8e-9f29-bed200fe2ed4#4'], // 1 m2 sliver inside part #0
+  },
+  { slug: 'douglass-hall', replaces: ['d3bc6e4f-6363-42a0-8bed-1edfa8249ede'] },
+  { slug: 'grant-hall', replaces: [0, 1].map((i) => `b137170e-4135-4e53-8391-bc0c571b4fbc#${i}`) },
+  { slug: 'lincoln-hall', replaces: [0, 1].map((i) => `a971b33b-ac0f-4b1d-b711-4d4c857e6782#${i}`) },
+  {
+    slug: 'architecture-design-studios',
+    replaces: [0, 1].map((i) => `02eea501-41af-4a13-b500-0790ffbfa0a0#${i}`),
+  },
 ];
 
-export const REPLACED_BUILDING_IDS: ReadonlySet<string> = new Set(BUILDING_MODELS.flatMap((m) => m.replaces));
+export const REPLACED_BUILDING_IDS: ReadonlySet<string> = new Set(
+  BUILDING_MODELS.flatMap((m) => [...m.replaces, ...(m.alsoHides ?? [])]),
+);
 
 /** True when a glb model replaces this campus.json building (match by id or shared buildingId). */
 export function isReplacedByModel(b: { id: string; buildingId?: string | null }): boolean {
