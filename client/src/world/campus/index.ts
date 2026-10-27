@@ -57,7 +57,13 @@ export interface CampusBuildingEntry {
 /** Every generic building, by building id. Filled by buildCampus(). */
 export const campusBuildings = new Map<string, CampusBuildingEntry>();
 
-const TILE = 500;
+/**
+ * Building tile size (m). Small enough that frustum culling (camera and each shadow cascade)
+ * drops tiles behind or beside the view; 500 m tiles were always "in view" and drew ~whole campus.
+ */
+export const TILE = 250;
+/** Tiles whose nearest point is farther than this from the player are hidden (fog hides them anyway). */
+export const BUILDING_CULL_M = 700;
 const colliderMat = new THREE.MeshBasicMaterial({ visible: false });
 
 /** Closed prism (walls + top, + bottom when floating) used as the physics shape of a volume. */
@@ -232,6 +238,7 @@ export async function buildCampus(world: World, rawData: CampusData): Promise<vo
       e.ranges = e.ranges.map((r) => ({ ...r, start: r.start + (tile.B.groupStart.get(r.mat) ?? 0) }));
     }
   }
+  installDistanceCull(world, bgroup.children as THREE.Mesh[], BUILDING_CULL_M);
 
   // --- ground ----------------------------------------------------------------------------------
   const context = await loadContext();
@@ -265,4 +272,20 @@ export async function buildCampus(world: World, rawData: CampusData): Promise<vo
     `campus: ${campusBuildings.size} buildings / ${volumeCount} volumes in ${tiles.size} tiles, ${data.trees.length} trees, ` +
       `${(vertices / 1e6).toFixed(2)}M static vertices, ~${drawGroups} draw calls (before culling/shadows), ${(performance.now() - t0).toFixed(0)} ms`,
   );
+}
+
+/** Hide meshes whose world bounding box is farther than `maxDist` (XZ) from `world.focus`. */
+export function installDistanceCull(world: World, meshes: THREE.Object3D[], maxDist: number): void {
+  const boxes = meshes.map((m) => new THREE.Box3().setFromObject(m));
+  const tmp = new THREE.Vector3();
+  const apply = () => {
+    const f = world.focus;
+    for (let i = 0; i < meshes.length; i++) {
+      const b = boxes[i]!;
+      tmp.set(Math.min(Math.max(f.x, b.min.x), b.max.x), f.y, Math.min(Math.max(f.z, b.min.z), b.max.z));
+      meshes[i]!.visible = Math.hypot(tmp.x - f.x, tmp.z - f.z) <= maxDist;
+    }
+  };
+  let acc = Infinity;
+  world.onUpdate((dt) => { acc += dt; if (acc >= 0.25) { acc = 0; apply(); } });
 }

@@ -38,8 +38,19 @@ describe('campus build (full campus.json)', () => {
     const generic = new Set(data.buildings.filter((b) => !b.landmark && !isReplacedByModel(b)).map((b) => (b as { buildingId?: string }).buildingId ?? b.id));
     expect(campusBuildings.size).toBe(generic.size);
     for (const b of data.buildings.filter((b) => b.landmark)) expect(campusBuildings.has((b as { buildingId?: string }).buildingId ?? b.id)).toBe(false);
-    expect(s.calls).toBeLessThan(260);
+    // Totals with every tile shown (no culling applied yet). Smaller tiles (TILE) add draw groups
+    // but let frustum + distance culling drop most of them per frame.
+    expect(s.calls).toBeLessThan(900);
     expect(s.tris).toBeLessThan(3.5e6);
+    // distance cull: from the Quad, far tiles are hidden
+    world.focus.copy(world.viewpoints.get('map-quad-ground')!.position);
+    world.update(0.3, 0);
+    const near = stats(world.scene.getObjectByName('campus-buildings')!);
+    const allRoot = world.scene.getObjectByName('campus-buildings')!.clone();
+    allRoot.traverse((o) => { o.visible = true; });
+    const all = stats(allRoot);
+    console.info(`buildings after distance cull: ${near.calls}/${all.calls} groups, ${(near.tris / 1e6).toFixed(2)}M/${(all.tris / 1e6).toFixed(2)}M tris`);
+    expect(near.tris).toBeLessThan(all.tris);
     // standing on the tree-filled Quad: nearby trees switch to the leaf-card model
     world.focus.copy(world.viewpoints.get('map-quad-ground')!.position);
     world.update(0.016, 0);
