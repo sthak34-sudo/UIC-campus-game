@@ -68,6 +68,21 @@ describe('landmarks', () => {
     expect(UH.floors).toBe(28);
   });
 
+  it('University Hall has 3 stepped tiers, projecting fins, and a tight exterior draw-call budget', async () => {
+    const { res } = await build();
+    const uh = res.universityHall!;
+    expect(UH.tierBays).toEqual([30, 32, 34]);
+    expect(UH.tierTopFloor).toEqual([8, 16, 28]);
+    expect(uh.tierHalfZ[2]).toBeGreaterThan(uh.tierHalfZ[1]!);
+    expect(uh.tierHalfZ[1]).toBeGreaterThan(uh.tierHalfZ[0]!);
+    expect(UH.finOut).toBeGreaterThan(0.4);
+    expect(UH.finW).toBeLessThan(UH.pierW);
+    expect(uh.finCount).toBeGreaterThan(500);
+    // Exterior is one mesh per material; fins reuse concrete so draw calls stay flat (±3).
+    expect(uh.exteriorDrawCalls).toBeGreaterThan(0);
+    expect(uh.exteriorDrawCalls).toBeLessThanOrEqual(12);
+  });
+
   it('library main block matches the footprint (≈40 x 132 m) and the LiDAR roof', async () => {
     const { res } = await build();
     const { ctx } = res.library!;
