@@ -12,7 +12,9 @@ import { createPlayer } from './player';
 //   ?zoneFast=1             safe-zone timers run at 10× (damage per second stays the same)
 //   ?zoneSeed=<number>      picks where the circles land. Default is 1.
 //   ?squad=bots|solo        only ?squad=bots enables bots; missing/solo = main. ?bleedFast=1 speeds bleed/revive.
+//                           ?enemySquads=N (0-4) adds enemy bot squads (S5). O wipes your squad (placement).
 //                           Squad HUD (S4): P ping (Q is medkit), K/J knock, L heal-all, hold F revive.
+//                           Spectate (S5): Left/Right cycle living/downed teammates after you die.
 declare global {
   interface Window {
     __ready?: boolean;
