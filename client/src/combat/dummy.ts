@@ -8,6 +8,7 @@ import { COMBAT } from './balance';
 import { createCombatant, dummyShouldRespawn, isDown, takeHit, type Combatant } from './health';
 import type { HitZone } from './damage';
 import type { Vec3 } from './range';
+import type { CharacterVisual } from '../player/characterLoader';
 
 const BODY_CENTER_Y = 0.86;
 const BODY_HALF = 0.32;
@@ -25,6 +26,7 @@ interface DummyRig {
   bar: THREE.Mesh;
   barTex: THREE.CanvasTexture;
   barCtx: CanvasRenderingContext2D;
+  avatar: CharacterVisual | null;
 }
 
 export interface DummyHit {
@@ -46,11 +48,13 @@ export class PracticeDummies {
     spots: readonly Vec3[],
     faceYaw: number,
     physics: RAPIER.World | null,
+    /** When the realistic body loaded, each dummy is a clone of it. Otherwise the capsule figure. */
+    visuals: (() => CharacterVisual) | null = null,
   ) {
-    const skin = new THREE.MeshStandardMaterial({ color: 0xc4a574, roughness: 0.72, metalness: 0 });
-    const suit = new THREE.MeshStandardMaterial({ color: 0x8d3b2e, roughness: 0.88, metalness: 0 });
-    const bodyGeom = new THREE.CapsuleGeometry(BODY_RADIUS, BODY_HALF * 2, 4, 10);
-    const headGeom = new THREE.SphereGeometry(HEAD_RADIUS, 16, 12);
+    const skin = visuals ? null : new THREE.MeshStandardMaterial({ color: 0xc4a574, roughness: 0.72, metalness: 0 });
+    const suit = visuals ? null : new THREE.MeshStandardMaterial({ color: 0x8d3b2e, roughness: 0.88, metalness: 0 });
+    const bodyGeom = visuals ? null : new THREE.CapsuleGeometry(BODY_RADIUS, BODY_HALF * 2, 4, 10);
+    const headGeom = visuals ? null : new THREE.SphereGeometry(HEAD_RADIUS, 16, 12);
     const barGeom = new THREE.PlaneGeometry(0.7, 0.09);
 
     for (let i = 0; i < spots.length; i++) {
@@ -60,14 +64,20 @@ export class PracticeDummies {
       root.position.set(spot.x, spot.y, spot.z);
       root.rotation.y = faceYaw;
 
-      const body = new THREE.Mesh(bodyGeom, suit);
-      body.position.y = BODY_CENTER_Y;
-      body.castShadow = true;
-      body.receiveShadow = true;
-      const head = new THREE.Mesh(headGeom, skin);
-      head.position.y = HEAD_Y;
-      head.castShadow = true;
-      root.add(body, head);
+      let avatar: CharacterVisual | null = null;
+      if (visuals) {
+        avatar = visuals();
+        root.add(avatar.root);
+      } else {
+        const body = new THREE.Mesh(bodyGeom!, suit!);
+        body.position.y = BODY_CENTER_Y;
+        body.castShadow = true;
+        body.receiveShadow = true;
+        const head = new THREE.Mesh(headGeom!, skin!);
+        head.position.y = HEAD_Y;
+        head.castShadow = true;
+        root.add(body, head);
+      }
 
       const canvas = document.createElement('canvas');
       canvas.width = 128;
@@ -99,7 +109,7 @@ export class PracticeDummies {
       scene.add(root);
       const rig: DummyRig = {
         root, vitals: createCombatant(COMBAT.dummyHealth), bodyHandle, headHandle,
-        downFor: 0, falling: 0, bar, barTex, barCtx: ctx,
+        downFor: 0, falling: 0, bar, barTex, barCtx: ctx, avatar,
       };
       this.paint(rig);
       this.rigs.push(rig);
@@ -118,7 +128,10 @@ export class PracticeDummies {
     this.paint(rig);
     if (outcome.died) {
       rig.falling = 0;
+      rig.avatar?.setFlags({ dead: true });
       this.setColliders(rig, physics, false);
+    } else {
+      rig.avatar?.flinch();
     }
     return { index, zone, died: outcome.died, headshot: outcome.headshot, health: rig.vitals.health };
   }
@@ -127,11 +140,19 @@ export class PracticeDummies {
     for (const rig of this.rigs) {
       this.barNormal.copy(camera.position).sub(rig.bar.getWorldPosition(this.up));
       if (this.barNormal.lengthSq() > 1e-6) rig.bar.lookAt(camera.position);
-      if (!isDown(rig.vitals)) continue;
+      const down = isDown(rig.vitals);
+      if (rig.avatar) {
+        rig.avatar.setFlags({ dead: down });
+        const viewDistance = camera.position.distanceTo(rig.root.position);
+        rig.avatar.update(dt, 0, true, null, viewDistance);
+      }
+      if (!down) continue;
       rig.downFor += dt;
-      rig.falling = Math.min(1, rig.falling + dt / 0.45);
-      const k = 1 - Math.pow(1 - rig.falling, 3);
-      rig.root.rotation.x = -k * (Math.PI / 2);
+      if (!rig.avatar) {
+        rig.falling = Math.min(1, rig.falling + dt / 0.45);
+        const k = 1 - Math.pow(1 - rig.falling, 3);
+        rig.root.rotation.x = -k * (Math.PI / 2);
+      }
       if (dummyShouldRespawn(rig.downFor)) this.respawn(rig, physics);
     }
   }
@@ -141,6 +162,7 @@ export class PracticeDummies {
     rig.downFor = 0;
     rig.falling = 0;
     rig.root.rotation.x = 0;
+    rig.avatar?.setFlags({ dead: false });
     this.paint(rig);
     this.setColliders(rig, physics, true);
   }
@@ -167,6 +189,7 @@ export class PracticeDummies {
   dispose(scene: THREE.Scene, physics: RAPIER.World | null): void {
     for (const rig of this.rigs) {
       scene.remove(rig.root);
+      rig.avatar?.dispose();
       rig.bar.geometry.dispose();
       (rig.bar.material as THREE.Material).dispose();
       rig.barTex.dispose();

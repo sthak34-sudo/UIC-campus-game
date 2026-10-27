@@ -30,6 +30,8 @@ export class CameraRig {
   private readonly dir = new THREE.Vector3();
   private readonly right = new THREE.Vector3();
   private readonly euler = new THREE.Euler(0, 0, 0, 'YXZ');
+  /** 0 standing, 1 crouched. Smoothed so the view does not pop. */
+  private crouch = 0;
 
   constructor(
     readonly camera: THREE.PerspectiveCamera,
@@ -78,8 +80,9 @@ export class CameraRig {
     return { x: -Math.sin(this.yaw), z: -Math.cos(this.yaw) };
   }
 
-  update(dt: number, feet: THREE.Vector3): void {
+  update(dt: number, feet: THREE.Vector3, crouching = false): void {
     const c = this.cfg;
+    this.crouch += ((crouching ? 1 : 0) - this.crouch) * damp(8, dt);
     if (!this.initialised) this.reset(feet);
     // Follow: tight horizontally, softer vertically so stair steps don't jolt the view.
     const kh = damp(c.camFollowRate, dt);
@@ -92,14 +95,17 @@ export class CameraRig {
     this.euler.set(-this.pitch, this.yaw, 0);
     this.camera.quaternion.setFromEuler(this.euler);
 
+    const stance = c.crouchHeight / c.height;
+    const eye = c.eyeHeight + (c.eyeHeight * stance - c.eyeHeight) * this.crouch;
+    const pivotH = c.camPivotHeight + (c.camPivotHeight * stance - c.camPivotHeight) * this.crouch;
     if (this.mode === 'first') {
-      this.camera.position.set(this.follow.x, this.follow.y + c.eyeHeight, this.follow.z);
+      this.camera.position.set(this.follow.x, this.follow.y + eye, this.follow.z);
       this.arm = 0;
       return;
     }
 
     // Head point is inside the capsule, so it is always free.
-    this.head.set(this.follow.x, this.follow.y + c.camPivotHeight, this.follow.z);
+    this.head.set(this.follow.x, this.follow.y + pivotH, this.follow.z);
     // Shoulder offset (to the right), shortened if a wall is right there.
     this.right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     let shoulder = c.camShoulder;

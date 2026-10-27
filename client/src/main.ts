@@ -86,7 +86,7 @@ async function start(): Promise<void> {
 
   // Combat (dummies, loot, HUD) registers the combat-range viewpoint, so it runs before the camera locks.
   const { mountCombat } = await import('./combat');
-  const combat = mountCombat({ world, player, camera, dom: container, extraLoot });
+  const combat = await mountCombat({ world, player, camera, dom: container, extraLoot });
   const { mountZone } = await import('./zone');
   const zone = mountZone({
     world,

@@ -15,7 +15,7 @@ let names = args.filter((a) => !a.startsWith('--'));
 const outDir = path.resolve(opt.out ?? 'screenshots');
 const [w, h] = (opt.size ?? '1600x900').split('x').map(Number);
 const port = Number(opt.port ?? process.env.SHOT_PORT ?? 5199);
-const CHROME = process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium';
+const CHROME = process.env.CHROME_PATH ?? '/opt/google/chrome/chrome';
 
 fs.mkdirSync(outDir, { recursive: true });
 const server = spawn('npx', ['vite', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {

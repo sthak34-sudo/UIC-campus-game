@@ -31,6 +31,10 @@ export const PLAYER_CONFIG = {
   radius: 0.35,
   /** Total capsule height (feet to top of head). */
   height: 1.75,
+  /** Capsule height while crouched (C). Must stay taller than two radii. */
+  crouchHeight: 1.2,
+  /** Walk speed while crouched. Shift does not sprint in this stance. */
+  crouchSpeed: 1.15,
   /** Small gap Rapier keeps between the capsule and the world. */
   skin: 0.02,
   /** Max stair riser / curb the character steps up automatically. */

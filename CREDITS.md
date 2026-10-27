@@ -6,10 +6,10 @@
 - City of Chicago building footprints (MIT License, © 2013 City of Chicago), used for LiDAR height validation.
 
 ## Art
-- Buildings, furniture, trees, props, the default player, and the practice dummies are procedural meshes written in this repository. No downloaded character file is required to play.
+- Buildings, furniture, trees, props, the fallback player, and the fallback practice dummies are procedural meshes written in this repository. The game still runs if the private animation file is missing.
 
 ## Characters and animation
-- **CC0 and self-made files** may be committed. Add a line here before you commit one. A future CC0 MakeHuman body would live at `client/public/models/characters/player_base.glb`.
+- `client/public/models/characters/player_base.glb` — **CC0 1.0**. Player body made by the project artist with MPFB2 / MakeHuman. 1.75 m, Y-up, facing +Z, mixamorig skeleton (53 bones, including a `root` at the feet), meshes `player_LOD0` through `player_LOD3`, KTX2 textures. This file is committed.
 - **Mixamo animations are allowed for use** while the game is running. Mixamo files, raw or baked into glTF or FBX, are not redistributable and must **never** be committed. Put them in `client/public/models/private/` (gitignored), for example `anims.glb`.
 - **RenderPeople** scans and any other non-redistributable asset follow the same rule: use locally if the license allows, never commit, same private folder.
 - If those private files are missing, the game uses the procedural character above. That is the version in this public repository.

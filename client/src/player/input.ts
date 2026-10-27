@@ -29,6 +29,10 @@ export class InputController {
   private lookY = 0;
   private wheel = 0;
   private dragging = false;
+  /** C toggles this. The capsule only shrinks when there is room to stand back up. */
+  private crouchOn = false;
+  /** Right mouse button, held. */
+  private aimOn = false;
   private readonly off: (() => void)[] = [];
 
   constructor(private readonly dom: HTMLElement, private readonly actions: InputActions) {
@@ -38,7 +42,10 @@ export class InputController {
     };
     on(window, 'keydown', (e) => this.keyDown(e));
     on(window, 'keyup', (e) => this.keys.delete(e.code));
-    on(window, 'blur', () => this.keys.clear());
+    on(window, 'blur', () => {
+      this.keys.clear();
+      this.aimOn = false;
+    });
     on(dom, 'click', () => {
       if (document.pointerLockElement !== dom) {
         try {
@@ -50,12 +57,20 @@ export class InputController {
       }
     });
     on(dom, 'mousedown', (e) => {
+      if (e.button === 2) {
+        if (this.controlsOn) this.aimOn = true;
+        return;
+      }
       if (e.button === 0) {
         this.dragging = true;
         if (this.controlsOn) this.fireQueued = true;
       }
     });
-    on(window, 'mouseup', () => (this.dragging = false));
+    on(dom, 'contextmenu', (e) => e.preventDefault());
+    on(window, 'mouseup', (e) => {
+      this.dragging = false;
+      if (e.button === 2) this.aimOn = false;
+    });
     on(window, 'mousemove', (e) => {
       if (document.pointerLockElement === dom || this.dragging) {
         this.lookX += e.movementX;
@@ -83,7 +98,26 @@ export class InputController {
       this.keys.clear();
       this.fireQueued = false;
       this.jumpQueued = false;
+      this.aimOn = false;
     }
+  }
+
+  get crouching(): boolean {
+    return this.controlsOn && this.crouchOn;
+  }
+
+  get aiming(): boolean {
+    return this.controlsOn && this.aimOn;
+  }
+
+  /** Test hook and the respawn path. */
+  setCrouch(on: boolean): void {
+    this.crouchOn = on;
+  }
+
+  /** Test hook. Gameplay aim follows the right mouse button. */
+  setAiming(on: boolean): void {
+    this.aimOn = on;
   }
 
   /** Drops mouse and jump input accumulated while controls are off. */
@@ -127,6 +161,9 @@ export class InputController {
         break;
       case 'KeyQ':
         this.actions.onUseMedkit();
+        break;
+      case 'KeyC':
+        this.crouchOn = !this.crouchOn;
         break;
     }
   }

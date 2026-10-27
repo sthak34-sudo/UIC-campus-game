@@ -24,6 +24,11 @@ interface KtxSource {
 const ktxSources = new Map<string, KtxSource>();
 const ktxWaiting: string[] = [];
 
+/** The loader the renderer already prepared. Character glTF files reuse it for their KTX2 textures. */
+export function sharedKtx2Loader(): KTX2Loader | null {
+  return ktx2Loader;
+}
+
 /**
  * KTX2 must know the GPU before the first file is parsed. Call this from the renderer
  * before materials ask for textures. Software GL (SwiftShader) advertises compressed
