@@ -37,13 +37,19 @@
  "tris0": 23056,
  "tris1": 332,
  "colliders": {
-  "sel-seo_walls_col": 1300,
-  "sel-seo_floor_col": 208
+  "sel-seo_walls_col": 1312,
+  "sel-seo_floor_col": 208,
+  "sel-seo_roof01_col": 12,
+  "sel-seo_roof02_col": 12,
+  "sel-seo_roof03_col": 12,
+  "sel-seo_roof04_col": 300
  },
  "wall_boxes": 100,
  "door_overlaps_before_clip": 9,
  "door_overlaps_after_clip": 0,
  "wall_gaps": 0,
  "wall_gaps_patched": 0,
- "roof_walkable": false
+ "roof_walkable": true,
+ "roof_planes": 4,
+ "roof_boxes": 28
 }

@@ -19,16 +19,18 @@
  ],
  "lods": {
   "architecture-design-studios_LOD0": {
-   "tris0": 14540,
+   "tris0": 14636,
    "tris1": 264,
    "lod1_distance_m": 120
   }
  },
- "tris0": 14540,
+ "tris0": 14636,
  "tris1": 264,
  "colliders": {
   "architecture-design-studios_walls_col": 1980,
   "architecture-design-studios_floor_col": 660,
+  "architecture-design-studios_roof01_col": 288,
+  "architecture-design-studios_roof02_col": 180,
   "architecture-design-studios_stair01_col": 12,
   "architecture-design-studios_stair02_col": 12
  },
@@ -37,5 +39,7 @@
  "door_overlaps_after_clip": 0,
  "wall_gaps": 0,
  "wall_gaps_patched": 0,
- "roof_walkable": false
+ "roof_walkable": true,
+ "roof_planes": 2,
+ "roof_boxes": 39
 }

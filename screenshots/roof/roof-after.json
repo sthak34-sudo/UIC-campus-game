@@ -1,0 +1,1852 @@
+{
+ "falls": [
+  {
+   "x": -12.618862068072279,
+   "z": -5.057215449437749,
+   "top": 17.7,
+   "y": 13.5,
+   "name": "library-exterior:roof"
+  },
+  {
+   "x": -12.618862068072279,
+   "z": 34.94278455056225,
+   "top": 17.7,
+   "y": 13.5,
+   "name": "library-exterior:roof"
+  },
+  {
+   "x": -12.618862068072279,
+   "z": 74.94278455056225,
+   "top": 17.7,
+   "y": 13.5,
+   "name": "library-exterior:roof"
+  }
+ ],
+ "slides": [],
+ "jitter": {
+  "range": 0
+ },
+ "stuck": [
+  {
+   "x": -172.8,
+   "y": 0.15,
+   "z": 74.9,
+   "yaw": 1,
+   "moved": 0.06,
+   "wallLow": "campus-buildings--1,-1",
+   "wallHigh": "campus-buildings--1,-1"
+  },
+  {
+   "x": -172.7,
+   "y": 0.15,
+   "z": 235.3,
+   "yaw": 2,
+   "moved": 0.03,
+   "wallLow": "campus-buildings--1,-1",
+   "wallHigh": "campus-buildings--1,-1"
+  },
+  {
+   "x": -132.6,
+   "y": 0.15,
+   "z": -83.7,
+   "yaw": 2,
+   "moved": 0.7,
+   "wallLow": "campus-buildings--1,0",
+   "wallHigh": "campus-buildings--1,0"
+  },
+  {
+   "x": -132.5,
+   "y": 0.15,
+   "z": -45,
+   "yaw": 3,
+   "moved": 0.04,
+   "wallLow": "campus-buildings--1,0",
+   "wallHigh": "campus-buildings--1,0"
+  },
+  {
+   "x": -93.3,
+   "y": 0.15,
+   "z": 74.9,
+   "yaw": 1,
+   "moved": 0.05,
+   "wallLow": "campus-buildings--1,-1",
+   "wallHigh": "campus-buildings--1,-1"
+  },
+  {
+   "x": -92.9,
+   "y": 0.15,
+   "z": 75.1,
+   "yaw": 2,
+   "moved": 0.19,
+   "wallLow": "campus-buildings--1,-1",
+   "wallHigh": "campus-buildings--1,-1"
+  },
+  {
+   "x": -12.6,
+   "y": 13.5,
+   "z": 73.9,
+   "yaw": 0,
+   "moved": 0.43,
+   "wallLow": null,
+   "wallHigh": null
+  },
+  {
+   "x": 27.4,
+   "y": 0.15,
+   "z": 154.4,
+   "yaw": 0,
+   "moved": 0.04,
+   "wallLow": "sel-seo_LOD1",
+   "wallHigh": "sel-seo_LOD1"
+  },
+  {
+   "x": 107.4,
+   "y": 0.15,
+   "z": 74.8,
+   "yaw": 0,
+   "moved": 0.04,
+   "wallLow": "quad-lecture-centers_LOD0_1",
+   "wallHigh": null
+  },
+  {
+   "x": 147.3,
+   "y": 0.15,
+   "z": 35.7,
+   "yaw": 2,
+   "moved": 0.17,
+   "wallLow": "quad-lecture-centers_LOD0_1",
+   "wallHigh": null
+  },
+  {
+   "x": 147.4,
+   "y": 17.17,
+   "z": 233.9,
+   "yaw": 0,
+   "moved": 0.46,
+   "wallLow": "campus-buildings-0,-1",
+   "wallHigh": "campus-buildings-0,-1"
+  },
+  {
+   "x": 187.3,
+   "y": 0.15,
+   "z": 155,
+   "yaw": 2,
+   "moved": 0.05,
+   "wallLow": "sel-seo_LOD1",
+   "wallHigh": "sel-seo_LOD1"
+  }
+ ],
+ "bullets": [
+  {
+   "o": [
+    -172.6,
+    19.3,
+    -165.1
+   ],
+   "dir": 2,
+   "mesh": 119.78,
+   "phys": null,
+   "name": "university-hall_LOD1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -172.6,
+    12.3,
+    -45.1
+   ],
+   "dir": 1,
+   "mesh": 110.45,
+   "phys": null,
+   "name": "campus-trees-linden-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -172.6,
+    12.3,
+    -45.1
+   ],
+   "dir": 2,
+   "mesh": 20.64,
+   "phys": null,
+   "name": "campus-trees-maple-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -172.6,
+    12.3,
+    -45.1
+   ],
+   "dir": 3,
+   "mesh": 20.52,
+   "phys": null,
+   "name": "campus-trees-linden-0-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -172.6,
+    12.3,
+    -45.1
+   ],
+   "dir": 4,
+   "mesh": 57.91,
+   "phys": 97.74,
+   "name": "campus-trees-linden-0-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -172.6,
+    12.3,
+    -45.1
+   ],
+   "dir": 5,
+   "mesh": 74.17,
+   "phys": null,
+   "name": "campus-trees-oak-0-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -172.6,
+    9.8,
+    114.9
+   ],
+   "dir": 1,
+   "mesh": 48.74,
+   "phys": 55.34,
+   "name": "campus-trees-honeylocust-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -172.6,
+    9.8,
+    114.9
+   ],
+   "dir": 2,
+   "mesh": 27.98,
+   "phys": 37.59,
+   "name": "campus-trees-maple-0-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -172.6,
+    9.8,
+    114.9
+   ],
+   "dir": 6,
+   "mesh": 45.56,
+   "phys": 65.01,
+   "name": "campus-trees-honeylocust-0-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -172.6,
+    14.8,
+    154.9
+   ],
+   "dir": 2,
+   "mesh": 35.09,
+   "phys": null,
+   "name": "campus-trees-honeylocust-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -172.6,
+    14.8,
+    154.9
+   ],
+   "dir": 5,
+   "mesh": 69.32,
+   "phys": null,
+   "name": "campus-trees-maple-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -132.6,
+    11.2,
+    -165.1
+   ],
+   "dir": 0,
+   "mesh": 32.7,
+   "phys": null,
+   "name": "campus-trees-honeylocust-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -132.6,
+    11.2,
+    -165.1
+   ],
+   "dir": 7,
+   "mesh": 50.74,
+   "phys": null,
+   "name": "campus-trees-oak-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -132.6,
+    13.3,
+    114.9
+   ],
+   "dir": 2,
+   "mesh": 62.68,
+   "phys": null,
+   "name": "campus-trees-maple-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -132.6,
+    13.3,
+    114.9
+   ],
+   "dir": 5,
+   "mesh": 20.6,
+   "phys": null,
+   "name": "campus-trees-honeylocust-0-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -132.6,
+    11.4,
+    154.9
+   ],
+   "dir": 5,
+   "mesh": 0.63,
+   "phys": 83.76,
+   "name": "campus-trees-honeylocust-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -132.6,
+    11.4,
+    154.9
+   ],
+   "dir": 6,
+   "mesh": 0.65,
+   "phys": 24.87,
+   "name": "campus-trees-honeylocust-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -132.6,
+    11.4,
+    154.9
+   ],
+   "dir": 7,
+   "mesh": 24.69,
+   "phys": null,
+   "name": "campus-trees-linden-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -132.6,
+    9.7,
+    194.9
+   ],
+   "dir": 2,
+   "mesh": 92.07,
+   "phys": null,
+   "name": "campus-trees-maple-0-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -132.6,
+    9.7,
+    194.9
+   ],
+   "dir": 3,
+   "mesh": 47.47,
+   "phys": null,
+   "name": "campus-trees-honeylocust-0-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -132.6,
+    9.7,
+    194.9
+   ],
+   "dir": 5,
+   "mesh": 0.73,
+   "phys": 30.78,
+   "name": "campus-trees-linden-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -132.6,
+    9.7,
+    194.9
+   ],
+   "dir": 6,
+   "mesh": 0.65,
+   "phys": null,
+   "name": "campus-trees-linden-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -132.6,
+    13.2,
+    234.9
+   ],
+   "dir": 0,
+   "mesh": 108.79,
+   "phys": null,
+   "name": "campus-trees-maple-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -92.6,
+    1.5,
+    -165.1
+   ],
+   "dir": 2,
+   "mesh": 40.38,
+   "phys": 43.12,
+   "name": "university-hall_LOD1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -92.6,
+    5.5,
+    -45.1
+   ],
+   "dir": 0,
+   "mesh": 79.29,
+   "phys": null,
+   "name": "campus-trees-linden-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -92.6,
+    5.5,
+    -45.1
+   ],
+   "dir": 1,
+   "mesh": 46.72,
+   "phys": 103.84,
+   "name": "campus-trees-honeylocust-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -92.6,
+    5.5,
+    -45.1
+   ],
+   "dir": 2,
+   "mesh": 118.79,
+   "phys": null,
+   "name": "campus-trees-maple-1-cards",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -92.6,
+    10.4,
+    194.9
+   ],
+   "dir": 1,
+   "mesh": 10.76,
+   "phys": null,
+   "name": "campus-trees-linden-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -92.6,
+    10.4,
+    194.9
+   ],
+   "dir": 2,
+   "mesh": 53.42,
+   "phys": null,
+   "name": "campus-trees-maple-0-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -92.6,
+    10.4,
+    194.9
+   ],
+   "dir": 3,
+   "mesh": 35.01,
+   "phys": null,
+   "name": "campus-trees-oak-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -92.6,
+    10.4,
+    194.9
+   ],
+   "dir": 4,
+   "mesh": 32.66,
+   "phys": null,
+   "name": "campus-trees-oak-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -92.6,
+    10.4,
+    194.9
+   ],
+   "dir": 6,
+   "mesh": 40.84,
+   "phys": null,
+   "name": "campus-trees-linden-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -92.6,
+    4.9,
+    234.9
+   ],
+   "dir": 0,
+   "mesh": 99.28,
+   "phys": null,
+   "name": "campus-trees-maple-0-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -12.6,
+    1.5,
+    -165.1
+   ],
+   "dir": 5,
+   "mesh": 25.72,
+   "phys": 29.67,
+   "name": "university-hall_LOD1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -12.6,
+    1.5,
+    -165.1
+   ],
+   "dir": 6,
+   "mesh": 17.9,
+   "phys": 20.65,
+   "name": "university-hall_LOD1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    -12.6,
+    1.5,
+    -125.1
+   ],
+   "dir": 5,
+   "mesh": 31.87,
+   "phys": 39.27,
+   "name": "university-hall_LOD1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    27.4,
+    1.5,
+    -165.1
+   ],
+   "dir": 2,
+   "mesh": 92.19,
+   "phys": 107.35,
+   "name": "architecture-design-studios_LOD1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    27.4,
+    1.5,
+    -165.1
+   ],
+   "dir": 6,
+   "mesh": 57.9,
+   "phys": 60.65,
+   "name": "university-hall_LOD1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    27.4,
+    1.5,
+    -85.1
+   ],
+   "dir": 5,
+   "mesh": 88.44,
+   "phys": 95.84,
+   "name": "university-hall_LOD1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    27.4,
+    1.6,
+    -5.1
+   ],
+   "dir": 3,
+   "mesh": 81.35,
+   "phys": 95.19,
+   "name": "grant-hall_LOD1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    67.4,
+    1.5,
+    -165.1
+   ],
+   "dir": 0,
+   "mesh": 109.14,
+   "phys": null,
+   "name": "campus-trees-linden-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    67.4,
+    1.5,
+    -165.1
+   ],
+   "dir": 2,
+   "mesh": 52.19,
+   "phys": 67.35,
+   "name": "architecture-design-studios_LOD1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    67.4,
+    1.5,
+    -165.1
+   ],
+   "dir": 6,
+   "mesh": 97.9,
+   "phys": 100.65,
+   "name": "university-hall_LOD1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    67.4,
+    1.5,
+    -125.1
+   ],
+   "dir": 0,
+   "mesh": 69.14,
+   "phys": 104.77,
+   "name": "campus-trees-linden-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    67.4,
+    1.5,
+    -45.1
+   ],
+   "dir": 3,
+   "mesh": 24.78,
+   "phys": 38.62,
+   "name": "grant-hall_LOD1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    67.4,
+    1.5,
+    -45.1
+   ],
+   "dir": 4,
+   "mesh": 10.18,
+   "phys": null,
+   "name": "campus-trees-linden-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    67.4,
+    11.5,
+    -5.1
+   ],
+   "dir": 0,
+   "mesh": 85.8,
+   "phys": null,
+   "name": "campus-trees-oak-1-cards",
+   "isCollider": false
+  },
+  {
+   "o": [
+    67.4,
+    11.5,
+    -5.1
+   ],
+   "dir": 4,
+   "mesh": 113.06,
+   "phys": null,
+   "name": "campus-trees-linden-0-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    67.4,
+    11.2,
+    74.9
+   ],
+   "dir": 0,
+   "mesh": 5.78,
+   "phys": 93.63,
+   "name": "campus-trees-oak-1-cards",
+   "isCollider": false
+  },
+  {
+   "o": [
+    67.4,
+    11.2,
+    74.9
+   ],
+   "dir": 1,
+   "mesh": 113.91,
+   "phys": null,
+   "name": "campus-trees-maple-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    67.4,
+    11.2,
+    74.9
+   ],
+   "dir": 4,
+   "mesh": 43.63,
+   "phys": null,
+   "name": "quad-lecture-centers_LOD0_1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    67.4,
+    11.2,
+    74.9
+   ],
+   "dir": 6,
+   "mesh": 39.41,
+   "phys": 46.12,
+   "name": "campus-trees-honeylocust-1-core",
+   "isCollider": false
+  },
+  {
+   "o": [
+    67.4,
+    11.2,
+    74.9
+   ],
+   "dir": 7,
+   "mesh": 62.83,
+   "phys": 92.57,
+   "name": "campus-trees-maple-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    107.4,
+    12.8,
+    -85.1
+   ],
+   "dir": 5,
+   "mesh": 61.23,
+   "phys": null,
+   "name": "campus-trees-oak-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    107.4,
+    13,
+    -45.1
+   ],
+   "dir": 3,
+   "mesh": 39.48,
+   "phys": null,
+   "name": "campus-trees-honeylocust-0-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    107.4,
+    9.9,
+    -5.1
+   ],
+   "dir": 3,
+   "mesh": 73.39,
+   "phys": null,
+   "name": "campus-trees-oak-0-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    107.4,
+    1.5,
+    74.9
+   ],
+   "dir": 6,
+   "mesh": 12.31,
+   "phys": 20.14,
+   "name": "quad-lecture-centers_LOD0_1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    147.4,
+    1.5,
+    -45.1
+   ],
+   "dir": 1,
+   "mesh": 54.67,
+   "phys": null,
+   "name": "student-center-east_LOD1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    147.4,
+    11.4,
+    -5.1
+   ],
+   "dir": 4,
+   "mesh": 63.16,
+   "phys": 112.3,
+   "name": "campus-trees-oak-0-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    147.4,
+    11.2,
+    74.9
+   ],
+   "dir": 0,
+   "mesh": 81.45,
+   "phys": null,
+   "name": "campus-trees-maple-1-far",
+   "isCollider": false
+  },
+  {
+   "o": [
+    147.4,
+    11.2,
+    74.9
+   ],
+   "dir": 6,
+   "mesh": 119.27,
+   "phys": null,
+   "name": "campus-trees-honeylocust-1-core",
+   "isCollider": false
+  },
+  {
+   "o": [
+    147.4,
+    1.6,
+    114.9
+   ],
+   "dir": 3,
+   "mesh": 56.75,
+   "phys": null,
+   "name": "student-center-east_LOD1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    187.4,
+    1.5,
+    74.9
+   ],
+   "dir": 2,
+   "mesh": 0.13,
+   "phys": 50.84,
+   "name": "student-center-east_LOD1",
+   "isCollider": false
+  },
+  {
+   "o": [
+    187.4,
+    1.5,
+    74.9
+   ],
+   "dir": 3,
+   "mesh": 0.18,
+   "phys": 70.63,
+   "name": "student-center-east_LOD1",
+   "isCollider": false
+  }
+ ],
+ "ghost": [
+  {
+   "x": -172.61886206807227,
+   "z": 114.94278455056225,
+   "meshTop": 8.57,
+   "physTop": 0.15,
+   "name": "campus-buildings--1,-1"
+  },
+  {
+   "o": [
+    -132.6,
+    1.5,
+    -85.1
+   ],
+   "dir": 3,
+   "mesh": 113.67,
+   "phys": 103.55,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -132.6,
+    1.5,
+    -85.1
+   ],
+   "dir": 5,
+   "mesh": 68.84,
+   "phys": 56.08,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -92.6,
+    1.5,
+    -165.1
+   ],
+   "dir": 1,
+   "mesh": 101.22,
+   "phys": 45.94,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -92.6,
+    1.5,
+    -125.1
+   ],
+   "dir": 1,
+   "mesh": null,
+   "phys": 28.78,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -92.6,
+    1.5,
+    -125.1
+   ],
+   "dir": 3,
+   "mesh": 57.1,
+   "phys": 46.98,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -92.6,
+    1.5,
+    -85.1
+   ],
+   "dir": 1,
+   "mesh": 102.26,
+   "phys": 89.57,
+   "kind": "invisible-wall"
+  },
+  {
+   "x": -52.618862068072275,
+   "z": -165.05721544943776,
+   "meshTop": 103.58,
+   "physTop": 0.2,
+   "name": "university-hall_LOD1"
+  },
+  {
+   "o": [
+    -52.6,
+    1.5,
+    -125.1
+   ],
+   "dir": 5,
+   "mesh": null,
+   "phys": 10.21,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -52.6,
+    1.5,
+    -85.1
+   ],
+   "dir": 1,
+   "mesh": 77.83,
+   "phys": 39.76,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -52.6,
+    1.5,
+    -85.1
+   ],
+   "dir": 5,
+   "mesh": 111.25,
+   "phys": 27.59,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -52.6,
+    1.4,
+    -45.1
+   ],
+   "dir": 1,
+   "mesh": 45.69,
+   "phys": 33,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -52.6,
+    1.4,
+    34.9
+   ],
+   "dir": 1,
+   "mesh": 48.54,
+   "phys": 34.41,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -52.6,
+    1.4,
+    34.9
+   ],
+   "dir": 7,
+   "mesh": 57.34,
+   "phys": 29.52,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -52.6,
+    1.4,
+    74.9
+   ],
+   "dir": 1,
+   "mesh": 92.28,
+   "phys": 11.78,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -12.6,
+    1.5,
+    -165.1
+   ],
+   "dir": 1,
+   "mesh": null,
+   "phys": 7.64,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -12.6,
+    1.5,
+    -165.1
+   ],
+   "dir": 4,
+   "mesh": 32.57,
+   "phys": 20.22,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -12.6,
+    1.5,
+    -125.1
+   ],
+   "dir": 4,
+   "mesh": 72.57,
+   "phys": 60.22,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -12.6,
+    1.5,
+    -85.1
+   ],
+   "dir": 2,
+   "mesh": 119.54,
+   "phys": 107.13,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -12.6,
+    1.5,
+    -85.1
+   ],
+   "dir": 4,
+   "mesh": 112.57,
+   "phys": 100.22,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -12.6,
+    1.4,
+    -45.1
+   ],
+   "dir": 5,
+   "mesh": null,
+   "phys": 16.42,
+   "kind": "invisible-wall"
+  },
+  {
+   "x": -12.618862068072279,
+   "z": -5.057215449437749,
+   "meshTop": 17.7,
+   "physTop": 13.5,
+   "name": "library-exterior:roof"
+  },
+  {
+   "x": -12.618862068072279,
+   "z": 34.94278455056225,
+   "meshTop": 17.7,
+   "physTop": 13.5,
+   "name": "library-exterior:roof"
+  },
+  {
+   "o": [
+    -12.6,
+    14.9,
+    34.9
+   ],
+   "dir": 2,
+   "mesh": null,
+   "phys": 32.23,
+   "kind": "invisible-wall"
+  },
+  {
+   "x": -12.618862068072279,
+   "z": 74.94278455056225,
+   "meshTop": 17.7,
+   "physTop": 13.5,
+   "name": "library-exterior:roof"
+  },
+  {
+   "o": [
+    -12.6,
+    1.5,
+    114.9
+   ],
+   "dir": 5,
+   "mesh": 87.67,
+   "phys": 44.77,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    -12.6,
+    1.5,
+    194.9
+   ],
+   "dir": 0,
+   "mesh": null,
+   "phys": 45.93,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    27.4,
+    1.5,
+    -165.1
+   ],
+   "dir": 1,
+   "mesh": 112.48,
+   "phys": 33,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    27.4,
+    1.5,
+    -125.1
+   ],
+   "dir": 5,
+   "mesh": 82.29,
+   "phys": 48.59,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    27.4,
+    1.5,
+    -85.1
+   ],
+   "dir": 2,
+   "mesh": 79.54,
+   "phys": 67.13,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    27.4,
+    1.5,
+    -85.1
+   ],
+   "dir": 3,
+   "mesh": null,
+   "phys": 114.86,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    27.4,
+    1.6,
+    -5.1
+   ],
+   "dir": 1,
+   "mesh": 44.56,
+   "phys": 14.05,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    27.4,
+    1.6,
+    -5.1
+   ],
+   "dir": 2,
+   "mesh": null,
+   "phys": 9.75,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    27.4,
+    1.6,
+    -5.1
+   ],
+   "dir": 6,
+   "mesh": 46.94,
+   "phys": 8.42,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    27.4,
+    1.6,
+    -5.1
+   ],
+   "dir": 7,
+   "mesh": 31.99,
+   "phys": 11.65,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    27.4,
+    1.6,
+    34.9
+   ],
+   "dir": 1,
+   "mesh": 84.2,
+   "phys": 15.61,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    27.4,
+    1.6,
+    34.9
+   ],
+   "dir": 3,
+   "mesh": 109.64,
+   "phys": 14.57,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    27.4,
+    1.6,
+    34.9
+   ],
+   "dir": 7,
+   "mesh": 64.12,
+   "phys": 10.44,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    27.4,
+    1.5,
+    114.9
+   ],
+   "dir": 3,
+   "mesh": null,
+   "phys": 53.75,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    27.4,
+    1.5,
+    194.9
+   ],
+   "dir": 0,
+   "mesh": null,
+   "phys": 112.33,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    27.4,
+    1.5,
+    234.9
+   ],
+   "dir": 0,
+   "mesh": 85.03,
+   "phys": 72.33,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    67.4,
+    1.5,
+    -125.1
+   ],
+   "dir": 3,
+   "mesh": 100.28,
+   "phys": 58.29,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    67.4,
+    1.5,
+    -125.1
+   ],
+   "dir": 5,
+   "mesh": 102.17,
+   "phys": 23.56,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    67.4,
+    1.5,
+    -45.1
+   ],
+   "dir": 1,
+   "mesh": 106.08,
+   "phys": 23.33,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    67.4,
+    1.5,
+    -45.1
+   ],
+   "dir": 7,
+   "mesh": 88.56,
+   "phys": 68.22,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    67.4,
+    1.6,
+    34.9
+   ],
+   "dir": 1,
+   "mesh": 50.48,
+   "phys": 3.64,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    67.4,
+    1.6,
+    34.9
+   ],
+   "dir": 3,
+   "mesh": null,
+   "phys": 5.23,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    67.4,
+    1.6,
+    34.9
+   ],
+   "dir": 4,
+   "mesh": 55,
+   "phys": 3.63,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    67.4,
+    1.6,
+    34.9
+   ],
+   "dir": 5,
+   "mesh": 11.79,
+   "phys": 5.05,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    67.4,
+    1.6,
+    34.9
+   ],
+   "dir": 7,
+   "mesh": 85.6,
+   "phys": 39.67,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    67.4,
+    1.5,
+    114.9
+   ],
+   "dir": 5,
+   "mesh": 90.94,
+   "phys": 12.24,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    67.4,
+    1.5,
+    194.9
+   ],
+   "dir": 0,
+   "mesh": 47.98,
+   "phys": 45.67,
+   "kind": "invisible-wall"
+  },
+  {
+   "x": 107.38113793192773,
+   "z": -45.05721544943775,
+   "meshTop": 0.15,
+   "physTop": 11.63,
+   "name": "campus-ground"
+  },
+  {
+   "o": [
+    107.4,
+    1.5,
+    34.9
+   ],
+   "dir": 0,
+   "mesh": 46.19,
+   "phys": 25.41,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    107.4,
+    1.5,
+    34.9
+   ],
+   "dir": 1,
+   "mesh": null,
+   "phys": 31.94,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    107.4,
+    1.5,
+    34.9
+   ],
+   "dir": 3,
+   "mesh": null,
+   "phys": 30.77,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    107.4,
+    1.5,
+    34.9
+   ],
+   "dir": 4,
+   "mesh": 68.27,
+   "phys": 27.44,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    107.4,
+    1.5,
+    34.9
+   ],
+   "dir": 5,
+   "mesh": 60.62,
+   "phys": 42.53,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    107.4,
+    1.5,
+    34.9
+   ],
+   "dir": 7,
+   "mesh": null,
+   "phys": 40.98,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    107.4,
+    1.5,
+    74.9
+   ],
+   "dir": 2,
+   "mesh": 42.36,
+   "phys": 22.91,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    107.4,
+    1.5,
+    74.9
+   ],
+   "dir": 4,
+   "mesh": 108.27,
+   "phys": 0.53,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    107.4,
+    1.5,
+    74.9
+   ],
+   "dir": 5,
+   "mesh": 5.73,
+   "phys": 0.74,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    147.4,
+    1.5,
+    -45.1
+   ],
+   "dir": 0,
+   "mesh": null,
+   "phys": 81.15,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    147.4,
+    1.5,
+    -45.1
+   ],
+   "dir": 3,
+   "mesh": 82.97,
+   "phys": 27.18,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    147.4,
+    1.5,
+    -45.1
+   ],
+   "dir": 7,
+   "mesh": null,
+   "phys": 54.46,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    147.4,
+    1.5,
+    34.9
+   ],
+   "dir": 0,
+   "mesh": 99.21,
+   "phys": 1.15,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    147.4,
+    1.5,
+    34.9
+   ],
+   "dir": 1,
+   "mesh": 56.75,
+   "phys": 1.59,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    147.4,
+    1.5,
+    34.9
+   ],
+   "dir": 3,
+   "mesh": 42.15,
+   "phys": 7.37,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    147.4,
+    1.5,
+    34.9
+   ],
+   "dir": 7,
+   "mesh": 35.54,
+   "phys": 1.65,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    147.4,
+    1.6,
+    114.9
+   ],
+   "dir": 1,
+   "mesh": 57.09,
+   "phys": 37.24,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    147.4,
+    1.6,
+    114.9
+   ],
+   "dir": 4,
+   "mesh": null,
+   "phys": 39.68,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    187.4,
+    1.5,
+    -165.1
+   ],
+   "dir": 7,
+   "mesh": 39.1,
+   "phys": 12.31,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    187.4,
+    1.6,
+    -125.1
+   ],
+   "dir": 3,
+   "mesh": 63.35,
+   "phys": 21.52,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    187.4,
+    1.5,
+    -85.1
+   ],
+   "dir": 7,
+   "mesh": null,
+   "phys": 29.21,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    187.4,
+    1.5,
+    -45.1
+   ],
+   "dir": 7,
+   "mesh": null,
+   "phys": 49.82,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    187.4,
+    1.5,
+    74.9
+   ],
+   "dir": 4,
+   "mesh": 7.62,
+   "phys": 5.73,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    187.4,
+    1.5,
+    74.9
+   ],
+   "dir": 5,
+   "mesh": 63.19,
+   "phys": 24.8,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    187.4,
+    1.5,
+    114.9
+   ],
+   "dir": 4,
+   "mesh": 47.62,
+   "phys": 45.73,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    187.4,
+    1.5,
+    114.9
+   ],
+   "dir": 5,
+   "mesh": null,
+   "phys": 42.99,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    187.4,
+    1.5,
+    154.9
+   ],
+   "dir": 4,
+   "mesh": 87.62,
+   "phys": 85.73,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    187.4,
+    1.5,
+    154.9
+   ],
+   "dir": 5,
+   "mesh": 89.93,
+   "phys": 19.31,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    227.4,
+    1.6,
+    -165.1
+   ],
+   "dir": 1,
+   "mesh": 13.63,
+   "phys": 7.54,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    227.4,
+    1.6,
+    -165.1
+   ],
+   "dir": 7,
+   "mesh": 95.92,
+   "phys": 34.87,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    227.4,
+    1.5,
+    114.9
+   ],
+   "dir": 0,
+   "mesh": 39.53,
+   "phys": 6.69,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    227.4,
+    1.5,
+    114.9
+   ],
+   "dir": 1,
+   "mesh": null,
+   "phys": 55.62,
+   "kind": "invisible-wall"
+  },
+  {
+   "o": [
+    227.4,
+    1.5,
+    114.9
+   ],
+   "dir": 2,
+   "mesh": 88.51,
+   "phys": 86.01,
+   "kind": "invisible-wall"
+  }
+ ],
+ "points": 121,
+ "stats": {
+  "stepMs": 0.16975670928953612,
+  "stepMsMax": 0.5,
+  "buildMs": 445.5,
+  "lastBuildMs": 445.5,
+  "meshes": 2451,
+  "instances": 0,
+  "cuboids": 1151,
+  "trimeshes": 810,
+  "triangles": 383778,
+  "fps": 12,
+  "fallbackGround": false
+ },
+ "spawn": {
+  "x": 27.38113793192772,
+  "y": 0.19988945864140992,
+  "z": 34.94278455056225
+ }
+}

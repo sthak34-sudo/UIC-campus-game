@@ -38,12 +38,18 @@
  "tris1": 1100,
  "colliders": {
   "behavioral-sciences_walls_col": 3656,
-  "behavioral-sciences_floor_col": 848
+  "behavioral-sciences_floor_col": 848,
+  "behavioral-sciences_roof01_col": 336,
+  "behavioral-sciences_roof02_col": 240,
+  "behavioral-sciences_roof03_col": 132,
+  "behavioral-sciences_roof04_col": 144
  },
  "wall_boxes": 242,
  "door_overlaps_before_clip": 10,
  "door_overlaps_after_clip": 0,
  "wall_gaps": 0,
  "wall_gaps_patched": 0,
- "roof_walkable": false
+ "roof_walkable": true,
+ "roof_planes": 4,
+ "roof_boxes": 71
 }

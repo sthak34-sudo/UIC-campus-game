@@ -15,15 +15,16 @@
  "lods": {
   "university-hall_LOD0": {
    "tris0": 40168,
-   "tris1": 44,
+   "tris1": 678,
    "lod1_distance_m": 120
   }
  },
  "tris0": 40168,
- "tris1": 44,
+ "tris1": 678,
  "colliders": {
   "university-hall_walls_col": 476,
   "university-hall_floor_col": 108,
+  "university-hall_roof01_col": 12,
   "university-hall_stair01_col": 12
  },
  "wall_boxes": 36,
@@ -31,5 +32,7 @@
  "door_overlaps_after_clip": 0,
  "wall_gaps": 0,
  "wall_gaps_patched": 0,
- "roof_walkable": false
+ "roof_walkable": true,
+ "roof_planes": 1,
+ "roof_boxes": 1
 }
