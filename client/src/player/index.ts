@@ -93,6 +93,8 @@ export interface PlayerTestApi {
   getAvatar(): { kind: 'gltf' | 'procedural'; lod: number; missingTracks: number; crouched: boolean; aiming: boolean; dead: boolean };
   setCrouch(on: boolean): void;
   setAiming(on: boolean): void;
+  /** Plays the fire clip and the rifle's muzzle flash without shooting (screenshots). */
+  playFire(): void;
   /** Trigger a hit reaction (screenshot / debug). */
   flinch(hitDir?: { x: number; y: number; z: number }): void;
   /** Physics ray (what bullets use): distance to the first collider, or null. Playtest only. */
@@ -373,6 +375,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     }),
     setCrouch: (on) => input.setCrouch(on),
     setAiming: (on) => input.setAiming(on),
+    playFire: () => model.playFire(),
     flinch: (hitDir) => player.flinch(hitDir),
     physicsRay: (o, d, max) => {
       const v = new THREE.Vector3(...d).normalize();
