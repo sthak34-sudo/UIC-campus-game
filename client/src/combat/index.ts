@@ -58,6 +58,8 @@ export function mountCombat(opts: {
   player: Player | null;
   camera: THREE.PerspectiveCamera;
   dom: HTMLElement;
+  /** Extra loot crates (building glb markers). Appended after the practice-range spots. */
+  extraLoot?: import('./range').LootSpot[];
 }): CombatMount {
   const yaw = opts.world.spawnYaw ?? 0;
   const spawn = { x: opts.world.spawn.x, y: opts.world.spawn.y, z: opts.world.spawn.z };
@@ -66,7 +68,10 @@ export function mountCombat(opts: {
 
   const physics: RAPIER.World | null = opts.player ? opts.player.rapier.world : null;
   const dummies = new PracticeDummies(opts.world.scene, layout.dummies, faceYaw, physics);
-  const loot = new LootField(opts.world.scene, layout.loot);
+  const allLoot = opts.extraLoot?.length
+    ? [...layout.loot, ...opts.extraLoot]
+    : layout.loot;
+  const loot = new LootField(opts.world.scene, allLoot);
   if (physics) physics.step();
 
   opts.world.addViewpoint('combat-range', {
