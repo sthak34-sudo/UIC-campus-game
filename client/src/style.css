@@ -1,7 +1,25 @@
 html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: system-ui, sans-serif; }
 #app { position: fixed; inset: 0; }
 #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 2px #000; }
-#loading { position: absolute; top: 50%; width: 100%; text-align: center; font-size: 20px; }
+#loading {
+  position: absolute; top: 42%; width: 100%; text-align: center; font-size: 18px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+#loading-stage { font-size: 20px; font-weight: 600; }
+#loading-hint { font-size: 13px; opacity: 0.75; max-width: 420px; padding: 0 16px; }
+#loading-bar {
+  width: min(280px, 70vw); height: 6px; border-radius: 4px;
+  background: rgba(255,255,255,0.18); overflow: hidden;
+}
+#loading-bar-fill {
+  height: 100%; width: 2%; background: #6ec1ff; border-radius: 4px;
+  transition: width 0.2s ease-out;
+}
+#loading.loading-error { pointer-events: auto; }
+#loading-retry {
+  pointer-events: auto; margin-top: 4px; padding: 8px 16px; font-size: 14px;
+  border: 0; border-radius: 6px; background: #6ec1ff; color: #041018; cursor: pointer;
+}
 #help { position: absolute; top: 10px; left: 12px; font-size: 13px; opacity: 0.85; }
 #credits { position: absolute; bottom: 6px; right: 10px; font-size: 11px; opacity: 0.8; pointer-events: auto; }
 #credits a { color: #cde; }

@@ -227,9 +227,11 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
   band.position.y = bandH / 2 - 0.01;
   envScene.add(band);
   const pmrem = new THREE.PMREMGenerator(renderer);
-  // Generic lit-room environment used indoors (reflections in screens/floors show a room, not the sky).
-  // Its average radiance is ~1, so environmentIntensity = metered scene luminance keeps it consistent.
-  const roomEnv = pmrem.fromScene(makeRoomEnvScene(), 0, 0.1, 100, { size: 128 }).texture;
+  // Generic lit-room environment used indoors. Skip the PMREM bake on low quality — fromScene
+  // triggers ReadPixels GPU stalls that freeze weak / software GPUs during first load.
+  const roomEnv = q.post
+    ? pmrem.fromScene(makeRoomEnvScene(), 0, 0.1, 100, { size: 128 }).texture
+    : null;
   let envRT: THREE.WebGLRenderTarget | null = null;
   let skyEnv: THREE.Texture | null = null;
 
@@ -238,8 +240,11 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
   let lighting: Lighting = computeLighting([0, 1, 0]);
   let hourLocked = -1;
 
-  // Photographed sky (default). Procedural mode keeps the moving Preetham sun.
-  const skyMode = parseSky(location.search);
+  // Photographed sky (default). Low quality forces procedural unless the URL asks for a photo,
+  // because HDRI → PMREM fromEquirectangular also ReadPixels-stalls weak GPUs.
+  const skyParam = new URLSearchParams(location.search).get('sky');
+  const skyMode =
+    !q.post && skyParam == null ? 'procedural' : parseSky(location.search);
   let activePreset: HdriPreset | null = skyMode === 'procedural' ? null : HDRI_PRESETS[skyMode];
   let hdriReady = activePreset === null;
   let hdriSun: THREE.Vector3 | null = null;
@@ -278,6 +283,11 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
     const h = lighting.horizonColor;
     const facade = (0.3 * (0.55 * lighting.totalHorizontal + 0.12 * lighting.sunIntensity)) / Math.PI / 0.45;
     bandMat.color.setRGB(facade * 0.75 + h[0] * 0.25, facade * 0.75 + h[1] * 0.25, facade * 0.75 + h[2] * 0.25);
+    // Low quality skips PMREM — fromScene ReadPixels-stalls software GL for seconds.
+    if (!q.post) {
+      skyEnv = null;
+      return;
+    }
     const old = envRT;
     envRT = pmrem.fromScene(envScene, 0, 0.1, 100, { size: q.envSize });
     skyEnv = envRT.texture;
@@ -390,7 +400,7 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
       }
     }
     if (insideAmt > 0.5 && indoors) {
-      scene.environment = roomEnv;
+      scene.environment = roomEnv ?? skyEnv;
       scene.environmentIntensity = roomFill;
       fill.intensity = 0;
     } else {
@@ -401,7 +411,14 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
     const inExp = interiorExp ?? inBase;
     grade.exposure = outdoorExp + (inExp - outdoorExp) * insideAmt;
     grade.bloom = DEFAULT_GRADE.bloom * (1 - 0.4 * insideAmt);
-    if (post) post.meterNext = indoors && (!isReady || frameNo % 6 === 0);
+    // ReadPixels metering stalls the GPU (esp. SwiftShader / weak iGPUs). Gate hard.
+    if (post && q.allowMetering) {
+      post.meterNext = indoors && (!isReady || frameNo % 30 === 0);
+    } else if (post) {
+      post.meterNext = false;
+      // Without metering, treat interiors as settled after a few frames.
+      if (indoors && meterCount === 0) settled = frameNo >= 6;
+    }
     frameNo++;
     grade.aoAmount = DEFAULT_GRADE.aoAmount;
 
@@ -418,8 +435,12 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
       renderer.render(scene, camera);
     }
 
-    const interiorReady = !(insideTarget > 0 || insideAmt > 0) || !q.post || settled;
-    if (pendingTextures() === 0 && hdriReady && interiorReady) {
+    // Cap how long we wait on interior metering / textures so gfx.ready cannot hang forever.
+    const interiorReady =
+      !(insideTarget > 0 || insideAmt > 0) || !q.post || settled || frameNo >= 90;
+    // Low quality: do not block playable on every KTX2 finishing (can take many seconds on soft GL).
+    const texturesOk = pendingTextures() === 0 || (!q.post && frameNo >= 3);
+    if (texturesOk && hdriReady && interiorReady) {
       if (++readyFrames === 3) {
         isReady = true;
         resolveReady();
