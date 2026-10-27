@@ -32,6 +32,8 @@ export class CameraRig {
   private readonly euler = new THREE.Euler(0, 0, 0, 'YXZ');
   /** 0 standing, 1 crouched. Smoothed so the view does not pop. */
   private crouch = 0;
+  /** 0 hip, 1 aiming. Smoothed so the over-the-shoulder pull-in eases. */
+  aimBlend = 0;
   /** Procedural hit reaction: additive look kick that eases out. */
   private kickYaw = 0;
   private kickPitch = 0;
@@ -105,9 +107,11 @@ export class CameraRig {
     return { x: -Math.sin(this.yaw), z: -Math.cos(this.yaw) };
   }
 
-  update(dt: number, feet: THREE.Vector3, crouching = false): void {
+  update(dt: number, feet: THREE.Vector3, crouching = false, aiming = false): void {
     const c = this.cfg;
     this.crouch += ((crouching ? 1 : 0) - this.crouch) * damp(8, dt);
+    this.aimBlend += ((aiming ? 1 : 0) - this.aimBlend) * damp(10, dt);
+    const ab = this.aimBlend;
     if (!this.initialised) this.reset(feet);
     // Follow: tight horizontally, softer vertically so stair steps don't jolt the view.
     const kh = damp(c.camFollowRate, dt);
@@ -127,7 +131,7 @@ export class CameraRig {
 
     const stance = c.crouchHeight / c.height;
     const eye = c.eyeHeight + (c.eyeHeight * stance - c.eyeHeight) * this.crouch;
-    const pivotH = c.camPivotHeight + (c.camPivotHeight * stance - c.camPivotHeight) * this.crouch;
+    const pivotH = c.camPivotHeight + (c.camPivotHeight * stance - c.camPivotHeight) * this.crouch + c.camAimPivotLift * ab;
     if (this.mode === 'first') {
       this.camera.position.set(this.follow.x, this.follow.y + eye, this.follow.z);
       this.arm = 0;
@@ -138,16 +142,18 @@ export class CameraRig {
     this.head.set(this.follow.x, this.follow.y + pivotH, this.follow.z);
     // Shoulder offset (to the right), shortened if a wall is right there.
     this.right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
-    let shoulder = c.camShoulder;
+    let shoulder = c.camShoulder + (c.camAimShoulder - c.camShoulder) * ab;
     const sh = this.collision.sweepSphere(this.head, this.right, shoulder);
     if (sh !== null) shoulder = Math.max(0, sh - 0.03);
     this.pivot.copy(this.head).addScaledVector(this.right, shoulder);
     // Arm direction: behind and above (pitch) the pivot.
     const cp = Math.cos(this.pitch);
     this.dir.set(Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp);
-    const hit = this.collision.sweepSphere(this.pivot, this.dir, this.zoom);
-    if (this.arm <= 0) this.arm = this.zoom;
-    this.arm = springArm(this.zoom, hit, this.arm, dt, { hardMin: c.camHardMin, returnRate: c.camReturnRate });
+    // Aiming pulls the arm in (never pushes it out past the player's zoom).
+    const want = this.zoom + (Math.min(this.zoom, c.camAimDistance) - this.zoom) * ab;
+    const hit = this.collision.sweepSphere(this.pivot, this.dir, want);
+    if (this.arm <= 0) this.arm = want;
+    this.arm = springArm(want, hit, this.arm, dt, { hardMin: c.camHardMin, returnRate: c.camReturnRate });
     this.camera.position.copy(this.pivot).addScaledVector(this.dir, this.arm);
   }
 }

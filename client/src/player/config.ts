@@ -58,6 +58,10 @@ export const PLAYER_CONFIG = {
   camMaxDistance: 7,
   /** Over-the-shoulder offset to the right of the character. */
   camShoulder: 0.55,
+  /** While aiming (third person): wider shoulder offset, shorter arm and a slightly higher pivot (looks over the rifle) so the rifle reads. */
+  camAimShoulder: 0.85,
+  camAimDistance: 1.75,
+  camAimPivotLift: 0.06,
   /** Height of the third-person pivot above the feet. */
   camPivotHeight: 1.55,
   /** Pitch is the camera's angle ABOVE the horizontal (positive = looking down at the player). */

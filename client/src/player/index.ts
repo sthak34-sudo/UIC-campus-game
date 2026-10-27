@@ -234,7 +234,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
   const present = (dt: number) => {
     const alpha = Math.min(1, acc / cfg.fixedDt);
     position.lerpVectors(phys.prevFeet, phys.feet, alpha);
-    rig.update(dt, position, phys.crouching);
+    rig.update(dt, position, phys.crouching, input.aiming && !dead);
     model.root.position.copy(position);
     const aiming = input.aiming && !dead;
     model.setFlags({

@@ -1,5 +1,5 @@
 /**
- * Held rifle: the CC0 Kenney "blaster-f" model on the right-hand bone, both hands placed by two-bone IK.
+ * Held rifle: the CC0 3DModelsCC0 M4A1 model on the right-hand bone, both hands placed by two-bone IK.
  *
  * Each frame the rifle gets a target pose in the character's body frame (anchored at the right
  * shoulder, so crouching and leaning carry it along). The pose blends between low-ready (idle),
@@ -9,12 +9,12 @@
  *   3. the left arm reaches the foregrip.
  * Bone lengths are measured in world space, so the scaled body solves correctly.
  *
- * Asset: client/public/models/weapons/rifle_cc0.glb. Kenney Blaster Kit 2.1, CC0
- * (https://kenney.nl/assets/blaster-kit), baked by tools/anim-bake/rifle.mjs with Grip / Foregrip / Muzzle nodes.
+ * Asset: client/public/models/weapons/rifle_m4_cc0.glb. "M4A1" from the 3DModelsCC0 Free CC0 Guns & Explosives
+ * Pack, CC0 (https://3dmodelscc0.itch.io/free-cc0-guns-explosives-pack), baked by tools/anim-bake/rifle.mjs with Grip / Foregrip / Muzzle nodes.
  */
 import * as THREE from 'three';
 
-export const RIFLE_URL = 'models/weapons/rifle_cc0.glb';
+export const RIFLE_URL = 'models/weapons/rifle_m4_cc0.glb';
 
 /** Rifle hold relative to the right shoulder, in the body frame (right, up, forward), metres and degrees. */
 export interface HoldPose {

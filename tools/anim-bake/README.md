@@ -15,7 +15,7 @@ their own flat rest). A small stance tidy then narrows the standing clips to abo
 Env knobs: `LEG_IN`, `LEG_FB`, `ARM_IN` (degrees), `NOALIGN=1` to reproduce the old bake.
 
 ## Rifle (`rifle.mjs`)
-Builds `client/public/models/weapons/rifle_cc0.glb` from Kenney's Blaster Kit 2.1 `blaster-f` (CC0, https://kenney.nl/assets/blaster-kit). It wraps the model in a `rifle` node at scale 0.65 (barrel along -Z) and adds `Grip`, `Foregrip` and `Muzzle` socket nodes, which `client/src/player/rifle.ts` uses for the two-hand IK and the muzzle flash.
+Builds `client/public/models/weapons/rifle_m4_cc0.glb` from the CC0 "M4A1" in the 3DModelsCC0 Free CC0 Guns & Explosives Pack (https://3dmodelscc0.itch.io/free-cc0-guns-explosives-pack; GLB export in https://github.com/BoQsc/cc0-guns-explosives-pack-glb/releases/tag/0, `Guns.Explosives_glb.zip`). It flattens the parts, resizes the PBR textures to 1024 px WebP, and adds `Grip`, `Foregrip` and `Muzzle` socket nodes (barrel along -Z, metres) that `client/src/player/rifle.ts` uses for the two-hand IK and the muzzle flash. The output is byte-for-byte reproducible.
 
-    npx -y -p @gltf-transform/core -p @gltf-transform/extensions node tools/anim-bake/rifle.mjs \
-      "<kit>/Models/GLB format/blaster-f.glb" client/public/models/weapons/rifle_cc0.glb
+    # in a scratch dir: npm i @gltf-transform/core @gltf-transform/extensions @gltf-transform/functions sharp
+    node tools/anim-bake/rifle.mjs "<pack>/M4A1/M4A1.glb" client/public/models/weapons/rifle_m4_cc0.glb
