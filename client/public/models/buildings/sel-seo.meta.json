@@ -3,8 +3,8 @@
   67.03,
   -166.23
  ],
- "loot": 16,
- "doors": 11,
+ "loot": 12,
+ "doors": 9,
  "parts": [
   {
    "node": "part_sel_part_a",
@@ -29,19 +29,19 @@
  ],
  "lods": {
   "sel-seo_LOD0": {
-   "tris0": 26716,
-   "tris1": 112,
+   "tris0": 23056,
+   "tris1": 332,
    "lod1_distance_m": 120
   }
  },
- "tris0": 26716,
- "tris1": 112,
+ "tris0": 23056,
+ "tris1": 332,
  "colliders": {
-  "sel-seo_walls_col": 1288,
-  "sel-seo_floor_col": 244
+  "sel-seo_walls_col": 1300,
+  "sel-seo_floor_col": 208
  },
- "wall_boxes": 98,
- "door_overlaps_before_clip": 11,
+ "wall_boxes": 100,
+ "door_overlaps_before_clip": 9,
  "door_overlaps_after_clip": 0,
  "wall_gaps": 0,
  "wall_gaps_patched": 0,

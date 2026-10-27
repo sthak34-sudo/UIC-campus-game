@@ -18,6 +18,14 @@ const MAX_COLLIDER_TRIS = 5000;
 /** 400 wall boxes x 12 tris: the physics shape budget per building. */
 const MAX_WALL_TRIS = 400 * 12;
 
+/** Exact door / loot counts for buildings Atlas documents in meta.json. */
+const EXPECTED_DOORS: Readonly<Record<string, number>> = {
+  'sel-seo': 9, // Rev 4 bridge supports: was 11; bridge no longer gets ground doors
+};
+const EXPECTED_LOOT: Readonly<Record<string, number>> = {
+  'sel-seo': 12, // Rev 4: was 16
+};
+
 describe('nodes.classifyNode', () => {
   it('recognizes the naming contract', () => {
     expect(classifyNode('quad-lecture-centers_LOD0')).toBe('lod');
@@ -85,13 +93,21 @@ for (const model of BUILDING_MODELS) {
       const doors = byKind('door');
       // University Hall has 0 doors by design; farOnly skips doors at install anyway.
       if (model.farOnly && doors.length === 0) return;
-      expect(doors.length).toBeGreaterThan(0);
+      const wantDoors = EXPECTED_DOORS[model.slug];
+      if (wantDoors !== undefined) expect(doors.length).toBe(wantDoors);
+      else expect(doors.length).toBeGreaterThan(0);
       for (const d of doors) {
         const e = d.extras as { width_m: number; height_m: number; part: string };
         expect(e.width_m).toBeGreaterThanOrEqual(2.4);
         expect(e.height_m).toBeGreaterThanOrEqual(2.5);
         expect(e.part).toBeTruthy();
       }
+    });
+
+    it('matches expected loot_spawn counts when documented', () => {
+      const loot = byKind('loot');
+      const want = EXPECTED_LOOT[model.slug];
+      if (want !== undefined) expect(loot.length).toBe(want);
     });
 
     it('is placed at planToWorld(plan) from the shared origin', () => {
