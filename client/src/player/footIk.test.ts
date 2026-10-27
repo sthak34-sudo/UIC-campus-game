@@ -141,3 +141,38 @@ describe('applyFootIk', () => {
     expect(r!.leftDelta).toBeGreaterThan(0);
   });
 });
+
+describe('applyFootIk with floorY (small adjustments only)', () => {
+  const rig = () => {
+    const hips = new THREE.Bone(); hips.position.set(0, 1, 0);
+    const mk = (x: number) => {
+      const u = new THREE.Bone(); u.position.set(x, 0, 0);
+      const m = new THREE.Bone(); m.position.set(0, -0.45, 0.02);
+      const e = new THREE.Bone(); e.position.set(0, -0.45, -0.02);
+      u.add(m); m.add(e); hips.add(u);
+      return { upper: u, mid: m, end: e };
+    };
+    const left = mk(0.1), right = mk(-0.1);
+    const root = new THREE.Group(); root.add(hips); root.updateMatrixWorld(true);
+    return { hips, left, right };
+  };
+  const flat = (y: number) => ({ sample: (_x: number, yFrom: number, _z: number, d: number) => (y <= yFrom && y >= yFrom - d ? y : null) });
+
+  it('leaves the animated legs untouched on flat floor (ankle stays at its clip height)', () => {
+    const { hips, left, right } = rig();
+    const before = [left.upper.quaternion.clone(), left.mid.quaternion.clone(), hips.position.y];
+    const pelvisState = { y: 0 };
+    applyFootIk({ hips, left, right, probe: flat(0), grounded: true, pelvisState, dt: 1, yaw: 0, floorY: 0 });
+    expect(left.upper.quaternion.angleTo(before[0] as THREE.Quaternion)).toBeLessThan(1e-6);
+    expect(left.mid.quaternion.angleTo(before[1] as THREE.Quaternion)).toBeLessThan(1e-6);
+    expect(hips.position.y).toBeCloseTo(before[2] as number, 6);
+  });
+
+  it('only shifts by the terrain step under the foot', () => {
+    const { hips, left, right } = rig();
+    const pelvisState = { y: 0 };
+    const r = applyFootIk({ hips, left, right, probe: flat(0.05), grounded: true, pelvisState, dt: 1, yaw: 0, floorY: 0 });
+    expect(r!.leftDelta).toBeCloseTo(0.05, 5);
+    expect(Math.abs(r!.pelvis)).toBeLessThan(0.05);
+  });
+});
