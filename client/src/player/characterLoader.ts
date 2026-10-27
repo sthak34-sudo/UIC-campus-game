@@ -15,6 +15,8 @@
 import * as THREE from 'three';
 import { sharedKtx2Loader } from '../render/textures';
 import { damp, turnToward } from './math';
+import { applyFootIk, findLegBones, type GroundProbe, type LegBones } from './footIk';
+export type { GroundProbe } from './footIk';
 
 export const PLAYER_BODY_URL = 'models/characters/player_base.glb';
 export const PLAYER_ANIMS_URL = 'models/private/anims.glb';
@@ -48,6 +50,12 @@ export interface AnimFlags {
   dead?: boolean;
 }
 
+export interface HitDir {
+  x: number;
+  y: number;
+  z: number;
+}
+
 export interface CharacterVisual {
   readonly root: THREE.Object3D;
   yaw: number;
@@ -57,8 +65,13 @@ export interface CharacterVisual {
   readonly missingTracks: number;
   update(dt: number, speed: number, grounded: boolean, moveYaw: number | null, viewDistance?: number): void;
   setFlags(flags: AnimFlags): void;
-  /** No hit clip shipped with the animation file. A short spine twitch stands in for it. */
-  flinch(): void;
+  /** Optional Rapier (or other) ground height probe for foot IK. Null disables planting. */
+  setGroundProbe(probe: GroundProbe | null): void;
+  /**
+   * No hit clip ships with the animation file. A short spine twitch stands in for it.
+   * `hitDir` is world-space direction from attacker toward the victim (impulse direction).
+   */
+  flinch(hitDir?: HitDir): void;
   playFire(): void;
   /** `seconds` is how long the gameplay reload lasts, so the clip finishes with it. */
   playReload(seconds: number): void;
@@ -467,6 +480,7 @@ class AnimatedCharacter implements CharacterVisual {
   private readonly lodNodes: THREE.Object3D[] = [];
   private readonly hips: THREE.Object3D | null;
   private readonly spine: THREE.Object3D | null;
+  private readonly spine1: THREE.Object3D | null;
   private readonly shadow: boolean;
   private crouchBlend = 0;
   private aimBlend = 0;
@@ -481,6 +495,11 @@ class AnimatedCharacter implements CharacterVisual {
   private deadTip = 0;
   private readonly flinchQ = new THREE.Quaternion();
   private readonly flinchAxis = new THREE.Vector3(1, 0, 0);
+  private readonly flinchDir = new THREE.Vector3(0, 0, 1);
+  private groundProbe: GroundProbe | null = null;
+  private leftLeg: LegBones | null = null;
+  private rightLeg: LegBones | null = null;
+  private readonly pelvisIk = { y: 0 };
 
   constructor(assets: CharacterAssets, shadow: boolean) {
     this.shadow = shadow;
@@ -517,6 +536,9 @@ class AnimatedCharacter implements CharacterVisual {
     }
     this.hips = findNamed(rig, 'mixamorig:Hips', 'mixamorigHips');
     this.spine = findNamed(rig, 'mixamorig:Spine', 'mixamorigSpine');
+    this.spine1 = findNamed(rig, 'mixamorig:Spine1', 'mixamorigSpine1');
+    this.leftLeg = findLegBones(rig, 'Left');
+    this.rightLeg = findLegBones(rig, 'Right');
     this.applyWeights({ idle: 1, walk: 0, run: 0, crouch_idle: 0, crouch_walk: 0 }, 0, 0, 0);
     this.mixer.update(0);
     this.setLod(0);
@@ -526,10 +548,25 @@ class AnimatedCharacter implements CharacterVisual {
     this.flags = flags;
   }
 
-  flinch(): void {
+  setGroundProbe(probe: GroundProbe | null): void {
+    this.groundProbe = probe;
+  }
+
+  flinch(hitDir?: HitDir): void {
     if (this.flags.dead || this.flinchCooldown > 0) return;
-    this.flinchT = 0.22;
-    this.flinchCooldown = 0.55;
+    this.flinchT = 0.28;
+    this.flinchCooldown = 0.45;
+    if (hitDir && (hitDir.x || hitDir.y || hitDir.z)) {
+      this.flinchDir.set(hitDir.x, hitDir.y, hitDir.z);
+      if (this.flinchDir.lengthSq() > 1e-8) this.flinchDir.normalize();
+      else this.flinchDir.set(0, 0, 1);
+    } else {
+      this.flinchDir.set(0, 0, 1);
+    }
+    // Axis = hitDir × up, so the spine bends away from the hit.
+    this.flinchAxis.set(-this.flinchDir.z, 0, this.flinchDir.x);
+    if (this.flinchAxis.lengthSq() < 1e-6) this.flinchAxis.set(1, 0, 0);
+    else this.flinchAxis.normalize();
   }
 
   playFire(): void {
@@ -552,7 +589,6 @@ class AnimatedCharacter implements CharacterVisual {
   }
 
   update(dt: number, speed: number, grounded: boolean, moveYaw: number | null, viewDistance = 2): void {
-    void grounded;
     if (!this.flags.dead && moveYaw !== null && (this.flags.aiming || speed > 0.15)) {
       this.yaw = turnToward(this.yaw, moveYaw, 12 * dt);
     }
@@ -604,10 +640,39 @@ class AnimatedCharacter implements CharacterVisual {
       this.hips.position.y += this.hipLift;
     }
     if (this.flinchT > 0 && this.spine && deathW === 0) {
-      const u = 1 - this.flinchT / 0.22;
-      const amp = Math.sin(Math.min(1, Math.max(0, u)) * Math.PI) * 0.4;
+      const u = 1 - this.flinchT / 0.28;
+      const amp = Math.sin(Math.min(1, Math.max(0, u)) * Math.PI) * 0.55;
       this.flinchQ.setFromAxisAngle(this.flinchAxis, amp);
       this.spine.quaternion.multiply(this.flinchQ);
+      // Slight additive on Spine1 if present (upper-chest kick).
+      if (this.spine1) {
+        this.flinchQ.setFromAxisAngle(this.flinchAxis, amp * 0.35);
+        this.spine1.quaternion.multiply(this.flinchQ);
+      }
+    }
+    // Foot IK after animation + death lift so plants sit on the final pose.
+    if (
+      this.groundProbe &&
+      this.hips &&
+      this.leftLeg &&
+      this.rightLeg &&
+      deathW === 0 &&
+      !this.flags.jumping
+    ) {
+      // Mixer just wrote hips; applyFootIk adds a smoothed pelvis offset on top.
+      applyFootIk({
+        hips: this.hips,
+        left: this.leftLeg,
+        right: this.rightLeg,
+        probe: this.groundProbe,
+        grounded,
+        pelvisState: this.pelvisIk,
+        dt,
+        yaw: this.yaw,
+      });
+    } else if (this.hips) {
+      this.pelvisIk.y += (0 - this.pelvisIk.y) * Math.min(1, dt * 8);
+      this.hips.position.y += this.pelvisIk.y;
     }
     this.setLod(lodIndexForDistance(viewDistance));
   }

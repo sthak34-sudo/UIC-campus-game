@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import type { AnimFlags, CharacterVisual } from './characterLoader';
+import type { AnimFlags, CharacterVisual, HitDir } from './characterLoader';
+import type { GroundProbe } from './footIk';
 import { advancePhase, damp, turnToward, walkPose, type LimbPose } from './math';
 
 /**
@@ -85,6 +86,7 @@ export class CharacterModel implements CharacterVisual {
   private reloadT = 0;
   private flinchT = 0;
   private flinchCooldown = 0;
+  private flinchSide = 0;
   private deadTip = 0;
   /** Current facing (three.js yaw). */
   yaw = 0;
@@ -205,11 +207,21 @@ export class CharacterModel implements CharacterVisual {
     this.flags = flags;
   }
 
+  /** Procedural figure has no feet to plant; probe is accepted and ignored. */
+  setGroundProbe(_probe: GroundProbe | null): void {}
+
   /** Short chest twitch. The realistic body has no hit clip, and neither does this fallback. */
-  flinch(): void {
+  flinch(hitDir?: HitDir): void {
     if (this.flags.dead || this.flinchCooldown > 0) return;
-    this.flinchT = 0.22;
-    this.flinchCooldown = 0.55;
+    this.flinchT = 0.28;
+    this.flinchCooldown = 0.45;
+    if (hitDir) {
+      // Store yaw-relative lean: bend torso away from the hit in XZ.
+      const len = Math.hypot(hitDir.x, hitDir.z);
+      this.flinchSide = len > 1e-6 ? Math.atan2(hitDir.x, hitDir.z) : 0;
+    } else {
+      this.flinchSide = 0;
+    }
   }
 
   playFire(): void {
@@ -271,8 +283,9 @@ export class CharacterModel implements CharacterVisual {
     this.elbowL.rotation.x = p.leftElbow + aim * 0.7;
     this.elbowR.rotation.x = p.rightElbow + aim * 0.9 + (this.reloadT > 0 ? 0.4 : 0);
     this.body.position.y = p.bob - 0.02 - c * 0.48;
-    const flinch = this.flinchT > 0 ? Math.sin((1 - this.flinchT / 0.22) * Math.PI) * 0.4 : 0;
-    this.torso.rotation.x = -p.lean + c * 0.35 + flinch;
+    const flinch = this.flinchT > 0 ? Math.sin((1 - this.flinchT / 0.28) * Math.PI) * 0.55 : 0;
+    this.torso.rotation.x = -p.lean + c * 0.35 + flinch * Math.cos(this.flinchSide - this.yaw);
+    this.torso.rotation.z = flinch * 0.6 * Math.sin(this.flinchSide - this.yaw);
   }
 
   dispose(): void {

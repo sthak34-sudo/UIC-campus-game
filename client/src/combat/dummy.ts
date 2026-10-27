@@ -120,7 +120,7 @@ export class PracticeDummies {
     return this.byHandle.get(handle);
   }
 
-  damage(index: number, zone: HitZone, distance: number, physics: RAPIER.World | null): DummyHit | null {
+  damage(index: number, zone: HitZone, distance: number, physics: RAPIER.World | null, hitDir?: { x: number; y: number; z: number }): DummyHit | null {
     const rig = this.rigs[index];
     if (!rig || isDown(rig.vitals)) return null;
     const outcome = takeHit(rig.vitals, zone, distance);
@@ -131,7 +131,7 @@ export class PracticeDummies {
       rig.avatar?.setFlags({ dead: true });
       this.setColliders(rig, physics, false);
     } else {
-      rig.avatar?.flinch();
+      rig.avatar?.flinch(hitDir);
     }
     return { index, zone, died: outcome.died, headshot: outcome.headshot, health: rig.vitals.health };
   }
