@@ -8,7 +8,24 @@ import { COMBAT } from './balance';
 import { createCombatant, dummyShouldRespawn, isDown, takeHit, type Combatant } from './health';
 import type { HitZone } from './damage';
 import type { Vec3 } from './range';
-import type { CharacterVisual } from '../player/characterLoader';
+import type { CharacterVisual, GroundProbe } from '../player/characterLoader';
+
+/**
+ * Foot-IK ground probe on the Rapier world. Rays skip colliders in `skip` (the dummies' own
+ * body/head capsules), so a foot never plants on its own hitbox.
+ */
+export function rapierGroundProbe(world: RAPIER.World, skip: (handle: number) => boolean): GroundProbe {
+  return {
+    sample(x, yFrom, z, maxDrop) {
+      const hit = world.castRay(
+        new RAPIER.Ray({ x, y: yFrom, z }, { x: 0, y: -1, z: 0 }),
+        maxDrop, true, undefined, undefined, undefined, undefined,
+        (c: RAPIER.Collider) => !skip(c.handle),
+      );
+      return hit ? yFrom - hit.timeOfImpact : null;
+    },
+  };
+}
 
 const BODY_CENTER_Y = 0.86;
 const BODY_HALF = 0.32;
@@ -106,6 +123,7 @@ export class PracticeDummies {
         this.byHandle.set(headHandle, { index: i, zone: 'head' });
       }
 
+      if (physics && avatar) avatar.setGroundProbe(rapierGroundProbe(physics, (h) => this.byHandle.has(h)));
       scene.add(root);
       const rig: DummyRig = {
         root, vitals: createCombatant(COMBAT.dummyHealth), bodyHandle, headHandle,

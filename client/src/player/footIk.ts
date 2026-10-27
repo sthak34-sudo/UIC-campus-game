@@ -13,6 +13,8 @@ export interface LegBones {
   upper: THREE.Object3D;
   mid: THREE.Object3D;
   end: THREE.Object3D;
+  /** Toe bone (ToeBase). When present the foot is pitched to follow a slope. */
+  toe?: THREE.Object3D | null;
 }
 
 export interface FootIkConfig {
@@ -23,6 +25,10 @@ export interface FootIkConfig {
   maxPelvisM: number;
   /** Feet closer than this to the ground are left exactly as animated. */
   deadbandM: number;
+  /** Most the foot is pitched to follow a slope. */
+  maxFootPitchRad: number;
+  /** Toe-vs-heel height differences above this are a step edge, not a slope: the foot stays level. */
+  maxSlopeRiseM: number;
 }
 
 export const DEFAULT_FOOT_IK: FootIkConfig = {
@@ -30,9 +36,21 @@ export const DEFAULT_FOOT_IK: FootIkConfig = {
   rayLiftM: 0.4,
   rayDropM: 0.6,
   pelvisGain: 0.5,
-  maxPelvisM: 0.16,
+  maxPelvisM: 0.22,
   deadbandM: 0.015,
+  maxFootPitchRad: (25 * Math.PI) / 180,
+  maxSlopeRiseM: 0.08,
 };
+
+/**
+ * Pelvis offset for the plant. When a foot's ground is below the character's floor (stair below the
+ * capsule, downhill side) the hips drop by that much so the straight leg still reaches; when both
+ * feet are on higher ground the hips rise by `gain` of the lower one and the knees take the rest.
+ */
+export function pelvisForPlant(leftDelta: number, rightDelta: number, gain: number, maxPelvisM: number): number {
+  const lo = Math.min(leftDelta, rightDelta);
+  return clamp(lo < 0 ? lo : lo * gain, -maxPelvisM, maxPelvisM);
+}
 
 export function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n));
@@ -203,7 +221,9 @@ export function applyFootIk(opts: {
 
   const L = sampleFoot(opts.left.end);
   const R = sampleFoot(opts.right.end);
-  const want = pelvisOffsetFromFeet(L.delta, R.delta, cfg.pelvisGain, cfg.maxPelvisM);
+  const want = opts.floorY === undefined
+    ? pelvisOffsetFromFeet(L.delta, R.delta, cfg.pelvisGain, cfg.maxPelvisM)
+    : pelvisForPlant(L.delta, R.delta, cfg.pelvisGain, cfg.maxPelvisM);
   opts.pelvisState.y += (want - opts.pelvisState.y) * ease;
   opts.hips.position.y += opts.pelvisState.y;
 
@@ -215,6 +235,7 @@ export function applyFootIk(opts: {
     leg.end.getWorldPosition(foot);
     const hit = opts.probe.sample(foot.x, foot.y + cfg.rayLiftM, foot.z, cfg.rayLiftM + cfg.rayDropM);
     if (hit === null) return;
+    const terrain = opts.floorY === undefined ? 0 : clamp(hit - opts.floorY, -cfg.maxPlantM, cfg.maxPlantM);
     _target.copy(foot);
     if (opts.floorY === undefined) {
       // Soft clamp so we never yank more than maxPlantM after pelvis move.
@@ -225,7 +246,11 @@ export function applyFootIk(opts: {
     }
     // Small-adjustment layer only: if the animated foot is already on the ground, leave the clip's
     // leg alone (re-solving would re-aim the knee and fight the authored stance).
-    if (Math.abs(_target.y - foot.y) < cfg.deadbandM) return;
+    if (Math.abs(_target.y - foot.y) < cfg.deadbandM) {
+      if (opts.floorY !== undefined) pitchFootToGround(leg, opts.probe, cfg, hit);
+      return;
+    }
+    leg.end.getWorldQuaternion(_footQ);
     // Pole: the animated knee pushed a little forward, so the IK keeps the clip's knee plane
     // instead of imposing its own (the old outward pole splayed the knees).
     opts.hips.getWorldPosition(_hip);
@@ -234,11 +259,57 @@ export function applyFootIk(opts: {
     const fz = -Math.cos(opts.yaw);
     _pole.set(_knee.x + fx * 0.3, _knee.y, _knee.z + fz * 0.3);
     void sideSign;
+    void terrain;
     solveTwoBoneIk(leg.upper, leg.mid, leg.end, _target, _pole);
+    // The knee solve swings the shin; keep the foot's animated world rotation so the sole stays level.
+    setWorldQuaternion(leg.end, _footQ);
+    if (opts.floorY !== undefined) pitchFootToGround(leg, opts.probe, cfg, hit);
   };
   plant(opts.left, 1);
   plant(opts.right, -1);
   return { leftDelta: L.delta, rightDelta: R.delta, pelvis: opts.pelvisState.y };
+}
+
+const _footQ = new THREE.Quaternion();
+const _pq = new THREE.Quaternion();
+const _toe = new THREE.Vector3();
+const _ank = new THREE.Vector3();
+const _v = new THREE.Vector3();
+const _w = new THREE.Vector3();
+
+function setWorldQuaternion(bone: THREE.Object3D, q: THREE.Quaternion): void {
+  if (bone.parent) {
+    bone.parent.updateWorldMatrix(true, false);
+    bone.parent.getWorldQuaternion(_pq);
+  } else _pq.identity();
+  bone.quaternion.copy(_pq.invert().multiply(q));
+  bone.updateWorldMatrix(false, true);
+}
+
+/**
+ * Pitch the foot about the ankle so the toe follows the ground's rise between ankle and toe.
+ * A rise bigger than `maxSlopeRiseM` is a step edge, so the foot stays as animated.
+ */
+export function pitchFootToGround(leg: LegBones, probe: GroundProbe, cfg: FootIkConfig, ankleGround: number): void {
+  const toe = leg.toe;
+  if (!toe) return;
+  leg.end.updateWorldMatrix(true, true);
+  leg.end.getWorldPosition(_ank);
+  toe.getWorldPosition(_toe);
+  const toeGround = probe.sample(_toe.x, _toe.y + cfg.rayLiftM, _toe.z, cfg.rayLiftM + cfg.rayDropM);
+  if (toeGround === null) return;
+  const rise = toeGround - ankleGround;
+  if (Math.abs(rise) > cfg.maxSlopeRiseM || Math.abs(rise) < 0.004) return;
+  _v.copy(_toe).sub(_ank);
+  _w.copy(_v);
+  _w.y += rise;
+  const ang = _v.angleTo(_w);
+  if (ang < 1e-4) return;
+  const t = Math.min(1, cfg.maxFootPitchRad / ang);
+  leg.end.getWorldQuaternion(_footQ);
+  _q.setFromUnitVectors(_v.normalize(), _w.normalize());
+  if (t < 1) _q.slerp(new THREE.Quaternion(), 1 - t);
+  setWorldQuaternion(leg.end, _footQ.premultiply(_q));
 }
 
 export function findLegBones(root: THREE.Object3D, side: 'Left' | 'Right'): LegBones | null {
@@ -246,7 +317,7 @@ export function findLegBones(root: THREE.Object3D, side: 'Left' | 'Right'): LegB
   const mid = findBone(root, `mixamorig:${side}Leg`, `mixamorig${side}Leg`);
   const end = findBone(root, `mixamorig:${side}Foot`, `mixamorig${side}Foot`);
   if (!upper || !mid || !end) return null;
-  return { upper, mid, end };
+  return { upper, mid, end, toe: findBone(root, `mixamorig:${side}ToeBase`, `mixamorig${side}ToeBase`) };
 }
 
 function findBone(root: THREE.Object3D, ...names: string[]): THREE.Object3D | null {
