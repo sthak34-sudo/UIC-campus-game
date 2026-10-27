@@ -62,4 +62,5 @@ Unofficial fan project. Not affiliated with or endorsed by the University of Ill
 
 - `client/public/models/buildings/quad-lecture-centers.glb` (Lecture Centers A to F): modeled for this project by Atlas, released under the project license. Footprints derived from map data © OpenStreetMap contributors (ODbL). No external textures.
 - `client/public/models/buildings/student-center-east.glb` (Student Center East and Tower): modeled for this project by Atlas, released under the project license. Footprints derived from map data © OpenStreetMap contributors (ODbL). No external textures.
+- `client/public/models/buildings/sel-seo.glb` (SEL East, SEL West, SEL bridge and SEO): modeled for this project by Atlas, released under the project license. Footprints derived from map data © OpenStreetMap contributors (ODbL). No external textures.
 - `client/public/models/buildings/{behavioral-sciences,douglass-hall,grant-hall,lincoln-hall,architecture-design-studios}.glb`: modeled for this project by Atlas, released under the project license. Footprints derived from map data © OpenStreetMap contributors (ODbL). No external textures. In-game names are fictional.

@@ -153,6 +153,9 @@ export function addCampusViewpoints(world: World, data: CampusDataExt): void {
   portrait('map-bsb', 'Behavioral Sciences Building', 150, 30, EYE, 8);
   portrait('map-arc', 'Academic and Residential Complex', 190, 28, EYE, 16, 65);
   portrait('map-sel', 'Science and Engineering Laboratories', 0, 30, EYE, 10);
+  // B3 close-up: SEL East/West + bridge from the south plaza, and SEO tower from the NE.
+  portrait('b3-sel-close', 'Science and Engineering Laboratories', 180, 18, EYE, 8, 65);
+  portrait('b3-seo-close', 'Science & Engineering Offices', 45, 16, EYE, 18, 60);
   portrait('map-henry-hall', 'Henry Hall', 160, 22, EYE, 6);
   portrait('map-burnham-hall', 'Burnham Hall', 200, 22, EYE, 6);
   portrait('map-grant-hall', 'Grant Hall', 0, 24, EYE, 6);
