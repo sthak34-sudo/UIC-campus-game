@@ -2,7 +2,9 @@
  * Realistic player body, when the files are on disk.
  *
  *   client/public/models/characters/player_base.glb   CC0 MakeHuman body (committed)
- *   client/public/models/private/anims.glb            Mixamo clips (NEVER commit; folder is gitignored)
+ *   client/public/models/characters/player_anims_cc0.glb  CC0 Quaternius clips baked to this skeleton (committed)
+ *   client/public/models/private/anims.glb            Mixamo clips (NEVER commit; folder is gitignored).
+ *                                                     Used instead of the CC0 clips when present.
  *
  * The body is 1.75 m, Y-up, facing +Z, with a mixamorig skeleton plus a `root` bone at the feet.
  * Meshes are player_LOD0..LOD3. Hair, brows and lashes are transparent cards; on load they use
@@ -10,7 +12,7 @@
  * The death clip sinks the hips about 8 cm into the floor while lying, so the hips are lifted
  * back up as that clip plays.
  *
- * If either file is missing, this returns null and the player keeps the procedural figure.
+ * If the body or both clip files are missing, this returns null and the player keeps the procedural figure.
  */
 import * as THREE from 'three';
 import { sharedKtx2Loader } from '../render/textures';
@@ -20,6 +22,22 @@ export type { GroundProbe } from './footIk';
 
 export const PLAYER_BODY_URL = 'models/characters/player_base.glb';
 export const PLAYER_ANIMS_URL = 'models/private/anims.glb';
+/** CC0 clips (Quaternius Universal Animation Library) baked onto the player_base skeleton. Committed. */
+export const PLAYER_PUBLIC_ANIMS_URL = 'models/characters/player_anims_cc0.glb';
+
+/** Which clip file the loaded character uses: private Mixamo or the public CC0 set. */
+export let animSource: 'mixamo' | 'cc0' | 'none' = 'none';
+
+async function fetchGlb(path: string): Promise<ArrayBuffer | null> {
+  try {
+    const res = await fetch(publicUrl(path));
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    return isGlb(buf) ? buf : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Authored clips. There is no hit clip; see `CharacterVisual.flinch`. */
 export const CLIP_NAMES = [
@@ -319,26 +337,30 @@ export function createAvatar(assets: CharacterAssets, shadow = true): CharacterV
   return new AnimatedCharacter(assets, shadow);
 }
 
+/**
+ * Picks the clip file: private Mixamo clips when present (local dev), else the committed CC0 set.
+ * `load` is injectable for tests.
+ */
+export async function fetchAnimClips(
+  load: (path: string) => Promise<ArrayBuffer | null> = fetchGlb,
+): Promise<{ buf: ArrayBuffer | null; source: 'mixamo' | 'cc0' | 'none' }> {
+  const priv = await load(PLAYER_ANIMS_URL);
+  if (priv) return { buf: priv, source: 'mixamo' };
+  const pub = await load(PLAYER_PUBLIC_ANIMS_URL);
+  return pub ? { buf: pub, source: 'cc0' } : { buf: null, source: 'none' };
+}
+
 async function fetchAssets(): Promise<CharacterAssets | null> {
   let bodyBuf: ArrayBuffer;
-  let animBuf: ArrayBuffer;
+  let animBuf: ArrayBuffer | null;
   try {
-    // Mixamo clips are private / missing on GitHub Pages. Load and validate anims first so we
-    // do not waste ~11 MB on player_base.glb when anims 404 or when Vite serves index.html.
-    const animRes = await fetch(publicUrl(PLAYER_ANIMS_URL));
-    if (!animRes.ok) {
-      console.info(
-        'Character files not found. Using the simple figure. ' +
-          'Put anims.glb in client/public/models/private/ (it is not part of the public repo) to see the realistic body move.',
-      );
-      return null;
-    }
-    animBuf = await animRes.arrayBuffer();
-    if (!isGlb(animBuf)) {
-      console.info(
-        'Character animation file missing or not a glTF binary. Using the simple figure. ' +
-          'Put anims.glb in client/public/models/private/ (it is not part of the public repo).',
-      );
+    // Private Mixamo clips win when they are on disk (local dev only). The public build ships
+    // the CC0 Quaternius clips baked onto the same skeleton, so GitHub Pages gets the real body too.
+    const picked = await fetchAnimClips();
+    animBuf = picked.buf;
+    animSource = picked.source;
+    if (!animBuf) {
+      console.info('Character animation files not found. Using the simple figure.');
       return null;
     }
     const bodyRes = await fetch(publicUrl(PLAYER_BODY_URL));
@@ -406,7 +428,7 @@ async function fetchAssets(): Promise<CharacterAssets | null> {
       ...prepared.upperSpecial.keys(),
       ...prepared.full.keys(),
     ];
-    console.info(`Realistic character loaded (${loadedNames.join(', ')}). ${missing} unbound tracks.`);
+    console.info(`Realistic character loaded from ${animSource} clips (${loadedNames.join(', ')}). ${missing} unbound tracks.`);
     return { template: model, prepared, upper, missingTracks: missing, clone };
   } catch (err) {
     console.warn('Character glTF failed to parse. Using the simple figure.', err);

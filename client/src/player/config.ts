@@ -53,13 +53,13 @@ export const PLAYER_CONFIG = {
   // --- camera --------------------------------------------------------------------------------
   eyeHeight: 1.62,
   /** Third-person camera arm length (scroll wheel changes it within min/max). */
-  camDistance: 3.4,
+  camDistance: 2.9,
   camMinDistance: 1.4,
   camMaxDistance: 7,
   /** Over-the-shoulder offset to the right of the character. */
-  camShoulder: 0.42,
+  camShoulder: 0.55,
   /** Height of the third-person pivot above the feet. */
-  camPivotHeight: 1.6,
+  camPivotHeight: 1.55,
   /** Pitch is the camera's angle ABOVE the horizontal (positive = looking down at the player). */
   camPitchMin: (-40 * Math.PI) / 180,
   camPitchMax: (70 * Math.PI) / 180,
