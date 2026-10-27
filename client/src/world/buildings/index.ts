@@ -112,12 +112,17 @@ export function installBuilding(world: World, model: BuildingModel | string, sce
     for (const [group, g] of lodGroups) {
       const lod = new THREE.LOD();
       lod.name = `${slug}:${group}`;
+      // The LOD goes where the levels were: glbs keep every node under a placed root
+      // (e.g. "douglass-hall" at x=114). Adding it to `scene` dropped that transform and drew the
+      // building ~100 m away from its colliders, doors and loot.
+      const home = g.levels.find((l) => !!l)?.parent ?? scene;
       g.levels.forEach((lvl, i) => {
         if (!lvl) return;
-        lvl.parent?.remove(lvl);
+        if (lvl.parent !== home) home.attach(lvl); // keep its world transform
+        home.remove(lvl);
         lod.addLevel(lvl, i === 0 ? 0 : g.dist);
       });
-      scene.add(lod);
+      home.add(lod);
     }
   }
 

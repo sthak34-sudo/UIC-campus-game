@@ -94,6 +94,15 @@ export interface PlayerTestApi {
   setAiming(on: boolean): void;
   /** Trigger a hit reaction (screenshot / debug). */
   flinch(hitDir?: { x: number; y: number; z: number }): void;
+  /** Physics ray (what bullets use): distance to the first collider, or null. Playtest only. */
+  physicsRay(o: [number, number, number], d: [number, number, number], max: number): number | null;
+  /**
+   * Visible-mesh ray against the scene (skipping the player, dummies, sky and effects):
+   * distance and mesh name, or null. Compared with `physicsRay` to find collider/mesh mismatches.
+   */
+  meshRay(o: [number, number, number], d: [number, number, number], max: number): { d: number; name: string; collider: boolean } | null;
+  /** Ray against the registered collider meshes (three.js side): distance and mesh name, or null. */
+  colliderRay(o: [number, number, number], d: [number, number, number], max: number): { d: number; name: string } | null;
 }
 
 declare global {
@@ -110,7 +119,8 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
 
   const t0 = performance.now();
   // Rapier (~2.5 MB of inlined WASM) lives in its own chunk so the rest of the game starts loading first.
-  const { initRapier, PlayerPhysics } = await import('./physics');
+  const { initRapier, PlayerPhysics, RAPIER: RAPIER_NS } = await import('./physics');
+  const RAPIER_RAY = RAPIER_NS.Ray;
   await initRapier();
   perfInfo.rapierInitMs = performance.now() - t0;
 
@@ -361,6 +371,38 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     setCrouch: (on) => input.setCrouch(on),
     setAiming: (on) => input.setAiming(on),
     flinch: (hitDir) => player.flinch(hitDir),
+    physicsRay: (o, d, max) => {
+      const v = new THREE.Vector3(...d).normalize();
+      const hit = phys.world.castRay(new RAPIER_RAY({ x: o[0], y: o[1], z: o[2] }, { x: v.x, y: v.y, z: v.z }), max, true, undefined, undefined, phys.collider);
+      return hit ? hit.timeOfImpact : null;
+    },
+    colliderRay: (o, d, max) => {
+      const ray = new THREE.Raycaster(new THREE.Vector3(...o), new THREE.Vector3(...d).normalize(), 0, max);
+      const h = ray.intersectObjects(world.colliders, false)[0];
+      return h ? { d: h.distance, name: h.object.name } : null;
+    },
+    meshRay: (o, d, max) => {
+      const ray = new THREE.Raycaster(new THREE.Vector3(...o), new THREE.Vector3(...d).normalize(), 0, max);
+      ray.camera = camera;
+      const colliderSet = new Set<THREE.Object3D>(world.colliders);
+      const targets: THREE.Object3D[] = [];
+      world.scene.traverse((o) => { if ((o as THREE.Mesh).isMesh && !(o as THREE.SkinnedMesh).isSkinnedMesh) targets.push(o); });
+      const hits = ray.intersectObjects(targets, false);
+      for (const h of hits) {
+        let o2: THREE.Object3D | null = h.object;
+        let skip = false;
+        let visible = true;
+        while (o2) {
+          if (!o2.visible) visible = false;
+          if (/player-character|combat-dummy|sky|gfx\.|combat-|loot/i.test(o2.name)) skip = true;
+          o2 = o2.parent;
+        }
+        const m = h.object as THREE.Mesh;
+        if (skip || !visible || !(m as THREE.Mesh).isMesh || (m.material as THREE.Material).transparent) continue;
+        return { d: h.distance, name: h.object.name || h.object.parent?.name || '?', collider: colliderSet.has(h.object as THREE.Mesh) };
+      }
+      return null;
+    },
   };
   if (import.meta.env.DEV || testMode !== null || params.has('test')) window.__player = api;
 
