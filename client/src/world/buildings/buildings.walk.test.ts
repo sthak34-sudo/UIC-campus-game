@@ -26,6 +26,18 @@ async function loadGlb(slug: string): Promise<THREE.Object3D> {
   return gltf.scene;
 }
 
+/** Buildings that ship `_stairNN_col` meshes. farOnly shells (UH, Daley) are excluded
+ * from this walk suite; Daley's playable stairs live in the landmark tests.
+ * Counts match Atlas meta.json collider keys.
+ */
+const EXPECTED_STAIRS: Readonly<Record<string, number>> = {
+  'student-center-east': 2,
+  'douglass-hall': 1,
+  'grant-hall': 1,
+  'lincoln-hall': 1,
+  'architecture-design-studios': 2,
+};
+
 for (const model of BUILDING_MODELS.filter((m) => !m.farOnly)) {
   describe(`walk test: ${model.slug}`, () => {
     const world = new World();
@@ -130,9 +142,11 @@ for (const model of BUILDING_MODELS.filter((m) => !m.farOnly)) {
       expect(skipped).toBeLessThanOrEqual(Math.ceil(b.doors.length / 2)); // at most a quarter of sides may sit past a corner
     }, 120000);
 
-    it('every stair climbs to above 2.5 m', () => {
+    it('expected stairs exist and each climbs to above 2.5 m', () => {
       const stairs = b.colliders.filter((c) => /_stair\d{2}_col$/.test(c.name));
-      if (stairs.length === 0) return; // buildings without stairs skip
+      const expected = EXPECTED_STAIRS[model.slug] ?? 0;
+      expect(stairs.length, `${model.slug} stair count`).toBe(expected);
+      if (expected === 0) return;
       const failed: string[] = [];
       for (const stair of stairs) {
         const g = stair.geometry as THREE.BufferGeometry;
