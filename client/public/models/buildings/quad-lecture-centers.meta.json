@@ -39,21 +39,29 @@
  ],
  "lods": {
   "quad-lecture-centers_LOD0": {
-   "tris0": 13506,
+   "tris0": 13722,
    "tris1": 184,
    "lod1_distance_m": 120
   }
  },
- "tris0": 13506,
+ "tris0": 13722,
  "tris1": 184,
  "colliders": {
   "quad-lecture-centers_walls_col": 1468,
-  "quad-lecture-centers_floor_col": 412
+  "quad-lecture-centers_floor_col": 412,
+  "quad-lecture-centers_roof01_col": 12,
+  "quad-lecture-centers_roof02_col": 12,
+  "quad-lecture-centers_roof03_col": 12,
+  "quad-lecture-centers_roof04_col": 12,
+  "quad-lecture-centers_roof05_col": 12,
+  "quad-lecture-centers_roof06_col": 12
  },
  "wall_boxes": 107,
  "door_overlaps_before_clip": 16,
  "door_overlaps_after_clip": 0,
  "wall_gaps": 0,
  "wall_gaps_patched": 0,
- "roof_walkable": false
+ "roof_walkable": true,
+ "roof_planes": 6,
+ "roof_boxes": 6
 }

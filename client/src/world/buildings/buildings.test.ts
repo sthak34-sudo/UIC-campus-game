@@ -34,6 +34,8 @@ describe('nodes.classifyNode', () => {
     expect(classifyNode('x_floor_col')).toBe('floor-col');
     expect(classifyNode('x_stair01_col')).toBe('stair-col');
     expect(classifyNode('x_stair_col.001')).toBe('other');
+    expect(classifyNode('x_roof03_col')).toBe('roof-col');
+    expect(classifyNode('x_roof_col')).toBe('other');
     expect(classifyNode('door_07')).toBe('door');
     expect(classifyNode('loot_spawn_12')).toBe('loot');
     expect(classifyNode('part_lecture_center_a')).toBe('part');
