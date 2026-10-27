@@ -5,6 +5,13 @@ import { createRenderer } from './render/renderer';
 import { buildCampus } from './world/campus';
 import { buildLandmarks } from './world/landmarks';
 import { createPlayer } from './player';
+import {
+  clearLoadingUi,
+  failLoading,
+  initLoadingUi,
+  loadElapsedMs,
+  setLoadProgress,
+} from './boot/loading';
 
 // URL options (used by tools/screenshot):
 //   ?view=<viewpoint name>  freeze the camera at a registered viewpoint (no player control)
@@ -15,33 +22,45 @@ import { createPlayer } from './player';
 //                           ?enemySquads=N (0-4) adds enemy bot squads (S5). O wipes your squad (placement).
 //                           Squad HUD (S4): P ping (Q is medkit), K/J knock, L heal-all, hold F revive.
 //                           Spectate (S5): Left/Right cycle living/downed teammates after you die.
+//   ?quality=low|medium|high  default is auto (medium, or low on software/weak GPUs)
 declare global {
   interface Window {
     __ready?: boolean;
     __viewpoints?: string[];
+    __bootMs?: number;
+    __quality?: string;
   }
 }
 
 async function start(): Promise<void> {
+  initLoadingUi();
   const params = new URLSearchParams(location.search);
   const container = document.getElementById('app')!;
+  setLoadProgress(0.05, 'Starting renderer…');
   const world = new World();
   const gfx = createRenderer(container, world);
+  window.__quality = gfx.quality.name;
   const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 5000);
 
+  setLoadProgress(0.12, 'Downloading map…');
   const data: CampusData = await (await fetch(`${import.meta.env.BASE_URL}data/campus.json`)).json();
+  setLoadProgress(0.28, 'Building campus…');
   await buildCampus(world, data);
+  setLoadProgress(0.48, 'Loading landmarks…');
   const landmarks = await buildLandmarks(world, data);
   // Atlas's building glbs (they replace procedural footprints listed in world/buildings/manifest.ts).
+  setLoadProgress(0.58, 'Loading buildings…');
   const { buildBuildingModels } = await import('./world/buildings');
   const buildings = await buildBuildingModels(world);
   if (landmarks.spawnYaw !== undefined) world.spawnYaw = landmarks.spawnYaw;
 
   const view = params.get('view');
   const hourParam = params.get('hour');
+  setLoadProgress(0.68, 'Spawning player…');
   const player = view ? null : await createPlayer(world, camera, container);
 
   // B6: glb loot_spawn markers -> floor-snapped crates for the existing loot spawner.
+  setLoadProgress(0.78, 'Physics…');
   const { collectBuildingLootMarkers, snapLootToFloor, warnDroppedLoot } = await import('./world/buildings/lootSpawns');
   const { buildingLootSpots } = await import('./combat/buildingLoot');
   const { initRapier, PlayerPhysics } = await import('./player/physics');
@@ -85,6 +104,7 @@ async function start(): Promise<void> {
   }
 
   // Combat (dummies, loot, HUD) registers the combat-range viewpoint, so it runs before the camera locks.
+  setLoadProgress(0.88, 'Combat & squads…');
   const { mountCombat } = await import('./combat');
   const combat = await mountCombat({ world, player, camera, dom: container, extraLoot });
   const { mountZone } = await import('./zone');
@@ -117,11 +137,23 @@ async function start(): Promise<void> {
     gfx.resize(container.clientWidth, container.clientHeight);
   });
 
-  document.getElementById('loading')!.remove();
+  setLoadProgress(1, 'Almost ready…');
+  clearLoadingUi();
+  window.__bootMs = Math.round(loadElapsedMs());
+  console.info(`[boot] playable after ${window.__bootMs} ms (quality=${gfx.quality.name})`);
   const clock = new THREE.Clock();
   let frames = 0;
   let gfxReady = false;
   void gfx.ready.then(() => (gfxReady = true));
+  // Soft fallback: if gfx.ready stalls (ReadPixels / soft GL), mark playable anyway.
+  // Do not wait on frames — the render loop itself may be frozen by a GPU readback.
+  const readyFallback = setTimeout(() => {
+    if (!window.__ready) {
+      gfxReady = true;
+      window.__ready = true;
+      console.warn('[boot] gfx.ready timed out; marking playable anyway');
+    }
+  }, 5_000);
   const loop = () => {
     const dt = Math.min(clock.getDelta(), 0.1);
     player?.update(dt);
@@ -131,7 +163,10 @@ async function start(): Promise<void> {
     gfx.render(camera);
     frames++;
     // Ready = a few frames rendered AND the renderer's textures/environment are loaded.
-    if (!window.__ready && frames >= 3 && gfxReady) window.__ready = true;
+    if (!window.__ready && frames >= 3 && gfxReady) {
+      window.__ready = true;
+      clearTimeout(readyFallback);
+    }
     // Screenshot mode: stop once ready so the headless (software) renderer is idle for the capture.
     if (view && window.__ready) return;
     requestAnimationFrame(loop);
@@ -141,5 +176,5 @@ async function start(): Promise<void> {
 
 start().catch((e) => {
   console.error(e);
-  document.getElementById('loading')!.textContent = `Error: ${e}`;
+  failLoading(String(e));
 });

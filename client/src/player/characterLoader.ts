@@ -323,25 +323,39 @@ async function fetchAssets(): Promise<CharacterAssets | null> {
   let bodyBuf: ArrayBuffer;
   let animBuf: ArrayBuffer;
   try {
-    const [bodyRes, animRes] = await Promise.all([
-      fetch(publicUrl(PLAYER_BODY_URL)),
-      fetch(publicUrl(PLAYER_ANIMS_URL)),
-    ]);
-    if (!bodyRes.ok || !animRes.ok) {
+    // Mixamo clips are private / missing on GitHub Pages. Load and validate anims first so we
+    // do not waste ~11 MB on player_base.glb when anims 404 or when Vite serves index.html.
+    const animRes = await fetch(publicUrl(PLAYER_ANIMS_URL));
+    if (!animRes.ok) {
       console.info(
         'Character files not found. Using the simple figure. ' +
           'Put anims.glb in client/public/models/private/ (it is not part of the public repo) to see the realistic body move.',
       );
       return null;
     }
-    bodyBuf = await bodyRes.arrayBuffer();
     animBuf = await animRes.arrayBuffer();
+    if (!isGlb(animBuf)) {
+      console.info(
+        'Character animation file missing or not a glTF binary. Using the simple figure. ' +
+          'Put anims.glb in client/public/models/private/ (it is not part of the public repo).',
+      );
+      return null;
+    }
+    const bodyRes = await fetch(publicUrl(PLAYER_BODY_URL));
+    if (!bodyRes.ok) {
+      console.info(
+        'Character body missing. Using the simple figure. ' +
+          'Expected models/characters/player_base.glb next to the animation file.',
+      );
+      return null;
+    }
+    bodyBuf = await bodyRes.arrayBuffer();
   } catch (err) {
     console.info('Character files could not be loaded. Using the simple figure.', err);
     return null;
   }
-  if (!isGlb(bodyBuf) || !isGlb(animBuf)) {
-    console.info('Character files were not glTF binaries. Using the simple figure.');
+  if (!isGlb(bodyBuf)) {
+    console.info('Character body was not a glTF binary. Using the simple figure.');
     return null;
   }
 

@@ -17,6 +17,7 @@ import { buildTrees } from './trees';
 import type { CampusBuildingExt, CampusDataExt } from './types';
 import { addCampusViewpoints } from './viewpoints';
 import { isReplacedByModel } from '../buildings/manifest';
+import { yieldToBrowser } from '../../boot/loading';
 
 /**
  * Builds the whole campus from campus.json: generic buildings (with procedural facades),
@@ -169,6 +170,7 @@ export async function buildCampus(world: World, rawData: CampusData): Promise<vo
   const tiles = new Map<string, { B: Batcher; ids: string[] }>();
   const featureColliders = new Batcher(); // stairs, colonnades, pylons … (one invisible collider mesh)
   let volumeCount = 0;
+  let built = 0;
   for (const [id, vols] of groups) {
     const main = vols.reduce((a, b) => (Math.abs(signedArea(b.footprint.outer)) > Math.abs(signedArea(a.footprint.outer)) ? b : a));
     const c = centroid(main.footprint.outer);
@@ -206,6 +208,9 @@ export async function buildCampus(world: World, rawData: CampusData): Promise<vo
     }
     entry.ranges = tile.B.rangesSince(mark);
     campusBuildings.set(id, entry);
+    built++;
+    // Keep the loading spinner painting (~1.5s sync work otherwise freezes the tab).
+    if (built % 40 === 0) await yieldToBrowser();
   }
   const fcol = featureColliders.toMesh('campus-feature-colliders');
   if (fcol) { fcol.visible = false; world.addCollider(fcol); }

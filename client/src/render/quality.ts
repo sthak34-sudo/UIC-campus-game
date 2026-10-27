@@ -1,11 +1,14 @@
 /**
- * Graphics quality presets. Chosen with `?quality=low|medium|high` (default below).
+ * Graphics quality presets. Chosen with `?quality=low|medium|high` (default: auto).
  * OWNER: Graphics Engineer.
  *
  * Rough cost on a 2020 integrated GPU (Intel Iris Xe / UHD 620 class) at 1080p:
  *   low     no post, MSAA, 2×512 cascaded shadows          -> ~60 fps class
  *   medium  half-res N8AO, bloom, SMAA, 3×2048 cascades    -> ~40-60 fps class
  *   high    full-res N8AO, bloom, SMAA, 3×2048 cascades    -> ~30-45 fps class
+ *
+ * Default is medium. Software GL / weak GPUs auto-pick low so the first playable
+ * frame is not buried under ReadPixels + N8AO stalls.
  */
 export type Quality = 'low' | 'medium' | 'high';
 
@@ -30,27 +33,86 @@ export interface QualitySettings {
   anisotropy: number;
   /** PMREM environment cube size (procedural sky mode). */
   envSize: number;
+  /**
+   * Indoor auto-exposure may read pixels back from the GPU. Off on low / software GL
+   * (those readbacks cause the "GPU stall due to ReadPixels" warning and freeze frames).
+   */
+  allowMetering: boolean;
 }
 
 export const QUALITY_PRESETS: Record<Quality, QualitySettings> = {
   low: {
     name: 'low', maxPixelRatio: 1, shadowMapSize: 512, cascades: 2, shadowFar: 140, shadowRadius: 1,
-    post: false, ao: 0, bloom: false, smaa: false, anisotropy: 4, envSize: 128,
+    post: false, ao: 0, bloom: false, smaa: false, anisotropy: 4, envSize: 128, allowMetering: false,
   },
   medium: {
-    name: 'medium', maxPixelRatio: 1, shadowMapSize: 2048, cascades: 3, shadowFar: 240, shadowRadius: 2,
-    post: true, ao: 0.5, bloom: true, smaa: true, anisotropy: 8, envSize: 256,
+    name: 'medium', maxPixelRatio: 1, shadowMapSize: 1024, cascades: 3, shadowFar: 200, shadowRadius: 2,
+    post: true, ao: 0.5, bloom: true, smaa: true, anisotropy: 8, envSize: 256, allowMetering: true,
   },
   high: {
     name: 'high', maxPixelRatio: 1.5, shadowMapSize: 2048, cascades: 3, shadowFar: 320, shadowRadius: 2.5,
-    post: true, ao: 1, bloom: true, smaa: true, anisotropy: 16, envSize: 256,
+    post: true, ao: 1, bloom: true, smaa: true, anisotropy: 16, envSize: 256, allowMetering: true,
   },
 };
 
-export const DEFAULT_QUALITY: Quality = 'high';
+/** Default when the URL does not force a preset. Medium is playable on typical laptops. */
+export const DEFAULT_QUALITY: Quality = 'medium';
+
+const WEAK_RENDERER =
+  /swiftshader|llvmpipe|softpipe|microsoft basic render|gdi generic|mesa offscreen/i;
+
+/**
+ * Probe WebGL once. Software renderers and tiny GPUs get `low` so first load stays usable.
+ * Safe to call from Node tests: returns null when there is no document/canvas.
+ */
+export function detectPreferredQuality(): Quality | null {
+  if (typeof document === 'undefined') return null;
+  try {
+    const canvas = document.createElement('canvas');
+    const gl =
+      canvas.getContext('webgl2', { failIfMajorPerformanceCaveat: true }) ||
+      canvas.getContext('webgl', { failIfMajorPerformanceCaveat: true });
+    if (!gl) {
+      // Major-performance caveat (or no WebGL): try without the flag to read the renderer string.
+      const soft =
+        canvas.getContext('webgl2') ||
+        canvas.getContext('webgl');
+      if (!soft) return 'low';
+      const dbg = soft.getExtension('WEBGL_debug_renderer_info');
+      const renderer = dbg
+        ? String(soft.getParameter(dbg.UNMASKED_RENDERER_WEBGL) ?? '')
+        : '';
+      soft.getExtension('WEBGL_lose_context')?.loseContext();
+      if (WEAK_RENDERER.test(renderer)) return 'low';
+      return 'low';
+    }
+    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    const renderer = dbg
+      ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) ?? '')
+      : '';
+    const maxTex = Number(gl.getParameter(gl.MAX_TEXTURE_SIZE) ?? 0);
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    if (WEAK_RENDERER.test(renderer)) return 'low';
+    if (maxTex > 0 && maxTex < 4096) return 'low';
+    return null;
+  } catch {
+    return 'low';
+  }
+}
 
 export function parseQuality(search: string): QualitySettings {
   const q = new URLSearchParams(search).get('quality');
-  const name: Quality = q === 'low' || q === 'medium' || q === 'high' ? q : DEFAULT_QUALITY;
-  return QUALITY_PRESETS[name];
+  let name: Quality;
+  if (q === 'low' || q === 'medium' || q === 'high') {
+    name = q;
+  } else {
+    name = detectPreferredQuality() ?? DEFAULT_QUALITY;
+  }
+  const preset = { ...QUALITY_PRESETS[name] };
+  // Even on medium/high, never meter on software GL (ReadPixels freezes the tab).
+  if (name !== 'low') {
+    const weak = detectPreferredQuality() === 'low';
+    if (weak) preset.allowMetering = false;
+  }
+  return preset;
 }
