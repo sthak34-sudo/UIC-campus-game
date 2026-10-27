@@ -277,7 +277,10 @@ export function buildTrees(trees: TreeInput[]): TreesResult {
     const farCore = new THREE.InstancedMesh(proto.farCore, getMaterial(MAT_SOLID), n);
     const trunk = new THREE.InstancedMesh(proto.trunk, getMaterial(MAT_BARK), n);
     const tag = `campus-trees-${sp.name}-${pi % VARIANTS}`;
-    setup(cards, `${tag}-cards`); setup(core, `${tag}-core`); setup(far, `${tag}-far`); setup(farCore, `${tag}-far-core`); setup(trunk, `${tag}-trunks`);
+    setup(cards, `${tag}-cards`); setup(core, `${tag}-core`); setup(far, `${tag}-far`);
+    // leaf cards are shadow detail: the solid core / far-core still cast a crown shadow
+    cards.userData.shadowDetail = true; far.userData.shadowDetail = true;
+    setup(farCore, `${tag}-far-core`); setup(trunk, `${tag}-trunks`);
     const g: Group = { idx: list, crown: [], tint: [], cards, core, far, farCore };
     const white = new THREE.Color(1, 1, 1);
     for (let i = 0; i < n; i++) for (const im of [cards, core, far, farCore]) im.setColorAt(i, white);
