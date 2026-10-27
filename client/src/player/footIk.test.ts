@@ -7,6 +7,7 @@ import {
   findLegBones,
   footPlantDelta,
   pelvisOffsetFromFeet,
+  pelvisForPlant,
   solveTwoBoneIk,
 } from './footIk';
 
@@ -174,5 +175,44 @@ describe('applyFootIk with floorY (small adjustments only)', () => {
     const r = applyFootIk({ hips, left, right, probe: flat(0.05), grounded: true, pelvisState, dt: 1, yaw: 0, floorY: 0 });
     expect(r!.leftDelta).toBeCloseTo(0.05, 5);
     expect(Math.abs(r!.pelvis)).toBeLessThan(0.05);
+  });
+});
+
+describe('plant on stairs (per-foot, not a float)', () => {
+  it('drops the hips for a foot on a lower step and only lifts by half when both are higher', () => {
+    expect(pelvisForPlant(-0.17, 0, 0.5, 0.22)).toBeCloseTo(-0.17);
+    expect(pelvisForPlant(0, 0.17, 0.5, 0.22)).toBeCloseTo(0);
+    expect(pelvisForPlant(0.1, 0.2, 0.5, 0.22)).toBeCloseTo(0.05);
+    expect(pelvisForPlant(-0.5, 0, 0.5, 0.22)).toBeCloseTo(-0.22);
+  });
+
+  it('puts the higher foot on its step and keeps the sole level', () => {
+    const hips = new THREE.Bone(); hips.position.set(0, 0.95, 0);
+    const mk = (x: number) => {
+      const u = new THREE.Bone(); u.position.set(x, 0, 0);
+      const m = new THREE.Bone(); m.position.set(0, -0.45, 0.02);
+      const e = new THREE.Bone(); e.position.set(0, -0.45, -0.02);
+      const t = new THREE.Bone(); t.position.set(0, -0.04, 0.12);
+      u.add(m); m.add(e); e.add(t); hips.add(u);
+      return { upper: u, mid: m, end: e, toe: t };
+    };
+    const left = mk(0.1), right = mk(-0.1);
+    const root = new THREE.Group(); root.add(hips); root.updateMatrixWorld(true);
+    const qBefore = new THREE.Quaternion(); right.end.getWorldQuaternion(qBefore);
+    const step = 0.17;
+    const probe = { sample: (x: number, yFrom: number, _z: number, d: number) => {
+      const g = x < 0 ? step : 0;
+      return g <= yFrom && g >= yFrom - d ? g : null;
+    } };
+    applyFootIk({ hips, left, right, probe, grounded: true, pelvisState: { y: 0 }, dt: 1, yaw: 0, floorY: 0 });
+    root.updateMatrixWorld(true);
+    const p = new THREE.Vector3();
+    right.end.getWorldPosition(p);
+    expect(p.y).toBeCloseTo(0.05 + step, 1);
+    expect(Math.abs(p.y - (0.05 + step))).toBeLessThan(0.02);
+    left.end.getWorldPosition(p);
+    expect(Math.abs(p.y - 0.05)).toBeLessThan(0.02);
+    const qAfter = new THREE.Quaternion(); right.end.getWorldQuaternion(qAfter);
+    expect(qAfter.angleTo(qBefore)).toBeLessThan(0.02);
   });
 });
