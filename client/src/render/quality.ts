@@ -4,7 +4,7 @@
  *
  * Rough cost on a 2020 integrated GPU (Intel Iris Xe / UHD 620 class) at 1080p:
  *   low     no post, MSAA, 2×512 cascaded shadows          -> ~60 fps class
- *   medium  half-res N8AO, bloom, SMAA, 3×2048 cascades    -> ~40-60 fps class
+ *   medium  half-res N8AO, bloom, SMAA, 2×1024 cascades to 160 m, solid tree shadows -> ~40-60 fps class
  *   high    full-res N8AO, bloom, SMAA, 3×2048 cascades    -> ~30-45 fps class
  *
  * Default is medium. Software GL / weak GPUs auto-pick low so the first playable
@@ -22,6 +22,11 @@ export interface QualitySettings {
   cascades: number;
   /** How far from the camera (m) the cascades cover at street level. */
   shadowFar: number;
+  /**
+   * Leaf-card tree foliage (alpha-tested, ~1M instanced tris) casts shadows. Off: only the solid
+   * crown core and trunks cast, which keeps tree shadows but skips the expensive card depth passes.
+   */
+  detailCasters: boolean;
   /** PCF softening radius in texels. */
   shadowRadius: number;
   /** Use the HDR post pipeline (N8AO, bloom, AgX, SMAA). Off = direct render with MSAA. */
@@ -42,15 +47,15 @@ export interface QualitySettings {
 
 export const QUALITY_PRESETS: Record<Quality, QualitySettings> = {
   low: {
-    name: 'low', maxPixelRatio: 1, shadowMapSize: 512, cascades: 2, shadowFar: 140, shadowRadius: 1,
+    name: 'low', maxPixelRatio: 1, shadowMapSize: 512, cascades: 2, shadowFar: 140, shadowRadius: 1, detailCasters: false,
     post: false, ao: 0, bloom: false, smaa: false, anisotropy: 4, envSize: 128, allowMetering: false,
   },
   medium: {
-    name: 'medium', maxPixelRatio: 1, shadowMapSize: 1024, cascades: 3, shadowFar: 200, shadowRadius: 2,
+    name: 'medium', maxPixelRatio: 1, shadowMapSize: 1024, cascades: 2, shadowFar: 160, shadowRadius: 2, detailCasters: false,
     post: true, ao: 0.5, bloom: true, smaa: true, anisotropy: 8, envSize: 256, allowMetering: true,
   },
   high: {
-    name: 'high', maxPixelRatio: 1.5, shadowMapSize: 2048, cascades: 3, shadowFar: 320, shadowRadius: 2.5,
+    name: 'high', maxPixelRatio: 1.5, shadowMapSize: 2048, cascades: 3, shadowFar: 320, shadowRadius: 2.5, detailCasters: true,
     post: true, ao: 1, bloom: true, smaa: true, anisotropy: 16, envSize: 256, allowMetering: true,
   },
 };

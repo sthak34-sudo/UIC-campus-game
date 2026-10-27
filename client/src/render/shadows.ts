@@ -34,9 +34,11 @@ export function hookCascadeMaterial(material: THREE.Material, csm: CSM): void {
 export class CascadeSun {
   readonly csm: CSM;
   private readonly baseFar: number;
+  private readonly detailCasters: boolean;
 
   constructor(scene: THREE.Scene, camera: THREE.Camera, q: QualitySettings) {
     this.baseFar = q.shadowFar;
+    this.detailCasters = q.detailCasters;
     this.csm = new CSM({
       camera,
       parent: scene,
@@ -81,6 +83,8 @@ export class CascadeSun {
   adopt(root: THREE.Object3D): void {
     root.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
+      // detail-only casters (tree leaf cards) skip the shadow passes on cheaper presets
+      if (!this.detailCasters && mesh.userData.shadowDetail) mesh.castShadow = false;
       const mat = mesh.material;
       if (!mat) return;
       const list = Array.isArray(mat) ? mat : [mat];
