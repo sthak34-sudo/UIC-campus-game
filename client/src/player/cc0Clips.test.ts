@@ -34,10 +34,16 @@ describe('CC0 character clips (live build has no Mixamo file)', () => {
   it('prefers private clips, falls back to CC0, else none', async () => {
     const a = new ArrayBuffer(1);
     const b = new ArrayBuffer(2);
-    expect((await fetchAnimClips(async (p) => (p === PLAYER_ANIMS_URL ? a : b))).source).toBe('mixamo');
+    expect((await fetchAnimClips(async (p) => (p === PLAYER_ANIMS_URL ? a : b), true)).source).toBe('mixamo');
     const live = await fetchAnimClips(async (p) => (p === PLAYER_PUBLIC_ANIMS_URL ? b : null));
     expect(live.source).toBe('cc0');
     expect(live.buf).toBe(b);
     expect((await fetchAnimClips(async () => null)).source).toBe('none');
+  });
+  it('skips the private clip request when the build has no private file (no 404 on Pages)', async () => {
+    const asked: string[] = [];
+    const r = await fetchAnimClips(async (p) => { asked.push(p); return p === PLAYER_PUBLIC_ANIMS_URL ? new ArrayBuffer(4) : null; }, false);
+    expect(asked).toEqual([PLAYER_PUBLIC_ANIMS_URL]);
+    expect(r.source).toBe('cc0');
   });
 });

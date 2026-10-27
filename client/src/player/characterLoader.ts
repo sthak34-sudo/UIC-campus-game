@@ -21,6 +21,7 @@ import { applyFootIk, findLegBones, type GroundProbe, type LegBones } from './fo
 export type { GroundProbe } from './footIk';
 
 export const PLAYER_BODY_URL = 'models/characters/player_base.glb';
+declare const __HAS_PRIVATE_ANIMS__: boolean | undefined;
 export const PLAYER_ANIMS_URL = 'models/private/anims.glb';
 /** CC0 clips (Quaternius Universal Animation Library) baked onto the player_base skeleton. Committed. */
 export const PLAYER_PUBLIC_ANIMS_URL = 'models/characters/player_anims_cc0.glb';
@@ -343,8 +344,9 @@ export function createAvatar(assets: CharacterAssets, shadow = true): CharacterV
  */
 export async function fetchAnimClips(
   load: (path: string) => Promise<ArrayBuffer | null> = fetchGlb,
+  tryPrivate: boolean = typeof __HAS_PRIVATE_ANIMS__ === 'undefined' || __HAS_PRIVATE_ANIMS__,
 ): Promise<{ buf: ArrayBuffer | null; source: 'mixamo' | 'cc0' | 'none' }> {
-  const priv = await load(PLAYER_ANIMS_URL);
+  const priv = tryPrivate ? await load(PLAYER_ANIMS_URL) : null;
   if (priv) return { buf: priv, source: 'mixamo' };
   const pub = await load(PLAYER_PUBLIC_ANIMS_URL);
   return pub ? { buf: pub, source: 'cc0' } : { buf: null, source: 'none' };

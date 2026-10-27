@@ -42,14 +42,23 @@ describe('campus build (full campus.json)', () => {
     // but let frustum + distance culling drop most of them per frame.
     expect(s.calls).toBeLessThan(900);
     expect(s.tris).toBeLessThan(3.5e6);
-    // distance cull: from the Quad, far tiles are hidden
+    // tile LOD from the Quad: far tiles swap to the flat shell instead of vanishing
     world.focus.copy(world.viewpoints.get('map-quad-ground')!.position);
     world.update(0.3, 0);
-    const near = stats(world.scene.getObjectByName('campus-buildings')!);
-    const allRoot = world.scene.getObjectByName('campus-buildings')!.clone();
-    allRoot.traverse((o) => { o.visible = true; });
+    const bg = world.scene.getObjectByName('campus-buildings')!;
+    const near = stats(bg);
+    const detailed = bg.children.filter((o) => o.name.startsWith('campus-buildings-'));
+    const shells = bg.children.filter((o) => o.name.startsWith('campus-shell-'));
+    expect(shells.length).toBe(detailed.length);
+    for (const d of detailed) {
+      const sh = bg.getObjectByName(d.name.replace('campus-buildings-', 'campus-shell-'))!;
+      expect(d.visible !== sh.visible).toBe(true); // exactly one representation per tile (campus < 1900 m)
+    }
+    expect(shells.some((o) => o.visible)).toBe(true);
+    const allRoot = bg.clone();
+    allRoot.traverse((o) => { o.visible = !o.name.startsWith('campus-shell-'); });
     const all = stats(allRoot);
-    console.info(`buildings after distance cull: ${near.calls}/${all.calls} groups, ${(near.tris / 1e6).toFixed(2)}M/${(all.tris / 1e6).toFixed(2)}M tris`);
+    console.info(`buildings with tile LOD: ${near.calls}/${all.calls} groups, ${(near.tris / 1e6).toFixed(2)}M/${(all.tris / 1e6).toFixed(2)}M tris`);
     expect(near.tris).toBeLessThan(all.tris);
     // standing on the tree-filled Quad: nearby trees switch to the leaf-card model
     world.focus.copy(world.viewpoints.get('map-quad-ground')!.position);

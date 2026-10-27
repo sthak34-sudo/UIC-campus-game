@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { CampusData } from '../../core/campusData';
 import type { PlanPoint } from '../../core/geo';
 import type { World } from '../../core/world';
@@ -62,8 +63,49 @@ export const campusBuildings = new Map<string, CampusBuildingEntry>();
  * drops tiles behind or beside the view; 500 m tiles were always "in view" and drew ~whole campus.
  */
 export const TILE = 250;
-/** Tiles whose nearest point is farther than this from the player are hidden (fog hides them anyway). */
-export const BUILDING_CULL_M = 700;
+/**
+ * Past this distance a tile swaps its detailed facades for a flat shell (the building prisms,
+ * one material). Fog does NOT hide buildings here: FogExp2 density 0.00032 leaves a 700 m
+ * building ~95% visible (1 - exp(-(0.00032*700)^2) = 4.9% fog), so tiles must never vanish here.
+ */
+export const BUILDING_FAR_M = 700;
+/** Shells are hidden only past the campus diagonal (~1900 m; still ~69% visible through fog). */
+export const BUILDING_HIDE_M = 1900;
+/** Flat far-shell material shared by every tile (one cheap program, no maps). */
+const shellMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+shellMat.name = 'farShell';
+const SHELL_TONES: Record<string, number> = { brick: 0x8a5a48, glass: 0x7d8a94, concrete: 0x9b9890 };
+function shellTone(style: string): THREE.Color {
+  const k = /brick|rowhouse|loft|house/i.test(style) ? 'brick' : /glass|modern|tower/i.test(style) ? 'glass' : 'concrete';
+  return new THREE.Color(SHELL_TONES[k]);
+}
+/** One far shell per tile: the volume prisms, vertex-colored by facade family. */
+function buildFarShell(entries: CampusBuildingEntry[], name: string): THREE.Mesh | null {
+  const geos: THREE.BufferGeometry[] = [];
+  for (const e of entries) {
+    const c = shellTone(e.style);
+    for (const v of e.volumes) {
+      const g = v.collider.geometry.toNonIndexed();
+      const n = g.getAttribute('position').count;
+      const col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) col.set([c.r, c.g, c.b], i * 3);
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      g.computeVertexNormals();
+      geos.push(g);
+    }
+  }
+  if (!geos.length) return null;
+  const merged = mergeGeometries(geos, false);
+  for (const g of geos) g.dispose();
+  if (!merged) return null;
+  merged.computeBoundingBox();
+  merged.computeBoundingSphere();
+  const m = new THREE.Mesh(merged, shellMat);
+  m.name = name;
+  m.castShadow = false; // far past every shadow cascade
+  m.receiveShadow = false;
+  return m;
+}
 const colliderMat = new THREE.MeshBasicMaterial({ visible: false });
 
 /** Closed prism (walls + top, + bottom when floating) used as the physics shape of a volume. */
@@ -224,6 +266,7 @@ export async function buildCampus(world: World, rawData: CampusData): Promise<vo
   bgroup.name = 'campus-buildings';
   root.add(bgroup);
   let vertices = 0, drawGroups = 0;
+  const tilePairs: TileLod[] = [];
   for (const [tk, tile] of tiles) {
     vertices += tile.B.vertexCount;
     const mesh = tile.B.toMesh(`campus-buildings-${tk}`);
@@ -232,13 +275,16 @@ export async function buildCampus(world: World, rawData: CampusData): Promise<vo
     mesh.receiveShadow = true;
     drawGroups += mesh.geometry.groups.length;
     bgroup.add(mesh);
+    const shell = buildFarShell(tile.ids.map((id) => campusBuildings.get(id)!), `campus-shell-${tk}`);
+    if (shell) { shell.visible = false; bgroup.add(shell); }
+    tilePairs.push({ near: mesh, far: shell });
     for (const id of tile.ids) {
       const e = campusBuildings.get(id)!;
       e.mesh = mesh;
       e.ranges = e.ranges.map((r) => ({ ...r, start: r.start + (tile.B.groupStart.get(r.mat) ?? 0) }));
     }
   }
-  installDistanceCull(world, bgroup.children as THREE.Mesh[], BUILDING_CULL_M);
+  installTileLod(world, tilePairs, BUILDING_FAR_M, BUILDING_HIDE_M);
 
   // --- ground ----------------------------------------------------------------------------------
   const context = await loadContext();
@@ -274,16 +320,26 @@ export async function buildCampus(world: World, rawData: CampusData): Promise<vo
   );
 }
 
-/** Hide meshes whose world bounding box is farther than `maxDist` (XZ) from `world.focus`. */
-export function installDistanceCull(world: World, meshes: THREE.Object3D[], maxDist: number): void {
-  const boxes = meshes.map((m) => new THREE.Box3().setFromObject(m));
-  const tmp = new THREE.Vector3();
+export interface TileLod { near: THREE.Object3D; far: THREE.Object3D | null }
+
+/**
+ * Per tile, by XZ distance from `world.focus` to the tile's box: detailed mesh within `farM`,
+ * flat shell from `farM` to `hideM`, nothing beyond. Tiles without a shell keep the detailed mesh
+ * out to `hideM` (never popping out inside the fog-visible range).
+ */
+export function installTileLod(world: World, tiles: TileLod[], farM: number, hideM: number): void {
+  const boxes = tiles.map((t) => new THREE.Box3().setFromObject(t.near));
   const apply = () => {
     const f = world.focus;
-    for (let i = 0; i < meshes.length; i++) {
-      const b = boxes[i]!;
-      tmp.set(Math.min(Math.max(f.x, b.min.x), b.max.x), f.y, Math.min(Math.max(f.z, b.min.z), b.max.z));
-      meshes[i]!.visible = Math.hypot(tmp.x - f.x, tmp.z - f.z) <= maxDist;
+    for (let i = 0; i < tiles.length; i++) {
+      const b = boxes[i]!, t = tiles[i]!;
+      const dx = Math.min(Math.max(f.x, b.min.x), b.max.x) - f.x;
+      const dz = Math.min(Math.max(f.z, b.min.z), b.max.z) - f.z;
+      const d = Math.hypot(dx, dz);
+      const inRange = d <= hideM;
+      const useFar = !!t.far && d > farM;
+      t.near.visible = inRange && !useFar;
+      if (t.far) t.far.visible = inRange && useFar;
     }
   };
   let acc = Infinity;
