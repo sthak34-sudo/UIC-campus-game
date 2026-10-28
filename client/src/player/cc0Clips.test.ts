@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CLIP_NAMES, UNARMED_CLIP_NAMES, PLAYER_ANIMS_URL, PLAYER_PUBLIC_ANIMS_URL, fetchAnimClips } from './characterLoader';
+import { AIR_CLIP_NAMES, CLIP_NAMES, UNARMED_CLIP_NAMES, PLAYER_ANIMS_URL, PLAYER_PUBLIC_ANIMS_URL, fetchAnimClips } from './characterLoader';
 
 const pub = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../public');
 
@@ -19,7 +19,7 @@ describe('CC0 character clips (live build has no Mixamo file)', () => {
     const clips = glbJson(path.join(pub, PLAYER_PUBLIC_ANIMS_URL));
     const body = glbJson(path.join(pub, 'models/characters/player_base.glb'));
     const names = (clips.animations ?? []).map((a) => a.name);
-    for (const n of [...CLIP_NAMES, ...UNARMED_CLIP_NAMES]) expect(names).toContain(n);
+    for (const n of [...CLIP_NAMES, ...UNARMED_CLIP_NAMES, ...AIR_CLIP_NAMES]) expect(names).toContain(n);
     const bodyNodes = new Set((body.nodes ?? []).map((n) => n.name));
     for (const anim of clips.animations ?? []) {
       for (const ch of anim.channels) expect(bodyNodes.has(clips.nodes![ch.target.node].name)).toBe(true);

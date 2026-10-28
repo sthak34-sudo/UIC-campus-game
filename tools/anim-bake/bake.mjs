@@ -99,6 +99,8 @@ const WANT = {
   // No-weapon set, used while the player has nothing in hand: relaxed idle, walk, a full arm-pumping
   // sprint for run, and the jump-start pose (arms thrown up) for the air.
   unarmed_idle: ['Idle_Loop'], unarmed_walk: ['Walk_Loop'], unarmed_run: ['Sprint_Loop'], unarmed_jump: ['Jump_Start'],
+  // Air loop after the take-off clip ends, and a one-shot landing for long falls.
+  fall: ['Jump_Loop'], land: ['Jump_Land'],
 };
 const FPS = 30;
 // Stance tidy for the standing clips. The Quaternius idle is a wide game stance (ankles 1.4x shoulder
