@@ -3,7 +3,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { World } from '../core/world';
 import { PLAYER_CONFIG } from './config';
 import { initRapier, PlayerPhysics } from './physics';
-import { BOT_BODY_RADIUS, createBotBodies } from './botBodies';
+import { BOT_BODY_RADIUS, BOT_DOWNED_HEAD_Y, BOT_HEAD_Y, createBotBodies } from './botBodies';
+import { castHitscan } from '../combat/weapon';
 import { snapBotY } from '../squad/botBody';
 
 const flat = () => {
@@ -47,5 +48,37 @@ describe('bot physics bodies', () => {
     expect(bots.probe.sample(phys.feet.x, 2, phys.feet.z, 5)).toBeCloseTo(0, 2);
     bots.dispose();
     expect(bots.colliderCount).toBe(0);
+  });
+
+  it('has head and body hit zones, and a crouched-height body when downed', () => {
+    const phys = flat();
+    const bots = createBotBodies(phys.world, phys.collider);
+    const id = bots.add(0, 0, -5);
+    phys.world.step();
+    const shoot = (y: number) => {
+      const h = castHitscan(phys.world, { x: 0, y, z: -1 }, { x: 0, y: 0, z: -1 }, 20, phys.collider);
+      return h ? bots.lookup(h.colliderHandle, h.point.y) : undefined;
+    };
+    expect(shoot(BOT_HEAD_Y)).toEqual({ id, zone: 'head' });
+    expect(shoot(1.75)).toEqual({ id, zone: 'head' });
+    expect(shoot(1.0)).toEqual({ id, zone: 'body' });
+    expect(shoot(0.3)).toEqual({ id, zone: 'body' });
+
+    bots.move(id, 0, 0, -5, 'downed');
+    phys.world.step();
+    expect(shoot(BOT_HEAD_Y)).toBeUndefined(); // shots over a kneeling bot miss
+    expect(shoot(1.35)).toBeUndefined();
+    expect(shoot(BOT_DOWNED_HEAD_Y)).toEqual({ id, zone: 'head' });
+    expect(shoot(0.4)).toEqual({ id, zone: 'body' });
+    // Probe still ignores both zones.
+    expect(bots.probe.sample(0, 3, -5, 5)).toBeCloseTo(0, 2);
+
+    bots.move(id, 0, 0, -5, false);
+    phys.world.step();
+    expect(shoot(0.4)).toBeUndefined();
+    bots.move(id, 0, 0, -5, true);
+    phys.world.step();
+    expect(shoot(BOT_HEAD_Y)).toEqual({ id, zone: 'head' });
+    bots.dispose();
   });
 });

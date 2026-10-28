@@ -40,6 +40,16 @@ export interface CombatSquadBridge {
   getCombatant(): Combatant;
   /** Write combatant back (medkit / heal-all). */
   setCombatant(c: Combatant): void;
+  /**
+   * The player's shot hit this collider. Returns null when it is not a squad bot; otherwise
+   * whether team rules blocked it and whether it was a head shot.
+   */
+  shootBot?(
+    colliderHandle: number,
+    hitY: number,
+    distance: number,
+    dir: { x: number; y: number; z: number },
+  ): { blocked: boolean; headshot: boolean } | null;
 }
 
 export interface CombatMount {
@@ -217,7 +227,12 @@ export async function mountCombat(opts: {
         const outcome = dummies.damage(target.index, target.zone, hit.distance, player.rapier.world, { x: dir.x, y: dir.y, z: dir.z });
         if (outcome) hud.flashCrosshair(outcome.headshot ? 'head' : 'hit');
       } else {
-        fx.decal(hit.point, hit.normal);
+        const bot = squad?.shootBot?.(hit.colliderHandle, hit.point.y, hit.distance, { x: dir.x, y: dir.y, z: dir.z });
+        if (bot) {
+          if (!bot.blocked) hud.flashCrosshair(bot.headshot ? 'head' : 'hit');
+        } else {
+          fx.decal(hit.point, hit.normal);
+        }
       }
     }
     syncHud();
