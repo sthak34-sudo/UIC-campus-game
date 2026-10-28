@@ -350,9 +350,9 @@ export async function mountCombat(opts: {
       for (const off of offs) off();
       hud?.dispose();
       fx.dispose();
-      impacts.dispose();
       dummies.dispose(opts.world.scene, physics);
       loot.dispose(opts.world.scene);
+      impacts.dispose();
     },
   };
 }
