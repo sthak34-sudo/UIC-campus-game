@@ -5,6 +5,8 @@
  * Optional `squad` bridge (S3): routes player damage through applyDamage so a lethal
  * hit knocks instead of killing when a teammate is alive. Downed players cannot fire.
  */
+import { MatchEndScreen } from '../match/matchEndScreen';
+import { addDamage, addKills, finish, newStats, summarize } from '../match/matchStats';
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import type { World } from '../core/world';
@@ -149,6 +151,9 @@ export async function mountCombat(opts: {
     : null;
 
   const now = () => performance.now() / 1000;
+  // Solo match-end screen (squads have their own in the squad adapter).
+  let soloStats = newStats(now());
+  const soloEnd = opts.player ? new MatchEndScreen(hudParent) : null;
 
   const playerDowned = () => (squad ? squad.isDowned() : false);
   const playerDead = () => (squad ? squad.isDead() : isDown(vitals));
@@ -177,7 +182,13 @@ export async function mountCombat(opts: {
 
   const killPlayer = () => {
     opts.player?.setControlsEnabled(false);
-    hud?.showDeath(true);
+    if (!squad && soloEnd) {
+      soloStats = finish(soloStats, now());
+      soloEnd.show(summarize(soloStats, now(), 'died', null, 1));
+      console.info(`[match] solo death: kills ${soloStats.kills}, damage ${Math.round(soloStats.damage)}`);
+    } else {
+      hud?.showDeath(true);
+    }
     reloading = false;
   };
 
@@ -275,7 +286,10 @@ export async function mountCombat(opts: {
       const target = dummies.lookup(hit.colliderHandle);
       if (target) {
         const outcome = dummies.damage(target.index, target.zone, hit.distance, player.rapier.world, { x: dir.x, y: dir.y, z: dir.z });
-        if (outcome) hud.flashCrosshair(outcome.headshot ? 'head' : 'hit');
+        if (outcome) {
+          hud.flashCrosshair(outcome.headshot ? 'head' : 'hit');
+          if (!squad) soloStats = addKills(addDamage(soloStats, outcome.dealt), outcome.died ? 1 : 0);
+        }
       } else {
         const bot = squad?.shootBot?.(hit.colliderHandle, hit.point.y, hit.distance, { x: dir.x, y: dir.y, z: dir.z });
         if (bot) {

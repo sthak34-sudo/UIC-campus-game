@@ -39,9 +39,10 @@ import { shootBot } from './botHits';
 import { checkWipe } from './elimination';
 import { canDamage } from './friendlyFire';
 import { SquadHud } from './hud';
-import { offlineRoster } from './matchSetup';
+import { localSquadWon, offlineRoster } from './matchSetup';
+import { MatchEndScreen } from '../match/matchEndScreen';
+import { addDamage, addKills, damageBetween, finish, killsBy, newStats, summarize } from '../match/matchStats';
 import { placePing, tickPings, type Ping } from './pings';
-import { PlacementScreen } from './placementScreen';
 import { createMatch } from './roster';
 import { nextTarget, spectateTargets } from './spectate';
 import { step, type PlayerInput } from './step';
@@ -347,7 +348,6 @@ export function mountSquad(opts: {
   let pings: Ping[] = [];
   let feedCursor = 0;
   let spectateId: PlayerId | null = null;
-  let placementDismissed = false;
 
   // S4/S5: for viewpoint screenshots, knock Bot1 and drop a ping so markers/feed show.
   // s5-placement seeds a wiped local squad so the placement overlay is visible.
@@ -405,7 +405,27 @@ export function mountSquad(opts: {
     camera: opts.camera,
     localId: playerId,
   });
-  const placementUi = new PlacementScreen(hudParent);
+  // Match-end screen: on win or when your squad is wiped.
+  const endUi = new MatchEndScreen(hudParent);
+  let stats = newStats(performance.now() / 1000);
+  let statsCursor = 0;
+  const checkEnd = () => {
+    if (statsCursor < eventsLog.length) {
+      stats = addKills(stats, killsBy(eventsLog.slice(statsCursor), playerId));
+      statsCursor = eventsLog.length;
+    }
+    if (endUi.isShown()) return;
+    const squad = state.squads[localSquad];
+    if (!squad) return;
+    const won = localSquadWon(state, localSquad);
+    if (!won && !squad.eliminated) return;
+    const nowS = performance.now() / 1000;
+    stats = finish(stats, nowS);
+    const squads = Object.keys(state.squads).length;
+    const sum = summarize(stats, nowS, won ? 'won' : 'wiped', squad.placement, squads);
+    endUi.show(sum);
+    console.info(`[match] end: ${sum.title} ${sum.placement}, kills ${sum.kills}, damage ${sum.damage}, survived ${sum.survival}`);
+  };
   // Seed names for the kill feed.
   const memberNames: Record<PlayerId, string> = {};
   for (const m of Object.values(state.members)) memberNames[m.id] = m.name;
@@ -454,8 +474,11 @@ export function mountSquad(opts: {
       if (!hit) return null;
       const body = bots.find((b) => b.phys === hit.id);
       if (!body) return null;
+      const before = state.members[body.id]!;
       const r = shootBot(state, playerId, body.id, hit.zone, distance);
       if (r.result === 'blocked') return { blocked: true, headshot: false };
+      const after = r.state.members[body.id]!;
+      stats = addDamage(stats, damageBetween({ ...before.combatant, downHp: before.downHp }, { ...after.combatant, downHp: after.downHp }));
       state = r.state;
       eventsLog.push(...r.events);
       if (r.result === 'hit') body.avatar?.flinch(dir);
@@ -538,8 +561,7 @@ export function mountSquad(opts: {
       const dir = e.code === 'ArrowLeft' ? -1 : 1;
       spectateId = nextTarget(targets, spectateId, dir);
     } else if (e.code === 'Escape') {
-      placementDismissed = true;
-      placementUi.hide();
+      // The match-end screen stays up; Play again restarts.
     } else if (e.code === 'KeyO') {
       // Debug: wipe the local squad so placement / spectate can be tested.
       const members = { ...state.members };
@@ -610,7 +632,7 @@ export function mountSquad(opts: {
       }
       squadHud.update({ state, pings, dt, nowMs: performance.now(), forceMarkers: true });
       opts.zone?.setSquadMarks(squadHud.getMapMarks());
-      if (!placementDismissed) placementUi.update(state, localSquad);
+      checkEnd();
       panel.textContent =
         `Squad HUD demo (J knock · L heal · P ping · hold F revive · O wipe)\n` +
         `Pings: ${pings.length}` +
@@ -917,7 +939,7 @@ export function mountSquad(opts: {
       spectateId = null;
     }
 
-    if (!placementDismissed) placementUi.update(state, localSquad);
+    checkEnd();
 
     // Keep combat HUD vitals in sync after revive.
     opts.combat.setVitals(state.members[playerId]!.combatant);
@@ -960,7 +982,7 @@ export function mountSquad(opts: {
       applyDownedPresentation(false);
       opts.zone?.setSquadMarks([]);
       squadHud.dispose();
-      placementUi.dispose();
+      endUi.dispose();
       panel.remove();
       botFlashes.dispose();
       physBodies?.dispose();

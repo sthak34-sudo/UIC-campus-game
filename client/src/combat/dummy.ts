@@ -52,6 +52,8 @@ export interface DummyHit {
   died: boolean;
   headshot: boolean;
   health: number;
+  /** Health + armor this hit took off. */
+  dealt: number;
 }
 
 export class PracticeDummies {
@@ -151,7 +153,7 @@ export class PracticeDummies {
     } else {
       rig.avatar?.flinch(hitDir);
     }
-    return { index, zone, died: outcome.died, headshot: outcome.headshot, health: rig.vitals.health };
+    return { index, zone, died: outcome.died, headshot: outcome.headshot, health: rig.vitals.health, dealt: outcome.healthDamage + outcome.armorDamage };
   }
 
   update(dt: number, camera: THREE.Camera, physics: RAPIER.World | null): void {
