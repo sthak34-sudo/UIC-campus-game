@@ -35,6 +35,13 @@ export const COMBAT = {
   reloadTime: 1.7,
   medkitHeal: 50,
   medkitCap: 3,
+  /** Bandage: heals this much after a short channel, but never above `bandageMaxHealth`. */
+  bandageHeal: 15,
+  bandageChannel: 3,
+  bandageMaxHealth: 75,
+  bandageCap: 10,
+  /** Med kit: channelled too, so healing mid-fight is a risk. */
+  medkitChannel: 6,
   /** Temporary H-key damage. Ignores armor so the death screen is easy to reach. */
   debugHurt: 25,
   /** Seconds a dummy stays down before standing up. */

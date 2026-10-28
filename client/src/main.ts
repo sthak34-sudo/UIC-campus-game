@@ -80,7 +80,7 @@ async function start(): Promise<void> {
   // B6: glb loot_spawn markers -> floor-snapped crates for the existing loot spawner.
   mark('player');
   setLoadProgress(0.78, 'Physics…');
-  const { collectBuildingLootMarkers, snapLootToFloor, warnDroppedLoot } = await import('./world/buildings/lootSpawns');
+  const { collectBuildingLootMarkers, snapLootToFloor, walkableFloorAt, warnDroppedLoot } = await import('./world/buildings/lootSpawns');
   const { buildingLootSpots } = await import('./combat/buildingLoot');
   const { initRapier, PlayerPhysics } = await import('./player/physics');
   await initRapier();
@@ -99,7 +99,14 @@ async function start(): Promise<void> {
   const rawMarkers = collectBuildingLootMarkers(buildings);
   const snapped = snapLootToFloor(lootPhys, rawMarkers);
   warnDroppedLoot(snapped.dropped);
-  const extraLoot = buildingLootSpots(snapped.kept);
+  // Match ground loot: building floors (glb markers) plus rifles / ammo / bandages on sidewalks and plazas.
+  const { campusLootSpots } = await import('./combat/campusLoot');
+  const campusLoot = campusLootSpots([...data.surfaces.plaza, ...data.surfaces.sidewalk], {
+    floorAt: (x, z) => walkableFloorAt(lootPhys, x, z),
+    spawn: { x: world.spawn.x, z: world.spawn.z },
+  });
+  console.info(`[loot] ${campusLoot.length} campus pickups, ${snapped.kept.length} building pickups`);
+  const extraLoot = [...buildingLootSpots(snapped.kept), ...campusLoot];
   // Viewpoints aimed at the first kept marker in lecture centers / SCE.
   const lecturePool = snapped.kept.filter((m) => m.slug === 'quad-lecture-centers');
   // Prefer a mid-list marker so the camera is not jammed against a wall/door.

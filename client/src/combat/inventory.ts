@@ -5,13 +5,14 @@
 import { COMBAT } from './balance';
 import { applyReload, canReload } from './damage';
 
-export type LootKind = 'gun' | 'ammo' | 'medkit' | 'armor';
+export type LootKind = 'gun' | 'ammo' | 'medkit' | 'armor' | 'bandage';
 
 export interface Inventory {
   hasGun: boolean;
   mag: number;
   reserve: number;
   medkits: number;
+  bandages: number;
 }
 
 /** Practice loadout: a rifle and two magazines of reserve, no med kits yet. */
@@ -21,11 +22,12 @@ export function startingInventory(): Inventory {
     mag: COMBAT.magSize,
     reserve: COMBAT.startingReserve,
     medkits: 0,
+    bandages: 0,
   };
 }
 
 export function emptyInventory(): Inventory {
-  return { hasGun: false, mag: 0, reserve: 0, medkits: 0 };
+  return { hasGun: false, mag: 0, reserve: 0, medkits: 0, bandages: 0 };
 }
 
 function clampReserve(n: number): number {
@@ -47,6 +49,8 @@ export function grantLoot(inv: Inventory, kind: LootKind): Inventory {
       return { ...inv, reserve: clampReserve(inv.reserve + COMBAT.ammoPickup) };
     case 'medkit':
       return { ...inv, medkits: Math.min(COMBAT.medkitCap, inv.medkits + 1) };
+    case 'bandage':
+      return { ...inv, bandages: Math.min(COMBAT.bandageCap, inv.bandages + 1) };
     case 'armor':
       return inv;
   }
@@ -68,6 +72,11 @@ export function pullMedkit(inv: Inventory): { inventory: Inventory; ok: boolean 
   return { inventory: { ...inv, medkits: inv.medkits - 1 }, ok: true };
 }
 
+export function pullBandage(inv: Inventory): { inventory: Inventory; ok: boolean } {
+  if (inv.bandages <= 0) return { inventory: inv, ok: false };
+  return { inventory: { ...inv, bandages: inv.bandages - 1 }, ok: true };
+}
+
 export function lootLabel(kind: LootKind): string {
   switch (kind) {
     case 'gun':
@@ -78,6 +87,8 @@ export function lootLabel(kind: LootKind): string {
       return 'Med kit';
     case 'armor':
       return 'Armor';
+    case 'bandage':
+      return 'Bandage';
   }
 }
 

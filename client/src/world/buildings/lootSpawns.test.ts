@@ -50,7 +50,7 @@ describe('collectBuildingLootMarkers', () => {
 });
 
 describe('buildingLootSpots', () => {
-  it('cycles gun / ammo / medkit / armor', () => {
+  it('cycles gun / ammo / bandage / medkit / armor / bandage', () => {
     const spots = buildingLootSpots([
       { x: 0, y: 0, z: 0 },
       { x: 1, y: 0, z: 0 },
@@ -58,7 +58,8 @@ describe('buildingLootSpots', () => {
       { x: 3, y: 0, z: 0 },
       { x: 4, y: 0, z: 0 },
     ]);
-    expect(spots.map((s) => s.kind)).toEqual(['gun', 'ammo', 'medkit', 'armor', 'gun']);
+    expect(spots.map((s) => s.kind)).toEqual(['gun', 'ammo', 'bandage', 'medkit', 'armor']);
+    expect(spots.every((s) => s.once)).toBe(true);
     expect(spots[0]!.position).toEqual({ x: 0, y: 0, z: 0 });
   });
 });
@@ -139,6 +140,6 @@ describe('building glb loot floors', () => {
     // for the raw (pre-snap) list shape, and that kinds cycle.
     const spots = buildingLootSpots(markers.map((m) => ({ x: m.x, y: m.y, z: m.z })));
     expect(spots.length).toBe(markers.length);
-    expect(new Set(spots.map((s) => s.kind)).size).toBe(4);
+    expect(new Set(spots.map((s) => s.kind)).size).toBe(5);
   });
 });

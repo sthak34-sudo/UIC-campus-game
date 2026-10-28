@@ -19,6 +19,8 @@ export interface PlayerEvents {
   debugHurt: Record<string, never>;
   /** Q. Use a carried med kit. */
   useMedkit: Record<string, never>;
+  /** B. Use a carried bandage. */
+  useBandage: Record<string, never>;
 }
 
 type Handler<T> = (e: T) => void;

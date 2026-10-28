@@ -17,9 +17,10 @@ import {
   addArmor, createCombatant, healCombatant, isDown, takeDirectDamage, type Combatant,
 } from './health';
 import {
-  finishReload, grantLoot, lootLabel, pickupPrompt, pullMedkit, spendRound, emptyInventory, type Inventory,
+  finishReload, grantLoot, lootLabel, pickupPrompt, pullBandage, pullMedkit, spendRound, emptyInventory, type Inventory,
 } from './inventory';
 import { LootField } from './loot';
+import { channelLabel, healAmount, healBlocked, startHeal, stepHeal, type HealChannel, type HealItem } from './heal';
 import { practiceLayout, starterRifleSpot } from './range';
 import { castAimedShot, muzzlePoint, WeaponFx } from './weapon';
 import { createTracers } from '../render/tracers';
@@ -123,6 +124,13 @@ export async function mountCombat(opts: {
   let reloadReadyAt = 0;
   let clock = 0;
   let squad: CombatSquadBridge | null = null;
+  // Bandage / med kit being applied (channelled; damage, firing or going down cancels it).
+  let healing: HealChannel | null = null;
+  const cancelHeal = (why: string) => {
+    if (!healing) return;
+    healing = null;
+    hud?.flashHint(why);
+  };
 
   const hudParent = document.getElementById('hud') ?? opts.dom;
   const hud = opts.player
@@ -148,10 +156,11 @@ export async function mountCombat(opts: {
       mag: inventory.mag,
       reserve: inventory.reserve,
       medkits: inventory.medkits,
+      bandages: inventory.bandages,
       hasGun: inventory.hasGun,
       reloading,
       reloadLeft: reloading ? Math.max(0, reloadReadyAt - now()) : 0,
-      prompt: near ? pickupPrompt(near.kind) : '',
+      prompt: healing ? channelLabel(healing) : near ? pickupPrompt(near.kind) : '',
     });
   };
 
@@ -183,6 +192,7 @@ export async function mountCombat(opts: {
 
   const applyLocalDamage = (amount: number, attackerId: string | null, from: { x: number; y: number; z: number } | null = null) => {
     if (!opts.player || amount <= 0) return;
+    cancelHeal('Healing interrupted');
     if (squad) {
       if (squad.isDead()) return;
       // While downed, zone / finish damage is handled by the squad adapter via applyDownedDamage.
@@ -223,6 +233,7 @@ export async function mountCombat(opts: {
       }
       return;
     }
+    cancelHeal('Healing cancelled');
     const dir = new THREE.Vector3();
     opts.camera.getWorldDirection(dir);
     const origin = opts.camera.position;
@@ -288,24 +299,36 @@ export async function mountCombat(opts: {
     applyLocalDamage(COMBAT.debugHurt, null, from);
   };
 
-  const useMedkit = () => {
+  // Q / B start a channelled heal; it lands in onUpdate when the timer runs out.
+  const beginHeal = (item: HealItem) => {
     if (!opts.player || playerBlocked()) return;
-    if (inventory.medkits <= 0) {
-      hud?.flashHint('No med kit');
+    if (healing) {
+      hud?.flashHint('Already healing');
       return;
     }
-    const healed = healCombatant(vitals, COMBAT.medkitHeal);
-    if (healed.healed <= 0) {
-      hud?.flashHint('Already at full health');
+    if (squad) vitals = squad.getCombatant();
+    const why = healBlocked(item, vitals.health, item === 'bandage' ? inventory.bandages : inventory.medkits);
+    if (why) {
+      hud?.flashHint(why);
       return;
     }
-    const pulled = pullMedkit(inventory);
+    healing = startHeal(item);
+    syncHud();
+  };
+  const finishHeal = (item: HealItem) => {
+    if (squad) vitals = squad.getCombatant();
+    const pulled = item === 'bandage' ? pullBandage(inventory) : pullMedkit(inventory);
+    if (!pulled.ok) return;
+    const amount = healAmount(item, vitals.health, vitals.maxHealth);
+    const healed = healCombatant(vitals, amount);
     inventory = pulled.inventory;
     vitals = healed.combatant;
     squad?.setCombatant(vitals);
-    hud?.flashHint(`Med kit +${healed.healed}`);
+    hud?.flashHint(`${item === 'bandage' ? 'Bandage' : 'Med kit'} +${healed.healed}`);
     syncHud();
   };
+  const useMedkit = () => beginHeal('medkit');
+  const useBandage = () => beginHeal('bandage');
 
   const onInteract = (e: { position: { x: number; y: number; z: number } }) => {
     if (!opts.player || playerBlocked()) return;
@@ -328,11 +351,23 @@ export async function mountCombat(opts: {
     offs.push(opts.player.events.on('reload', () => reload()));
     offs.push(opts.player.events.on('debugHurt', () => hurt()));
     offs.push(opts.player.events.on('useMedkit', () => useMedkit()));
+    offs.push(opts.player.events.on('useBandage', () => useBandage()));
     offs.push(opts.player.events.on('interact', onInteract));
   }
 
   const onUpdate = (dt: number) => {
     clock += dt;
+    if (healing) {
+      if (playerBlocked()) {
+        healing = null;
+      } else {
+        const r = stepHeal(healing, dt);
+        const item = healing.item;
+        healing = r.channel;
+        if (r.done) finishHeal(item);
+        else syncHud();
+      }
+    }
     if (reloading && now() >= reloadReadyAt) {
       inventory = finishReload(inventory);
       reloading = false;

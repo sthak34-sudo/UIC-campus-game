@@ -5,7 +5,7 @@ import { canReachPickup, emptyInventory, finishReload, grantLoot, lootLabel, pul
 describe('inventory', () => {
   it('starts the practice round with a rifle and reserve ammo', () => {
     const inv = startingInventory();
-    expect(inv).toEqual({ hasGun: true, mag: COMBAT.magSize, reserve: COMBAT.startingReserve, medkits: 0 });
+    expect(inv).toEqual({ hasGun: true, mag: COMBAT.magSize, reserve: COMBAT.startingReserve, medkits: 0, bandages: 0 });
   });
 
   it('does not mutate the inventory you pass in', () => {
@@ -17,7 +17,7 @@ describe('inventory', () => {
 
   it('gives a rifle to an empty inventory and extra reserve when you already have one', () => {
     const armed = grantLoot(emptyInventory(), 'gun');
-    expect(armed).toEqual({ hasGun: true, mag: COMBAT.magSize, reserve: 0, medkits: 0 });
+    expect(armed).toEqual({ hasGun: true, mag: COMBAT.magSize, reserve: 0, medkits: 0, bandages: 0 });
     const more = grantLoot(startingInventory(), 'gun');
     expect(more.hasGun).toBe(true);
     expect(more.mag).toBe(COMBAT.magSize);
@@ -44,8 +44,8 @@ describe('inventory', () => {
     expect(reloaded.mag).toBe(COMBAT.magSize);
     expect(reloaded.reserve).toBe(COMBAT.startingReserve - 1);
     expect(finishReload(startingInventory())).toEqual(startingInventory());
-    const dry = finishReload({ hasGun: true, mag: 10, reserve: 0, medkits: 0 });
-    expect(dry).toEqual({ hasGun: true, mag: 10, reserve: 0, medkits: 0 });
+    const dry = finishReload({ hasGun: true, mag: 10, reserve: 0, medkits: 0, bandages: 0 });
+    expect(dry).toEqual({ hasGun: true, mag: 10, reserve: 0, medkits: 0, bandages: 0 });
   });
 
   it('pulls one med kit', () => {

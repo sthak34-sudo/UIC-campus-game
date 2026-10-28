@@ -33,6 +33,7 @@ describe('key self-check', () => {
   it('binds Q medkit, H practice hurt, P ping, K/J knock, F revive, L heal-all, O wipe, Z zone, arrows spectate', () => {
     const input = src('player/input.ts');
     expect(input).toMatch(/case 'KeyQ'/);
+    expect(input).toMatch(/case 'KeyB'/);
     expect(input).toMatch(/case 'KeyH'/);
     expect(input).toMatch(/KeyF/);
 

@@ -14,6 +14,7 @@ interface Crate {
   position: Vec3;
   group: THREE.Group;
   hiddenUntil: number;
+  once: boolean;
 }
 
 const COLORS: Record<LootKind, number> = {
@@ -21,6 +22,7 @@ const COLORS: Record<LootKind, number> = {
   ammo: 0xb08a45,
   medkit: 0xf4f1ea,
   armor: 0x3c5d86,
+  bandage: 0xe8dcc0,
 };
 
 function labelSprite(text: string, color: string): THREE.Sprite {
@@ -76,6 +78,12 @@ function buildMesh(kind: LootKind): THREE.Object3D {
     }));
     box.position.y = 0.11;
     group.add(box);
+  } else if (kind === 'bandage') {
+    // A rolled bandage lying on its side.
+    const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.14, 14), mat);
+    roll.rotation.z = Math.PI / 2;
+    roll.position.y = 0.07;
+    group.add(roll);
   } else {
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.16, 0.18), mat);
     box.position.y = 0.08;
@@ -121,6 +129,7 @@ const NAMES: Record<LootKind, string> = {
   ammo: 'Ammo',
   medkit: 'Med kit',
   armor: 'Armor',
+  bandage: 'Bandage',
 };
 
 export class LootField {
@@ -145,7 +154,7 @@ export class LootField {
         group.add(labelSprite(NAMES[spot.kind], '#f2f5f8'));
       }
       scene.add(group);
-      this.crates.push({ kind: spot.kind, still, position: spot.position, group, hiddenUntil: 0 });
+      this.crates.push({ kind: spot.kind, still, position: spot.position, group, hiddenUntil: 0, once: spot.once === true });
       this.baseY.push(spot.position.y);
     }
   }
@@ -171,7 +180,8 @@ export class LootField {
   take(index: number, now: number): LootKind | null {
     const c = this.crates[index];
     if (!c || c.hiddenUntil > now) return null;
-    c.hiddenUntil = now + COMBAT.lootRespawn;
+    // Match loot (campus / buildings) is gone once taken; practice-range crates come back.
+    c.hiddenUntil = c.once ? Infinity : now + COMBAT.lootRespawn;
     c.group.visible = false;
     return c.kind;
   }
