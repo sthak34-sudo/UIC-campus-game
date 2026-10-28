@@ -15,6 +15,8 @@ import { createAvatar, peekCharacterAssets, type CharacterVisual } from '../play
 import { snapBotY } from './botBody';
 import { createBotBodies } from '../player/botBodies';
 import { createBotGun } from '../player/botGun';
+import { createBotSight } from '../player/botSight';
+import { chestY, EYE_Y, muzzlePoint, pickVisibleTarget, shotOrigin } from './botTarget';
 import { BOT_AIM, botAimPoint, botTrigger } from './botAim';
 import type { ZoneMount } from '../zone';
 import { DOWN } from './balance';
@@ -175,6 +177,11 @@ export function mountSquad(opts: {
       ? createBotGun(player.rapier.world, physBodies, player.rapier.playerCollider, () => player.position.y)
       : null;
   const triggerCooldown = new Map<PlayerId, number>();
+  // Line of sight: walls and buildings block it, people do not.
+  const botSight =
+    player && physBodies
+      ? createBotSight(player.rapier.world, (h) => h === player.rapier.playerCollider.handle || physBodies.lookup(h) != null)
+      : null;
   const bodyGeom = new THREE.CapsuleGeometry(0.28, 0.9, 4, 8);
   const headGeom = new THREE.SphereGeometry(0.18, 12, 10);
   let allyColorIdx = 0;
@@ -582,19 +589,23 @@ export function mountSquad(opts: {
       }
       body.root.visible = true;
 
-      // Visibility: nearest living foe within 28 m (no Rapier ray yet).
-      let nearestEnemyId: PlayerId | null = null;
-      let nearestDist = 28;
+      // Visibility: nearest living foe within 28 m that the bot has a clear line of sight to.
+      const foes: { id: PlayerId; dist: number }[] = [];
       for (const other of Object.values(state.members)) {
         if (other.id === body.id) continue;
         if (other.life === 'dead') continue;
         if (!canDamage(state, body.id, other.id)) continue;
         const d = Math.hypot(other.pos.x - member.pos.x, other.pos.z - member.pos.z);
-        if (d < nearestDist) {
-          nearestDist = d;
-          nearestEnemyId = other.id;
-        }
+        if (d < 28) foes.push({ id: other.id, dist: d });
       }
+      const eyeAt = { x: member.pos.x, y: member.pos.y + EYE_Y, z: member.pos.z };
+      const seen = pickVisibleTarget(foes, (f) => {
+        if (!botSight) return true;
+        const o = state.members[f.id]!;
+        return botSight.clear(eyeAt, { x: o.pos.x, y: o.pos.y + chestY(o.life === 'downed'), z: o.pos.z });
+      });
+      const nearestEnemyId: PlayerId | null = seen?.id ?? null;
+      const nearestDist = seen?.dist ?? 28;
       const leaderId = body.enemy
         ? (state.squads[member.squad]!.members.find((id) => state.members[id]?.life === 'alive') ?? body.id)
         : playerId;
@@ -646,9 +657,12 @@ export function mountSquad(opts: {
         const trig = botTrigger(triggerCooldown.get(body.id) ?? 0, dt, botGun != null, nearestDist, Math.random);
         triggerCooldown.set(body.id, trig.cooldown);
         if (trig.fire && botGun) {
-          const eye = { x: pos.x, y: pos.y + 1.55, z: pos.z };
+          // Bullets leave the rifle barrel (or the eye if the barrel is poking into a wall).
+          const eye = { x: pos.x, y: pos.y + EYE_Y, z: pos.z };
+          const muzzle = muzzlePoint(pos, body.root.rotation.y);
+          const origin = botSight ? shotOrigin(eye, muzzle, (a, b) => botSight.clear(a, b)) : muzzle;
           const aim = botAimPoint(foe.pos, nearestDist, foe.life === 'downed', Math.random);
-          const shot = botGun.fire(body.phys, eye, aim, BOT_AIM.range + 5);
+          const shot = botGun.fire(body.phys, origin, aim, BOT_AIM.range + 5);
           const victimId =
             shot?.kind === 'player' ? playerId : shot?.kind === 'bot' ? bots.find((b) => b.phys === shot.id)?.id : undefined;
           if (shot && shot.kind !== 'world' && victimId) {
