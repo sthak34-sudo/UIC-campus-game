@@ -33,11 +33,12 @@ export interface HitOutcome {
 }
 
 /** Applies one hitscan hit. A combatant already at 0 health is unchanged. */
-export function takeHit(c: Combatant, zone: HitZone, distance: number): HitOutcome {
+/** `baseDamage` defaults to the player rifle's (bots fire weaker rounds). */
+export function takeHit(c: Combatant, zone: HitZone, distance: number, baseDamage?: number): HitOutcome {
   if (c.health <= 0) {
     return { combatant: c, healthDamage: 0, armorDamage: 0, died: false, headshot: zone === 'head' };
   }
-  const d = resolveIncomingDamage({ zone, distance, armor: c.armor });
+  const d = resolveIncomingDamage({ zone, distance, armor: c.armor, baseDamage });
   const health = Math.max(0, c.health - d.healthDamage);
   return {
     combatant: { ...c, health, armor: d.armorAfter },
