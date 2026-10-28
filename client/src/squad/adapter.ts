@@ -5,7 +5,6 @@
  * Pure rules stay in the other squad modules.
  */
 import * as THREE from 'three';
-import RAPIER from '@dimforge/rapier3d-compat';
 import type { CombatMount, CombatSquadBridge } from '../combat';
 import { createCombatant, takeDirectDamage, type Combatant } from '../combat/health';
 import type { World } from '../core/world';
@@ -13,7 +12,7 @@ import type { Player } from '../player';
 import { PLAYER_CONFIG } from '../player/config';
 import { createAvatar, peekCharacterAssets, type CharacterVisual } from '../player/characterLoader';
 import { snapBotY } from './botBody';
-import type { GroundProbe } from '../player/characterLoader';
+import { createBotBodies } from '../player/botBodies';
 import type { ZoneMount } from '../zone';
 import { DOWN } from './balance';
 import { botIntent, stepToward } from './bots';
@@ -28,20 +27,6 @@ import { createMatch } from './roster';
 import { nextTarget, spectateTargets } from './spectate';
 import { step, type PlayerInput } from './step';
 import type { PlayerId, SquadEvent, SquadMatchState } from './types';
-
-
-/** Downward Rapier ray probe. `skip` excludes colliders (e.g. the local player's capsule). */
-function rapierDownProbe(world: RAPIER.World, skip: RAPIER.Collider | null): GroundProbe {
-  return {
-    sample(x, yFrom, z, maxDrop) {
-      const hit = world.castRay(
-        new RAPIER.Ray({ x, y: yFrom, z }, { x: 0, y: -1, z: 0 }),
-        maxDrop, true, undefined, undefined, skip ?? undefined,
-      );
-      return hit ? yFrom - hit.timeOfImpact : null;
-    },
-  };
-}
 
 
 export type SquadMode = 'bots' | 'solo';
@@ -87,6 +72,8 @@ interface BotBody {
   /** Animated character with its starter rifle, or null (capsule fallback). */
   avatar: CharacterVisual | null;
   last: { x: number; z: number };
+  /** Id in the bot physics bodies, or -1 without a Rapier world. */
+  phys: number;
 }
 
 /**
@@ -162,7 +149,10 @@ export function mountSquad(opts: {
   const bots: BotBody[] = [];
   const assets = peekCharacterAssets();
   // Feet and body height come from the same downward ray the player uses (skipping the player capsule).
-  const probe = player ? rapierDownProbe(player.rapier.world, player.rapier.playerCollider) : null;
+  // Each bot also gets a solid kinematic capsule so the player can't walk through it; the probe skips
+  // the player and every bot capsule, so bots never stand on each other.
+  const physBodies = player ? createBotBodies(player.rapier.world, player.rapier.playerCollider) : null;
+  const probe = physBodies?.probe ?? null;
   const bodyGeom = new THREE.CapsuleGeometry(0.28, 0.9, 4, 8);
   const headGeom = new THREE.SphereGeometry(0.18, 12, 10);
   let allyColorIdx = 0;
@@ -207,7 +197,8 @@ export function mountSquad(opts: {
     const y0 = snapBotY(probe, m.pos.x, m.pos.y, m.pos.z);
     root.position.set(m.pos.x, y0, m.pos.z);
     opts.world.scene.add(root);
-    bots.push({ id, root, enemy, avatar, last: { x: m.pos.x, z: m.pos.z } });
+    const phys = physBodies ? physBodies.add(m.pos.x, y0, m.pos.z) : -1;
+    bots.push({ id, root, enemy, avatar, phys, last: { x: m.pos.x, z: m.pos.z } });
   }
 
   // Viewpoints for screenshots (no player).
@@ -550,6 +541,7 @@ export function mountSquad(opts: {
     for (const body of bots) {
       const member = state.members[body.id]!;
       if (member.life === 'dead') {
+        physBodies?.move(body.phys, member.pos.x, member.pos.y, member.pos.z, false);
         body.root.visible = false;
         inputs.push({ id: body.id, holdRevive: false, pos: { ...member.pos } });
         continue;
@@ -630,6 +622,7 @@ export function mountSquad(opts: {
 
       pos = { ...pos, y: snapBotY(probe, pos.x, pos.y, pos.z) };
       body.root.position.set(pos.x, pos.y, pos.z);
+      physBodies?.move(body.phys, pos.x, pos.y, pos.z, true);
       if (intent.type === 'follow' || intent.type === 'moveTo') {
         const tx = intent.type === 'follow' ? state.members[intent.target]!.pos.x : intent.x;
         const tz = intent.type === 'follow' ? state.members[intent.target]!.pos.z : intent.z;
@@ -731,6 +724,7 @@ export function mountSquad(opts: {
       squadHud.dispose();
       placementUi.dispose();
       panel.remove();
+      physBodies?.dispose();
       for (const b of bots) {
         opts.world.scene.remove(b.root);
         if (b.avatar) {
