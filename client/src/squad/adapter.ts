@@ -26,6 +26,7 @@ import { steerStep } from './steer';
 import { avoidWalls } from './wallSteer';
 import { createTracers } from '../render/tracers';
 import { createGunSound } from '../audio/gunSound';
+import { createImpacts } from '../render/impacts';
 import { createWallProbe } from '../player/wallProbe';
 import { applyDamage } from './downed';
 import { shootBot } from './botHits';
@@ -180,8 +181,10 @@ export function mountSquad(opts: {
   const tracers = createTracers(opts.world.scene);
   const gunSound = createGunSound(import.meta.env.BASE_URL);
   const earEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-  const onBotShot = (from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }) => {
+  const impacts = createImpacts(opts.world.scene);
+  const onBotShot = (from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }, normal?: { x: number; y: number; z: number }) => {
     tracers.add(from, to);
+    if (normal) impacts.spawn(to, normal);
     earEuler.setFromQuaternion(opts.camera.quaternion);
     gunSound.play(from, opts.camera.position, earEuler.y);
   };
@@ -549,6 +552,7 @@ export function mountSquad(opts: {
 
   const onUpdate = (dt: number) => {
     tracers.update(dt);
+    impacts.update(dt);
     if (!player) {
       // Viewpoint / screenshot demo: keep bot meshes posed, no match stepping.
       // Still drive the S4 HUD so markers / panel / feed show up in screenshots.
@@ -845,6 +849,7 @@ export function mountSquad(opts: {
       panel.remove();
       physBodies?.dispose();
       tracers.dispose();
+      impacts.dispose();
       for (const b of bots) {
         opts.world.scene.remove(b.root);
         if (b.avatar) {
