@@ -17,6 +17,7 @@ import type { ZoneMount } from '../zone';
 import { DOWN } from './balance';
 import { botIntent, stepToward } from './bots';
 import { applyDamage } from './downed';
+import { shootBot } from './botHits';
 import { checkWipe } from './elimination';
 import { canDamage } from './friendlyFire';
 import { SquadHud } from './hud';
@@ -357,6 +358,18 @@ export function mountSquad(opts: {
       opts.combat.setVitals(after.combatant);
       return { combatant: after.combatant, dead: after.life === 'dead' };
     },
+    shootBot(handle, hitY, distance, dir) {
+      const hit = physBodies?.lookup(handle, hitY);
+      if (!hit) return null;
+      const body = bots.find((b) => b.phys === hit.id);
+      if (!body) return null;
+      const r = shootBot(state, playerId, body.id, hit.zone, distance);
+      if (r.result === 'blocked') return { blocked: true, headshot: false };
+      state = r.state;
+      eventsLog.push(...r.events);
+      if (r.result === 'hit') body.avatar?.flinch(dir);
+      return { blocked: false, headshot: r.headshot };
+    },
   };
   if (player) opts.combat.setSquadBridge(bridge);
 
@@ -622,7 +635,7 @@ export function mountSquad(opts: {
 
       pos = { ...pos, y: snapBotY(probe, pos.x, pos.y, pos.z) };
       body.root.position.set(pos.x, pos.y, pos.z);
-      physBodies?.move(body.phys, pos.x, pos.y, pos.z, true);
+      physBodies?.move(body.phys, pos.x, pos.y, pos.z, member.life === 'downed' ? 'downed' : 'stand');
       if (intent.type === 'follow' || intent.type === 'moveTo') {
         const tx = intent.type === 'follow' ? state.members[intent.target]!.pos.x : intent.x;
         const tz = intent.type === 'follow' ? state.members[intent.target]!.pos.z : intent.z;
