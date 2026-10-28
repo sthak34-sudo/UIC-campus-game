@@ -26,3 +26,20 @@ describe('PUBG-style unarmed start', () => {
     }
   });
 });
+
+describe('starter rifle in view', () => {
+  it('lies a couple of steps in front of where the player actually stands, at their floor height', async () => {
+    const { starterRifleSpot } = await import('./range');
+    for (const yaw of [0, 1.2, -2.5, Math.PI]) {
+      const feet = { x: 27, y: 0.2, z: 35 };
+      const g = starterRifleSpot(feet, yaw);
+      const dx = g.x - feet.x, dz = g.z - feet.z;
+      const d = Math.hypot(dx, dz);
+      expect(d).toBeGreaterThan(1);
+      expect(d).toBeLessThan(3);
+      // In front: positive along the facing direction (-sin yaw, -cos yaw), i.e. on screen.
+      expect((dx * -Math.sin(yaw) + dz * -Math.cos(yaw)) / d).toBeGreaterThan(0.9);
+      expect(g.y).toBe(feet.y);
+    }
+  });
+});

@@ -62,7 +62,8 @@ export function checkWipe(
   }
 
   // Last squad standing wins.
-  if (nextState.squadsAlive === 1) {
+  // Needs at least two squads in the match: a lone squad (no enemies) never 'wins' by default.
+  if (nextState.squadsAlive === 1 && Object.keys(nextState.squads).length > 1) {
     const winner = Object.values(nextState.squads).find((s) => !s.eliminated);
     if (winner) {
       events.push({ type: 'matchWon', squad: winner.id });

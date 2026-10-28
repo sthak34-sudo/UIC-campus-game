@@ -3,7 +3,7 @@ import { createMatch } from './roster';
 import { applyDamage } from './downed';
 import { takeDirectDamage } from '../combat/health';
 import { checkWipe } from './elimination';
-import { localPlacementLine, offlineRoster } from './matchSetup';
+import { localPlacementLine, localSquadWon, offlineRoster } from './matchSetup';
 import { spectateTargets, nextTarget } from './spectate';
 
 describe('offlineRoster', () => {
@@ -104,5 +104,33 @@ describe('S5 offline match (3 squads)', () => {
     for (const id of state.squads.B!.members) {
       expect(targets).not.toContain(id);
     }
+  });
+});
+
+describe('no instant victory', () => {
+  it('?squad=bots brings 3 enemy squads of 4 by default; ?enemySquads=N overrides; solo has none', async () => {
+    const { parseSquadOptions } = await import('./adapter');
+    expect(parseSquadOptions('?squad=bots').enemySquads).toBe(3);
+    expect(parseSquadOptions('?squad=bots&enemySquads=1').enemySquads).toBe(1);
+    expect(parseSquadOptions('?squad=bots&enemySquads=0').enemySquads).toBe(0);
+    expect(parseSquadOptions('').enemySquads).toBe(0);
+    const r = offlineRoster(3);
+    expect(r.length).toBe(4);
+    expect(r.slice(1).every((s) => s.names.length === 4 && s.bots.every(Boolean))).toBe(true);
+  });
+  it('is not a win at the start, nor with no enemies at all; only once every other squad is out', () => {
+    const start = createMatch(offlineRoster(3), 1);
+    expect(localSquadWon(start, 'A')).toBe(false);
+    const lone = createMatch(offlineRoster(0), 1);
+    expect(localSquadWon(lone, 'A')).toBe(false);
+    const ended = { ...start, squads: Object.fromEntries(Object.entries(start.squads).map(([k, s]) => [k, k === 'A' ? s : { ...s, eliminated: true }])) };
+    expect(localSquadWon(ended, 'A')).toBe(true);
+  });
+});
+
+describe('lone squad', () => {
+  it('never emits matchWon when there are no enemy squads', () => {
+    const { events } = checkWipe(createMatch(offlineRoster(0), 1));
+    expect(events.some((e) => e.type === 'matchWon')).toBe(false);
   });
 });

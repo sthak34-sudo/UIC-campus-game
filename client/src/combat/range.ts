@@ -52,3 +52,22 @@ export function practiceLayout(spawn: Vec3, yaw: number): PracticeLayout {
     lookAt: at(1.15, 11.5, 1.2),
   };
 }
+
+/** Starter rifle: this far ahead of the player's feet (m), and a little to the right, so it is on screen at load. */
+export const STARTER_RIFLE = { ahead: 1.8, right: 0.6 };
+
+/**
+ * Where the starter rifle lies: just in front of where the player actually stands, facing `yaw`
+ * (the same facing as the spawn camera), at the player's floor height.
+ */
+export function starterRifleSpot(feet: Vec3, yaw: number): Vec3 {
+  const fx = -Math.sin(yaw);
+  const fz = -Math.cos(yaw);
+  const rx = Math.cos(yaw);
+  const rz = -Math.sin(yaw);
+  return {
+    x: feet.x + fx * STARTER_RIFLE.ahead + rx * STARTER_RIFLE.right,
+    y: feet.y,
+    z: feet.z + fz * STARTER_RIFLE.ahead + rz * STARTER_RIFLE.right,
+  };
+}
