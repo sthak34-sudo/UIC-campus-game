@@ -364,11 +364,15 @@ export class PlayerPhysics {
   /**
    * Sweeps the camera probe sphere from `from` along unit `dir` up to `max`.
    * Returns the free distance before touching something, or null if the path is clear.
+   * `staticOnly` skips moving bodies (bot capsules), e.g. for a spectate camera that starts inside a bot.
    */
-  sweepSphere(from: THREE.Vector3, dir: THREE.Vector3, max: number): number | null {
+  sweepSphere(from: THREE.Vector3, dir: THREE.Vector3, max: number, staticOnly = false): number | null {
+    const flags = staticOnly
+      ? RAPIER.QueryFilterFlags.EXCLUDE_KINEMATIC | RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC | RAPIER.QueryFilterFlags.EXCLUDE_SENSORS
+      : undefined;
     const hit = this.world.castShape(
       { x: from.x, y: from.y, z: from.z }, IDENTITY_ROT, { x: dir.x, y: dir.y, z: dir.z }, this.ball,
-      0, max, true, undefined, undefined, this.collider,
+      0, max, true, flags, undefined, this.collider,
     );
     return hit ? hit.time_of_impact : null;
   }

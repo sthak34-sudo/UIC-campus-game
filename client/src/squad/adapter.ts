@@ -44,7 +44,7 @@ import { MatchEndScreen } from '../match/matchEndScreen';
 import { addDamage, addKills, damageBetween, finish, killsBy, newStats, summarize } from '../match/matchStats';
 import { placePing, tickPings, type Ping } from './pings';
 import { createMatch } from './roster';
-import { nextTarget, spectateLabel, spectateTargets } from './spectate';
+import { nextTarget, spectateCamera, spectateLabel, spectateTargets, type Vec3 } from './spectate';
 import { allowKey, debugKeysEnabled } from '../debug/debugKeys';
 import { step, type PlayerInput } from './step';
 import type { PlayerId, SquadEvent, SquadMatchState } from './types';
@@ -518,6 +518,21 @@ export function mountSquad(opts: {
   // Debug keys K / J / L (and track F for revive). H stays combat practice hurt.
   // Cheat keys (K/J/L/O) only with ?debug or in a dev build.
   const debugKeys = debugKeysEnabled(opts.search);
+  // Spectate camera: pulled in by the same sphere sweep as the follow camera, so walls never clip it.
+  const sweepFrom = new THREE.Vector3();
+  const sweepDir = new THREE.Vector3();
+  const camSweep = (from: Vec3, dir: Vec3, max: number) =>
+    player ? player.sweepCamera(sweepFrom.set(from.x, from.y, from.z), sweepDir.set(dir.x, dir.y, dir.z), max) : null;
+  let camFor: PlayerId | null = null;
+  let camArm: number | null = null;
+  const placeSpectateCam = (id: PlayerId, tpos: Vec3, offset: Vec3, dt: number) => {
+    if (camFor !== id) camArm = null; // new target: snap, no ease from the old arm
+    camFor = id;
+    const c = spectateCamera(tpos, offset, camSweep, camArm, dt);
+    camArm = c.arm;
+    opts.camera.position.set(c.pos.x, c.pos.y, c.pos.z);
+    opts.camera.lookAt(c.look.x, c.look.y, c.look.z);
+  };
   const onKey = (e: KeyboardEvent) => {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target as HTMLElement | null;
@@ -948,8 +963,7 @@ export function mountSquad(opts: {
         const label = spectateLabel(state.members[spectateId]!.name, targets.indexOf(spectateId), targets.length);
         if (specBanner.textContent !== label) specBanner.textContent = label;
         specBanner.style.display = 'block';
-        opts.camera.position.set(tpos.x + 4.5, tpos.y + 2.4, tpos.z + 5.5);
-        opts.camera.lookAt(tpos.x, tpos.y + 1.2, tpos.z);
+        placeSpectateCam(spectateId, tpos, { x: 4.5, y: 2.4, z: 5.5 }, dt);
       } else if (state.squads[localSquad]!.eliminated) {
         specBanner.style.display = 'none';
         // Squad wiped: after placement, peek at the nearest living enemy bot.
@@ -966,8 +980,7 @@ export function mountSquad(opts: {
         }
         if (best) {
           const tpos = state.members[best]!.pos;
-          opts.camera.position.set(tpos.x + 5, tpos.y + 2.6, tpos.z + 6);
-          opts.camera.lookAt(tpos.x, tpos.y + 1.2, tpos.z);
+          placeSpectateCam(best, tpos, { x: 5, y: 2.6, z: 6 }, dt);
         }
       }
     } else {

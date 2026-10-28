@@ -56,6 +56,11 @@ export interface Player {
   readonly rapier: { world: RAPIER.World; playerCollider: RAPIER.Collider };
   /** False while the death screen is up. Plays the death animation while controls are off. */
   setControlsEnabled(enabled: boolean): void;
+  /**
+   * Same sphere sweep the follow camera uses against walls, but static world only (bots ignored).
+   * Free distance from `from` along unit `dir`, or null when clear up to `max`. Spectate camera uses it.
+   */
+  sweepCamera(from: THREE.Vector3, dir: THREE.Vector3, max: number): number | null;
   /** Show or hide the rifle in the player's hands (unarmed until one is looted). */
   setArmed(armed: boolean): void;
   /** Upper-body fire clip. Combat calls this when a shot actually leaves the gun. */
@@ -329,6 +334,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     syncColliders: () => phys.syncColliders(world.colliders),
     stats: () => ({ ...phys.stats }),
     rapier: { world: phys.world, playerCollider: phys.collider },
+    sweepCamera: (from, dir, max) => phys.sweepSphere(from, dir, max, true),
     setArmed: (v) => {
       armed = v;
     },
