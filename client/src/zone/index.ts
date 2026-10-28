@@ -38,6 +38,8 @@ export interface ZoneMount {
   dispose(): void;
   /** Teammate / ping dots drawn on the minimap (S4). */
   setSquadMarks(marks: readonly SquadMapDot[]): void;
+  /** Current safe circle (used to keep spawns inside the zone). */
+  safeCircle?(): Circle;
 }
 
 export interface ZoneDebugState {
@@ -208,6 +210,7 @@ export function mountZone(opts: {
   window.__zone = api;
 
   return {
+    safeCircle: () => latest.current,
     setSquadMarks(marks: readonly SquadMapDot[]) {
       squadMarks = marks.slice();
       // Redraw with the latest snap so dots appear without waiting a tick.
