@@ -101,18 +101,22 @@ async function start(): Promise<void> {
   const snapped = snapLootToFloor(lootPhys, rawMarkers);
   warnDroppedLoot(snapped.dropped);
   // Match ground loot: building floors (glb markers) plus rifles / ammo / bandages on sidewalks and plazas.
-  const { campusLootSpots } = await import('./combat/campusLoot');
+  const { campusLootSpots, insideZone, CAMPUS_LOOT } = await import('./combat/campusLoot');
   // Same zone the match will run (same seed); loot stays inside its first safe circle.
   const { buildZone, parseZoneOptions } = await import('./zone/zoneLogic');
   const zoneOpts = parseZoneOptions(location.search);
-  const firstSafe = buildZone(data.bounds, zoneOpts.seed, zoneOpts.fast)[0]!.end;
+  const zonePhases = buildZone(data.bounds, zoneOpts.seed, zoneOpts.fast);
+  const firstSafe = zonePhases[0]!.end;
   const campusLoot = campusLootSpots([...data.surfaces.plaza, ...data.surfaces.sidewalk], {
     zone: firstSafe,
     floorAt: (x, z) => walkableFloorAt(lootPhys, x, z),
     spawn: { x: world.spawn.x, z: world.spawn.z },
   });
   console.info(`[loot] ${campusLoot.length} campus pickups, ${snapped.kept.length} building pickups`);
-  const extraLoot = [...buildingLootSpots(snapped.kept), ...campusLoot];
+  // Building loot too: only floors inside the first shrink circle get pickups.
+  const zoneBuildingLoot = snapped.kept.filter((m) => insideZone(firstSafe, m, CAMPUS_LOOT.zoneMarginM));
+  console.info(`[loot] ${zoneBuildingLoot.length}/${snapped.kept.length} building pickups inside the first shrink circle`);
+  const extraLoot = [...buildingLootSpots(zoneBuildingLoot), ...campusLoot];
   // Viewpoints aimed at the first kept marker in lecture centers / SCE.
   const lecturePool = snapped.kept.filter((m) => m.slug === 'quad-lecture-centers');
   // Prefer a mid-list marker so the camera is not jammed against a wall/door.
@@ -151,6 +155,7 @@ async function start(): Promise<void> {
     player,
     bounds: data.bounds,
     search: location.search,
+    phases: zonePhases,
     // Spawn grace: the zone can't hurt anyone in the first few seconds.
     applyDamage: (amount) => {
       if (!inSpawnGrace(zoneGameS)) combat.applyZoneDamage(amount);

@@ -265,3 +265,9 @@ export function parseZoneOptions(search: string): { fast: boolean; seed: number 
   }
   return { fast, seed };
 }
+
+/** `Phase 2/6 · 0.8 HP/s outside` */
+export function phaseLabel(phase: number, count: number, damagePerSecond: number): string {
+  const dps = damagePerSecond >= 10 ? damagePerSecond.toFixed(0) : damagePerSecond.toFixed(1);
+  return `Phase ${phase + 1}/${count} · ${dps} HP/s outside`;
+}

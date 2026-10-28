@@ -18,6 +18,8 @@ import {
   type Circle,
   type PlanBounds,
   type ZoneSnapshot,
+  type ZonePhase,
+  phaseLabel,
 } from './zoneLogic';
 
 const WALL_HEIGHT = 180;
@@ -40,6 +42,8 @@ export interface ZoneMount {
   setSquadMarks(marks: readonly SquadMapDot[]): void;
   /** Current safe circle (used to keep spawns inside the zone). */
   safeCircle?(): Circle;
+  /** Latest zone state (circle now, next circle, damage). Bots use it to rotate and take damage. */
+  snapshot?(): ZoneSnapshot;
 }
 
 export interface ZoneDebugState {
@@ -69,9 +73,11 @@ export function mountZone(opts: {
   bounds: PlanBounds;
   search: string;
   applyDamage(amount: number): void;
+  /** The match's phases. Pass the same ones used to place loot; built from the URL otherwise. */
+  phases?: ZonePhase[];
 }): ZoneMount {
   const { fast, seed } = parseZoneOptions(opts.search);
-  const phases = buildZone(opts.bounds, seed, fast);
+  const phases = opts.phases ?? buildZone(opts.bounds, seed, fast);
   const first = phases[0]!;
 
   const wallGeo = new THREE.CylinderGeometry(1, 1, 1, 128, 1, true);
@@ -141,6 +147,7 @@ export function mountZone(opts: {
 
   const parent = document.getElementById('hud') ?? document.body;
   const hud = new ZoneHud(parent);
+  hud.phaseCount = phases.length;
   let squadMarks: SquadMapDot[] = [];
 
   let elapsed = 0;
@@ -211,6 +218,7 @@ export function mountZone(opts: {
 
   return {
     safeCircle: () => latest.current,
+    snapshot: () => latest,
     setSquadMarks(marks: readonly SquadMapDot[]) {
       squadMarks = marks.slice();
       // Redraw with the latest snap so dots appear without waiting a tick.
@@ -272,6 +280,8 @@ class ZoneHud {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly timer: HTMLDivElement;
   private readonly distance: HTMLDivElement;
+  private readonly phase: HTMLDivElement;
+  phaseCount = 0;
   private readonly size = 168;
 
   constructor(parent: HTMLElement) {
@@ -318,7 +328,16 @@ class ZoneHud {
       fontWeight: '650',
     } satisfies Partial<CSSStyleDeclaration>);
 
-    this.root.append(this.canvas, this.timer, this.distance);
+    this.phase = document.createElement('div');
+    this.phase.id = 'zone-phase';
+    Object.assign(this.phase.style, {
+      marginTop: '2px',
+      fontSize: '12px',
+      fontWeight: '600',
+      color: '#ffd38a',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    this.root.append(this.canvas, this.timer, this.phase, this.distance);
     parent.appendChild(this.root);
   }
 
@@ -329,6 +348,7 @@ class ZoneHud {
     squadMarks: readonly SquadMapDot[] = [],
   ): void {
     this.timer.textContent = zoneTimerLabel(snap.mode, snap.remaining);
+    this.phase.textContent = phaseLabel(snap.phase, this.phaseCount, snap.damagePerSecond);
     this.distance.textContent = player ? distanceLabel(metersOutside) : '';
     this.distance.style.color = metersOutside > 0.5 ? '#ffb089' : '#d7ffe4';
     this.draw(snap, player, squadMarks);

@@ -34,6 +34,7 @@ import { createImpacts } from '../render/impacts';
 import { createImpactSound } from '../audio/impactSound';
 import { createWallProbe } from '../player/wallProbe';
 import { applyDamage } from './downed';
+import { botZoneDamage, botZoneGoal } from './botZone';
 import { shootBot } from './botHits';
 import { checkWipe } from './elimination';
 import { canDamage } from './friendlyFire';
@@ -685,12 +686,20 @@ export function mountSquad(opts: {
       const leaderId = body.enemy
         ? (state.squads[member.squad]!.members.find((id) => state.members[id]?.life === 'alive') ?? body.id)
         : playerId;
+      const zoneView = opts.zone?.snapshot?.() ?? null;
+      const zoneGoal = member.life === 'alive' ? botZoneGoal(zoneView, member.pos) : null;
+      const zoneHurt = inSpawnGrace(matchElapsed) ? 0 : botZoneDamage(zoneView, member.pos, dt, DOWN.zoneDamageMult);
+      if (zoneHurt > 0) {
+        const r = applyDamage(state, body.id, 'zone', takeDirectDamage(member.combatant, zoneHurt));
+        state = r.state;
+        eventsLog.push(...r.events);
+      }
       let intent = botIntent(state, body.id, {
         leaderId,
         enemyVisible: nearestEnemyId != null,
         nearestEnemyId,
-        inZoneDanger: false,
-        zoneCenter: { x: feet.x, z: feet.z },
+        inZoneDanger: zoneGoal != null,
+        zoneCenter: zoneGoal ?? { x: feet.x, z: feet.z },
       });
       if (memory && !seen && (intent.type === 'follow' || intent.type === 'idle')) {
         // Lost sight of a foe: go check its last-seen spot, facing it, ready to shoot.

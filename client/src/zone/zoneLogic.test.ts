@@ -19,6 +19,7 @@ import {
   type Circle,
   type PlanBounds,
 } from './zoneLogic';
+import { phaseLabel } from './zoneLogic';
 
 /** East Campus play area from campus.json, plan meters. */
 const CAMPUS: PlanBounds = { minX: -887, minY: -541.8, maxX: 513.9, maxY: 685.6 };
@@ -161,5 +162,20 @@ describe('safe zone math', () => {
     expect(formatClock(65)).toBe('1:05');
     expect(formatClock(0)).toBe('0:00');
     expect(formatClock(0.2)).toBe('0:01');
+  });
+});
+
+describe('zone phases for the match', () => {
+  it('every phase waits, shrinks, and hurts more than the one before', () => {
+    const phases = buildZone({ minX: -600, minY: -500, maxX: 600, maxY: 500 }, 7);
+    for (let i = 0; i < phases.length; i++) {
+      expect(phases[i]!.wait).toBeGreaterThan(0);
+      expect(phases[i]!.shrink).toBeGreaterThan(0);
+      if (i > 0) expect(phases[i]!.damagePerSecond).toBeGreaterThan(phases[i - 1]!.damagePerSecond);
+    }
+  });
+  it('labels the phase and its damage', () => {
+    expect(phaseLabel(1, 6, 0.8)).toBe('Phase 2/6 · 0.8 HP/s outside');
+    expect(phaseLabel(5, 6, 12)).toBe('Phase 6/6 · 12 HP/s outside');
   });
 });
