@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { createTracers, TRACER, tracerSpan } from './tracers';
+import { createTracers, TRACER, tracerSpan, tracerWidth } from './tracers';
 import { shotPan, shotVolume, GUN_SOUND } from '../audio/gunSound';
 
 describe('tracers', () => {
@@ -10,6 +10,11 @@ describe('tracers', () => {
     expect(mid.head).toBeGreaterThan(0); expect(mid.head - mid.tail).toBeLessThanOrEqual(TRACER.streak);
     expect(tracerSpan(30, TRACER.life).head).toBe(30);
     expect(tracerSpan(2, TRACER.life * 0.9).head).toBeLessThanOrEqual(2);
+  });
+  it('stays at least a few pixels wide far away', () => {
+    expect(tracerWidth(1)).toBe(TRACER.width);
+    expect(tracerWidth(100)).toBeCloseTo(100 * TRACER.minAngle);
+    expect(tracerWidth(100)).toBeGreaterThan(TRACER.width);
   });
   it('pools and fades out', () => {
     const scene = new THREE.Scene();
