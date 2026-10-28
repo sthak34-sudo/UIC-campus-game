@@ -19,6 +19,7 @@
 
 ## Sound
 - `client/public/audio/gunshot_cc0.ogg` — **CC0 1.0**. "Random gunfire SFX" (`gunfire_sfx.wav`) by iamoneabe on OpenGameArt: https://opengameart.org/content/random-gunfire-sfx (licence on that page: CC0, https://creativecommons.org/publicdomain/zero/1.0/). Cut to 0.8 s with a fade-out, mixed to mono, and encoded as Ogg Vorbis (10 KB). Used for bot gunshots. Credit is not legally required under CC0 but given anyway.
+- `client/public/audio/impact_wall_cc0.ogg` and `client/public/audio/impact_ground_cc0.ogg` — **CC0 1.0**. From "75 CC0 breaking / falling / hit sfx" by rubberduck on OpenGameArt: https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx (licence on that page: CC0, https://creativecommons.org/publicdomain/zero/1.0/). Wall: `bfh1_rock_hit_01.ogg`; ground: `bfh1_hit_05.ogg` with a low-pass filter and a short fade. Both mixed to mono and re-encoded as Ogg Vorbis (about 5 KB each). Used for bullet impact sounds. Credit is not legally required under CC0 but given anyway.
 
 ## Surface textures (photo-scanned PBR, CC0)
 Downloaded by `tools/textures/fetch_cc0.py`; files in `client/public/textures/<folder>/`. All are licensed **CC0 1.0 (public domain)**.
