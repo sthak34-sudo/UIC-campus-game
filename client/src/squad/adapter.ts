@@ -44,7 +44,8 @@ import { MatchEndScreen } from '../match/matchEndScreen';
 import { addDamage, addKills, damageBetween, finish, killsBy, newStats, summarize } from '../match/matchStats';
 import { placePing, tickPings, type Ping } from './pings';
 import { createMatch } from './roster';
-import { nextTarget, spectateTargets } from './spectate';
+import { nextTarget, spectateLabel, spectateTargets } from './spectate';
+import { allowKey, debugKeysEnabled } from '../debug/debugKeys';
 import { step, type PlayerInput } from './step';
 import type { PlayerId, SquadEvent, SquadMatchState } from './types';
 import { followRoute, newRouteState, planRoute, type RouteState } from './routePlan';
@@ -407,6 +408,16 @@ export function mountSquad(opts: {
   });
   // Match-end screen: on win or when your squad is wiped.
   const endUi = new MatchEndScreen(hudParent);
+  // Spectate banner: shown while you're dead and a teammate is still up.
+  const specBanner = document.createElement('div');
+  specBanner.id = 'spectate-banner';
+  Object.assign(specBanner.style, {
+    position: 'absolute', top: '64px', left: '50%', transform: 'translateX(-50%)',
+    padding: '8px 16px', background: '#0b0f14', color: '#e8eef5', border: '1px solid #2a3542',
+    borderRadius: '8px', font: '600 15px system-ui, sans-serif', display: 'none', zIndex: '40',
+    pointerEvents: 'none',
+  });
+  hudParent.appendChild(specBanner);
   let stats = newStats(performance.now() / 1000);
   let statsCursor = 0;
   const checkEnd = () => {
@@ -505,14 +516,34 @@ export function mountSquad(opts: {
   };
 
   // Debug keys K / J / L (and track F for revive). H stays combat practice hurt.
+  // Cheat keys (K/J/L/O) only with ?debug or in a dev build.
+  const debugKeys = debugKeysEnabled(opts.search);
   const onKey = (e: KeyboardEvent) => {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    if (!allowKey(e.code, debugKeys)) return;
     if (e.code === 'KeyF') holdRevive = true;
     if (e.code === 'KeyK') {
-      // Knock yourself.
+      // Knock yourself; K again while downed finishes you (to test spectate).
       const m = state.members[playerId]!;
+      if (m.life === 'downed') {
+        state = {
+          ...state,
+          members: {
+            ...state.members,
+            [playerId]: {
+              ...m, life: 'dead', downHp: 0, downedAt: null, reviving: null,
+              combatant: { ...m.combatant, health: 0 }, killedBy: m.killedBy ?? 'debug',
+            },
+          },
+        };
+        const w = checkWipe(state);
+        state = w.state;
+        eventsLog.push(...w.events);
+        opts.combat.setVitals(state.members[playerId]!.combatant);
+        return;
+      }
       if (m.life !== 'alive') return;
       const outcome = takeDirectDamage(m.combatant, 999);
       const r = applyDamage(state, playerId, 'debug', outcome);
@@ -914,9 +945,13 @@ export function mountSquad(opts: {
           spectateId = targets[0]!;
         }
         const tpos = state.members[spectateId]!.pos;
+        const label = spectateLabel(state.members[spectateId]!.name, targets.indexOf(spectateId), targets.length);
+        if (specBanner.textContent !== label) specBanner.textContent = label;
+        specBanner.style.display = 'block';
         opts.camera.position.set(tpos.x + 4.5, tpos.y + 2.4, tpos.z + 5.5);
         opts.camera.lookAt(tpos.x, tpos.y + 1.2, tpos.z);
       } else if (state.squads[localSquad]!.eliminated) {
+        specBanner.style.display = 'none';
         // Squad wiped: after placement, peek at the nearest living enemy bot.
         let best: PlayerId | null = null;
         let bestD = Infinity;
@@ -937,6 +972,7 @@ export function mountSquad(opts: {
       }
     } else {
       spectateId = null;
+      specBanner.style.display = 'none';
     }
 
     checkEnd();
@@ -961,7 +997,7 @@ export function mountSquad(opts: {
 
     const specHint = spectateId ? ` · spectate ${state.members[spectateId]?.name ?? spectateId}` : '';
     panel.textContent =
-      `K knock you · J knock Bot1 · L heal · P ping · hold F revive · O wipe` +
+      (debugKeys ? `K knock/finish you · J knock Bot1 · L heal · P ping · hold F revive · O wipe` : `P ping · hold F revive`) +
       (bleedFast ? ' · bleedFast' : '') +
       (enemySquads ? ` · enemy×${enemySquads}` : '') +
       (pings.length ? ` · ping×${pings.length}` : '') +

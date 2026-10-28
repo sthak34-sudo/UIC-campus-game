@@ -335,6 +335,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     setControlsEnabled: (enabled) => {
       input.setEnabled(enabled);
       dead = !enabled;
+      clickToPlay.setSuppressed(!enabled);
       if (enabled) {
         jumpLatch = false;
         input.setCrouch(false);
