@@ -16,6 +16,7 @@ import { snapBotY } from './botBody';
 import { createBotBodies } from '../player/botBodies';
 import { createBotGun } from '../player/botGun';
 import { createBotSight } from '../player/botSight';
+import { createMuzzleFlashes } from '../render/muzzleFlashes';
 import { chestY, EYE_Y, muzzlePoint, pickVisibleTarget, shotOrigin } from './botTarget';
 import { canSeeFoe, stepFoeMemory, type FoeMemory } from './foeMemory';
 import { BOT_AIM, botAimPoint, botTrigger } from './botAim';
@@ -177,6 +178,8 @@ export function mountSquad(opts: {
   const wallSide = new Map<PlayerId, 1 | -1>();
   const routes = new Map<PlayerId, RouteState>();
   const probe = physBodies?.probe ?? null;
+  // Bot rifles flash at the muzzle when they fire.
+  const botFlashes = createMuzzleFlashes(opts.world.scene);
   // Bot shots draw a tracer and play a gunshot (quieter and panned by where it came from).
   const tracers = createTracers(opts.world.scene);
   const gunSound = createGunSound(import.meta.env.BASE_URL);
@@ -187,6 +190,7 @@ export function mountSquad(opts: {
     if (normal) impacts.spawn(to, normal);
     earEuler.setFromQuaternion(opts.camera.quaternion);
     gunSound.play(from, opts.camera.position, earEuler.y);
+    botFlashes.spawn(from, to);
   };
   // Bot rifles use the same Rapier world, hitboxes and damage rules as the player's shots.
   const botGun =
@@ -551,6 +555,7 @@ export function mountSquad(opts: {
   };
 
   const onUpdate = (dt: number) => {
+    botFlashes.update(dt, opts.camera);
     tracers.update(dt);
     impacts.update(dt);
     if (!player) {
@@ -847,6 +852,7 @@ export function mountSquad(opts: {
       squadHud.dispose();
       placementUi.dispose();
       panel.remove();
+      botFlashes.dispose();
       physBodies?.dispose();
       tracers.dispose();
       impacts.dispose();
