@@ -45,6 +45,7 @@ import { addDamage, addKills, damageBetween, finish, killsBy, newStats, summariz
 import { placePing, tickPings, type Ping } from './pings';
 import { createMatch } from './roster';
 import { nextTarget, spectateLabel, spectateTargets } from './spectate';
+import { allowKey, debugKeysEnabled } from '../debug/debugKeys';
 import { step, type PlayerInput } from './step';
 import type { PlayerId, SquadEvent, SquadMatchState } from './types';
 import { followRoute, newRouteState, planRoute, type RouteState } from './routePlan';
@@ -515,10 +516,13 @@ export function mountSquad(opts: {
   };
 
   // Debug keys K / J / L (and track F for revive). H stays combat practice hurt.
+  // Cheat keys (K/J/L/O) only with ?debug or in a dev build.
+  const debugKeys = debugKeysEnabled(opts.search);
   const onKey = (e: KeyboardEvent) => {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    if (!allowKey(e.code, debugKeys)) return;
     if (e.code === 'KeyF') holdRevive = true;
     if (e.code === 'KeyK') {
       // Knock yourself; K again while downed finishes you (to test spectate).
@@ -993,7 +997,7 @@ export function mountSquad(opts: {
 
     const specHint = spectateId ? ` · spectate ${state.members[spectateId]?.name ?? spectateId}` : '';
     panel.textContent =
-      `K knock/finish you · J knock Bot1 · L heal · P ping · hold F revive · O wipe` +
+      (debugKeys ? `K knock/finish you · J knock Bot1 · L heal · P ping · hold F revive · O wipe` : `P ping · hold F revive`) +
       (bleedFast ? ' · bleedFast' : '') +
       (enemySquads ? ` · enemy×${enemySquads}` : '') +
       (pings.length ? ` · ping×${pings.length}` : '') +

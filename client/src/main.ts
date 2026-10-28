@@ -1,3 +1,4 @@
+import { debugKeysEnabled, helpText } from './debug/debugKeys';
 import { createPerfOverlay } from './debug/perfOverlay';
 import { inSpawnGrace } from './squad/enemySpawn';
 import { prefetchLateChunks, SHADER_WARM_CAP_MS, withTimeout } from './boot/warm';
@@ -47,6 +48,8 @@ declare global {
 async function start(): Promise<void> {
   initLoadingUi();
   const params = new URLSearchParams(location.search);
+  const helpEl = document.getElementById('help');
+  if (helpEl) helpEl.textContent = helpText(helpEl.textContent ?? '', debugKeysEnabled(location.search));
   const container = document.getElementById('app')!;
   setLoadProgress(0.05, 'Starting renderer…');
   const world = new World();

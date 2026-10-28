@@ -3,6 +3,7 @@
  * The numbers live in zoneLogic.ts. This file only draws them and asks combat
  * to apply damage.
  */
+import { debugKeysEnabled } from '../debug/debugKeys';
 import * as THREE from 'three';
 import type { World } from '../core/world';
 import type { Player } from '../player';
@@ -170,8 +171,9 @@ export function mountZone(opts: {
 
   publish(latest);
 
+  const debugKeys = debugKeysEnabled(opts.search);
   const onKey = (e: KeyboardEvent) => {
-    if (e.code !== 'KeyZ' || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.code !== 'KeyZ' || !debugKeys || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     skipQueued = true;

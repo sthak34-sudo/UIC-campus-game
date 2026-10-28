@@ -5,6 +5,7 @@
  * Optional `squad` bridge (S3): routes player damage through applyDamage so a lethal
  * hit knocks instead of killing when a teammate is alive. Downed players cannot fire.
  */
+import { debugKeysEnabled } from '../debug/debugKeys';
 import { MatchEndScreen } from '../match/matchEndScreen';
 import { addDamage, addKills, finish, newStats, summarize } from '../match/matchStats';
 import * as THREE from 'three';
@@ -376,7 +377,7 @@ export async function mountCombat(opts: {
   if (opts.player) {
     offs.push(opts.player.events.on('fire', () => fire()));
     offs.push(opts.player.events.on('reload', () => reload()));
-    offs.push(opts.player.events.on('debugHurt', () => hurt()));
+    if (debugKeysEnabled(location.search)) offs.push(opts.player.events.on('debugHurt', () => hurt()));
     offs.push(opts.player.events.on('useMedkit', () => useMedkit()));
     offs.push(opts.player.events.on('useBandage', () => useBandage()));
     offs.push(opts.player.events.on('interact', onInteract));
