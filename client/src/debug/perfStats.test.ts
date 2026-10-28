@@ -22,6 +22,6 @@ describe('perf overlay stats', () => {
     expect(w.frames).toBe(0);
   });
   it('formats a readable panel', () => {
-    expect(formatPerf({ fps: 59.6, avgMs: 16.78, worstMs: 33.3 }, 1630, 2_450_000)).toBe('60 FPS\n16.8 ms avg · 33.3 ms worst\n1630 draws · 2.45M tris');
+    expect(formatPerf({ fps: 59.6, avgMs: 16.78, worstMs: 33.3 }, 1630, 2_450_000)).toBe('60 FPS\n16.8 ms avg\n33.3 ms worst\n1630 draws\n2.45M tris');
   });
 });

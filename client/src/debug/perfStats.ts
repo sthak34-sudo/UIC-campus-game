@@ -42,5 +42,5 @@ export function perfEnabled(search: string): boolean {
 
 export function formatPerf(r: PerfReport, calls: number, triangles: number): string {
   const tris = triangles >= 1e6 ? `${(triangles / 1e6).toFixed(2)}M` : triangles >= 1e3 ? `${(triangles / 1e3).toFixed(1)}k` : `${triangles}`;
-  return `${r.fps.toFixed(r.fps < 10 ? 1 : 0)} FPS\n${r.avgMs.toFixed(1)} ms avg · ${r.worstMs.toFixed(1)} ms worst\n${calls} draws · ${tris} tris`;
+  return `${r.fps.toFixed(r.fps < 10 ? 1 : 0)} FPS\n${r.avgMs.toFixed(1)} ms avg\n${r.worstMs.toFixed(1)} ms worst\n${calls} draws\n${tris} tris`;
 }
