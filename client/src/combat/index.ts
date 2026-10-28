@@ -385,7 +385,7 @@ export async function mountCombat(opts: {
     }
     impacts.update(dt);
     dummies.update(dt, opts.camera, physics);
-    loot.update(clock);
+    loot.update(clock, opts.player?.position ?? opts.camera.position);
     hud?.tick(dt);
     syncHud();
   };

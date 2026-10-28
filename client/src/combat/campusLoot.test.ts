@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPUS_LOOT, campusLootKind, campusLootSpots, pointInRing, samplePolygon, type PlanPolygon } from './campusLoot';
+import { CAMPUS_LOOT, campusLootKind, campusLootSpots,
+  insideZone, pointInRing, samplePolygon, type PlanPolygon } from './campusLoot';
 
 function seeded(seed: number) {
   let x = seed >>> 0;
@@ -47,5 +48,15 @@ describe('campus ground loot', () => {
     expect(campusLootKind(0)).toBe('gun');
     expect(campusLootKind(CAMPUS_LOOT.gunShare + 0.01)).toBe('ammo');
     expect(campusLootKind(0.99)).toBe('bandage');
+  });
+  it('keeps every pickup inside the zone circle, away from its edge', () => {
+    const zone = { x: 0, z: 0, radius: 150 };
+    const spots = campusLootSpots(plazas, { floorAt: () => 0, spawn: { x: 999, z: 999 }, zone }, seeded(3));
+    expect(spots.length).toBeGreaterThan(0);
+    for (const s of spots) expect(Math.hypot(s.position.x, s.position.z)).toBeLessThanOrEqual(zone.radius - CAMPUS_LOOT.zoneMarginM);
+  });
+  it('insideZone respects the margin', () => {
+    expect(insideZone({ x: 0, z: 0, radius: 20 }, { x: 15, z: 0 })).toBe(true);
+    expect(insideZone({ x: 0, z: 0, radius: 20 }, { x: 15, z: 0 }, 10)).toBe(false);
   });
 });

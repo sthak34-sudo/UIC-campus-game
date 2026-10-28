@@ -13,6 +13,8 @@ interface Crate {
   still: boolean;
   position: Vec3;
   group: THREE.Group;
+  /** Name tag sprite; hidden when the player is far away. */
+  tag: THREE.Sprite;
   hiddenUntil: number;
   once: boolean;
 }
@@ -132,6 +134,15 @@ const NAMES: Record<LootKind, string> = {
   bandage: 'Bandage',
 };
 
+/** Meters. Pickup name tags farther than this are hidden (each tag is its own draw call). */
+export const LOOT_LABEL_RANGE_M = 15;
+
+/** True when a pickup's name tag should show for a viewer at `viewer` (null = no viewer: show). */
+export function labelInRange(viewer: Vec3 | null, at: Vec3, range = LOOT_LABEL_RANGE_M): boolean {
+  if (!viewer) return true;
+  return (viewer.x - at.x) ** 2 + (viewer.y - at.y) ** 2 + (viewer.z - at.z) ** 2 <= range * range;
+}
+
 export class LootField {
   private readonly crates: Crate[] = [];
   private readonly baseY: number[] = [];
@@ -144,17 +155,20 @@ export class LootField {
       group.name = `combat-loot-${spot.kind}`;
       group.position.set(spot.position.x, spot.position.y, spot.position.z);
       const still = spot.kind === 'gun' && gunModel !== null;
+      let tag: THREE.Sprite;
       if (still) {
         group.add(buildGroundGun(gunModel!, 0.6 + i * 1.3));
-        const tag = labelSprite(NAMES[spot.kind], '#f2f5f8');
+        tag = labelSprite(NAMES[spot.kind], '#f2f5f8');
         tag.position.y = 0.45;
         group.add(tag);
       } else {
         group.add(buildMesh(spot.kind));
-        group.add(labelSprite(NAMES[spot.kind], '#f2f5f8'));
+        tag = labelSprite(NAMES[spot.kind], '#f2f5f8');
+        group.add(tag);
       }
+      tag.visible = false;
       scene.add(group);
-      this.crates.push({ kind: spot.kind, still, position: spot.position, group, hiddenUntil: 0, once: spot.once === true });
+      this.crates.push({ kind: spot.kind, still, position: spot.position, group, tag, hiddenUntil: 0, once: spot.once === true });
       this.baseY.push(spot.position.y);
     }
   }
@@ -186,7 +200,8 @@ export class LootField {
     return c.kind;
   }
 
-  update(now: number): void {
+  /** `viewer`: where the player is; labels only draw within `LOOT_LABEL_RANGE_M` of it. */
+  update(now: number, viewer: Vec3 | null = null): void {
     for (let i = 0; i < this.crates.length; i++) {
       const c = this.crates[i]!;
       if (c.hiddenUntil > now) {
@@ -194,6 +209,7 @@ export class LootField {
         continue;
       }
       c.group.visible = true;
+      c.tag.visible = labelInRange(viewer, c.position);
       c.hiddenUntil = 0;
       if (c.still) continue;
       const bob = Math.sin(now * 1.6 + i) * 0.05;
