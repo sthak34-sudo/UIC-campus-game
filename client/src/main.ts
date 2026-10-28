@@ -1,3 +1,4 @@
+import { createPerfOverlay } from './debug/perfOverlay';
 import { inSpawnGrace } from './squad/enemySpawn';
 import { prefetchLateChunks, SHADER_WARM_CAP_MS, withTimeout } from './boot/warm';
 import * as THREE from 'three';
@@ -201,13 +202,16 @@ async function start(): Promise<void> {
       console.warn('[boot] gfx.ready timed out; marking playable anyway');
     }
   }, 5_000);
+  const perf = createPerfOverlay(gfx.renderer);
   const loop = () => {
     const dt = Math.min(clock.getDelta(), 0.1);
     player?.update(dt);
     const focus = world.focus.copy(player ? player.position : camera.position);
     world.update(dt, clock.elapsedTime);
     gfx.setFocus(focus, !!world.interiorAt(focus));
+    perf.begin();
     gfx.render(camera);
+    perf.end();
     frames++;
     // Ready = the spawn view has been drawn once AND the renderer's textures/environment
     // are loaded. (Waiting for 3 frames cost ~2 extra full frames on software GL.)
