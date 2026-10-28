@@ -4,10 +4,12 @@
  */
 import { COMBAT } from './balance';
 
-export type HitZone = 'head' | 'body';
+/** 'limb' is an arm or a leg: less damage than a body shot. */
+export type HitZone = 'head' | 'body' | 'limb';
 
 export function zoneMultiplier(zone: HitZone): number {
-  return zone === 'head' ? COMBAT.headshotMultiplier : 1;
+  if (zone === 'head') return COMBAT.headshotMultiplier;
+  return zone === 'limb' ? COMBAT.limbMultiplier : 1;
 }
 
 /** 1 at close range, falling to `falloffMin` at `falloffEnd`. Negative distances count as 0. */

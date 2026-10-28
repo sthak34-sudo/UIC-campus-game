@@ -652,6 +652,7 @@ export function mountSquad(opts: {
         const tz = intent.type === 'follow' ? state.members[intent.target]!.pos.z : intent.z;
         body.root.rotation.y = Math.atan2(tx - pos.x, tz - pos.z);
       }
+      physBodies?.setYaw(body.phys, body.root.rotation.y);
 
       state = {
         ...state,

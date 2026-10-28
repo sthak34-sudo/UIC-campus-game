@@ -67,3 +67,13 @@ describe('damage math', () => {
     expect(applyReload(0, 100)).toEqual({ mag: COMBAT.magSize, reserve: 100 - COMBAT.magSize });
   });
 });
+
+describe('limb hits', () => {
+  it('do less damage than body shots', () => {
+    expect(zoneMultiplier('limb')).toBe(COMBAT.limbMultiplier);
+    expect(COMBAT.limbMultiplier).toBeLessThan(1);
+    const limb = resolveIncomingDamage({ zone: 'limb', distance: 5, armor: 0 }).healthDamage;
+    const body = resolveIncomingDamage({ zone: 'body', distance: 5, armor: 0 }).healthDamage;
+    expect(limb).toBeCloseTo(body * COMBAT.limbMultiplier);
+  });
+});

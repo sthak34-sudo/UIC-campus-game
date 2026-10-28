@@ -12,6 +12,8 @@ export const COMBAT = {
   baseDamage: 28,
   /** Headshots multiply damage by this. Locked at 2 for Milestone 1. */
   headshotMultiplier: 2,
+  /** Arm and leg hits multiply damage by this. */
+  limbMultiplier: 0.6,
   /** Inside this range, shots do full damage. */
   falloffStart: 20,
   /** At and beyond this range, shots do `falloffMin` times damage. */

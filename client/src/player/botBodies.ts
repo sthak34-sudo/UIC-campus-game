@@ -21,7 +21,15 @@ export const BOT_NECK_Y = 1.5;
 export const BOT_DOWNED_NECK_Y = 0.8;
 
 export type BotBodyMode = 'stand' | 'downed' | 'off';
-export type BotHitZone = 'head' | 'body';
+/** Hits on the body capsule below this height (from the feet) are leg shots (standing only). */
+export const BOT_HIP_Y = 0.85;
+/** Arm hit zones: thin capsules either side of the body, turned with the bot (see setYaw). */
+export const BOT_ARM_RADIUS = 0.08;
+export const BOT_ARM_HALF = 0.25;
+export const BOT_ARM_X = 0.4;
+export const BOT_ARM_Y = 1.15;
+
+export type BotHitZone = 'head' | 'body' | 'limb';
 
 export interface BotBodies {
   /** Adds a bot capsule with its feet at (x, y, z); returns its id. */
@@ -33,6 +41,8 @@ export interface BotBodies {
   move(id: number, x: number, y: number, z: number, mode: boolean | BotBodyMode): void;
   /** Which bot and hit zone a collider handle belongs to, if any. */
   lookup(handle: number, hitY?: number): { id: number; zone: BotHitZone } | undefined;
+  /** Turns the bot's hit shapes (arms) to face yaw radians (same as the model's rotation.y). */
+  setYaw(id: number, yaw: number): void;
   /** Down ray that skips the player capsule and all bot capsules. */
   readonly probe: GroundProbe;
   readonly colliderCount: number;
@@ -40,7 +50,7 @@ export interface BotBodies {
 }
 
 export function createBotBodies(world: RAPIER.World, player: RAPIER.Collider | null): BotBodies {
-  const bodies = new Map<number, { rb: RAPIER.RigidBody; col: RAPIER.Collider; head: RAPIER.Collider; mode: BotBodyMode; feetY: number }>();
+  const bodies = new Map<number, { rb: RAPIER.RigidBody; col: RAPIER.Collider; head: RAPIER.Collider; arms: RAPIER.Collider[]; mode: BotBodyMode; feetY: number }>();
   const byHandle = new Map<number, { id: number; zone: BotHitZone }>();
   const skip = new Set<number>();
   if (player) skip.add(player.handle);
@@ -67,21 +77,36 @@ export function createBotBodies(world: RAPIER.World, player: RAPIER.Collider | n
         RAPIER.ColliderDesc.ball(BOT_HEAD_RADIUS).setTranslation(0, BOT_HEAD_Y - BOT_BODY_CENTER_Y, 0),
         rb,
       );
+      const arms = [-1, 1].map((s) =>
+        world.createCollider(
+          RAPIER.ColliderDesc.capsule(BOT_ARM_HALF, BOT_ARM_RADIUS).setTranslation(s * BOT_ARM_X, BOT_ARM_Y - BOT_BODY_CENTER_Y, 0),
+          rb,
+        ),
+      );
       skip.add(col.handle);
       skip.add(head.handle);
       const id = next++;
-      bodies.set(id, { rb, col, head, mode: 'stand', feetY: y });
+      for (const a of arms) { skip.add(a.handle); byHandle.set(a.handle, { id, zone: 'limb' }); }
+      bodies.set(id, { rb, col, head, arms, mode: 'stand', feetY: y });
       byHandle.set(col.handle, { id, zone: 'body' });
       byHandle.set(head.handle, { id, zone: 'head' });
       return id;
     },
     lookup(handle, hitY) {
       const hit = byHandle.get(handle);
-      if (!hit || hit.zone === 'head' || hitY == null) return hit;
+      if (!hit || hit.zone !== 'body' || hitY == null) return hit;
       // The 1.8 m body capsule wraps the head ball, so its top counts as head too.
       const b = bodies.get(hit.id)!;
-      const neck = b.mode === 'downed' ? BOT_DOWNED_NECK_Y : BOT_NECK_Y;
-      return hitY - b.feetY >= neck ? { id: hit.id, zone: 'head' } : hit;
+      const downed = b.mode === 'downed';
+      const h = hitY - b.feetY;
+      if (h >= (downed ? BOT_DOWNED_NECK_Y : BOT_NECK_Y)) return { id: hit.id, zone: 'head' };
+      // Legs: the bottom of a standing body. A downed body is all torso.
+      return !downed && h < BOT_HIP_Y ? { id: hit.id, zone: 'limb' } : hit;
+    },
+    setYaw(id, yaw) {
+      const b = bodies.get(id);
+      if (!b) return;
+      b.rb.setNextKinematicRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) });
     },
     move(id, x, y, z, mode) {
       const b = bodies.get(id);
@@ -99,6 +124,9 @@ export function createBotBodies(world: RAPIER.World, player: RAPIER.Collider | n
       const solid = m !== 'off';
       if (b.col.isEnabled() !== solid) b.col.setEnabled(solid);
       if (b.head.isEnabled() !== solid) b.head.setEnabled(solid);
+      // Downed bots tuck their arms in: hits there land on the body instead.
+      const armsOn = m === 'stand';
+      for (const a of b.arms) if (a.isEnabled() !== armsOn) a.setEnabled(armsOn);
       if (m !== 'off') b.mode = m;
       b.feetY = y;
     },

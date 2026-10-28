@@ -23,6 +23,29 @@ const walk = (phys: PlayerPhysics, dz: number, s: number) => {
 describe('bot physics bodies', () => {
   beforeAll(async () => { await initRapier(); });
 
+  it('has arm hit zones that turn with the bot and tuck in when downed', () => {
+    const phys = flat();
+    const bots = createBotBodies(phys.world, phys.collider);
+    const id = bots.add(0, 0, -5); // facing +z by default: arms at x = +-0.4
+    phys.world.step();
+    const shootX = (x: number, y = 1.15) => {
+      const h = castHitscan(phys.world, { x, y, z: -1 }, { x: 0, y: 0, z: -1 }, 20, phys.collider);
+      return h ? bots.lookup(h.colliderHandle, h.point.y) : undefined;
+    };
+    expect(shootX(0.4)).toEqual({ id, zone: 'limb' });
+    expect(shootX(-0.4)).toEqual({ id, zone: 'limb' });
+    expect(shootX(0)).toEqual({ id, zone: 'body' });
+    // Turned side-on (yaw 90 deg), the arms are front and back: the side gap is empty.
+    bots.setYaw(id, Math.PI / 2);
+    phys.world.step();
+    expect(shootX(0.4)).toBeUndefined();
+    expect(shootX(0)).toEqual({ id, zone: 'limb' }); // near arm now in front
+    bots.setYaw(id, 0);
+    bots.move(id, 0, 0, -5, 'downed');
+    phys.world.step();
+    expect(shootX(0.4, 0.5)).toBeUndefined();
+  });
+
   it('stops the player walking through a bot, and lets them pass once the bot is dead', () => {
     const phys = flat();
     const bots = createBotBodies(phys.world, phys.collider);
@@ -62,7 +85,7 @@ describe('bot physics bodies', () => {
     expect(shoot(BOT_HEAD_Y)).toEqual({ id, zone: 'head' });
     expect(shoot(1.75)).toEqual({ id, zone: 'head' });
     expect(shoot(1.0)).toEqual({ id, zone: 'body' });
-    expect(shoot(0.3)).toEqual({ id, zone: 'body' });
+    expect(shoot(0.3)).toEqual({ id, zone: 'limb' }); // legs
 
     bots.move(id, 0, 0, -5, 'downed');
     phys.world.step();
