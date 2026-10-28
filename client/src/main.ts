@@ -101,7 +101,12 @@ async function start(): Promise<void> {
   warnDroppedLoot(snapped.dropped);
   // Match ground loot: building floors (glb markers) plus rifles / ammo / bandages on sidewalks and plazas.
   const { campusLootSpots } = await import('./combat/campusLoot');
+  // Same zone the match will run (same seed); loot stays inside its first safe circle.
+  const { buildZone, parseZoneOptions } = await import('./zone/zoneLogic');
+  const zoneOpts = parseZoneOptions(location.search);
+  const firstSafe = buildZone(data.bounds, zoneOpts.seed, zoneOpts.fast)[0]!.end;
   const campusLoot = campusLootSpots([...data.surfaces.plaza, ...data.surfaces.sidewalk], {
+    zone: firstSafe,
     floorAt: (x, z) => walkableFloorAt(lootPhys, x, z),
     spawn: { x: world.spawn.x, z: world.spawn.z },
   });
