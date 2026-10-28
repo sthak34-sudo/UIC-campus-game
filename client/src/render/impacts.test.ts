@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { createImpacts, IMPACT, sparkDir, surfaceKind } from './impacts';
+import { createImpacts, IMPACT, sparkDir, sparkWidth, surfaceKind } from './impacts';
 
 describe('impacts', () => {
   it('tells walls from ground by the surface normal', () => {
@@ -29,5 +29,28 @@ describe('impacts', () => {
     expect(fx.activePuffs).toBe(0);
     fx.dispose();
     expect(scene.children.length).toBe(0);
+  });
+});
+
+describe('impact sounds and thicker sparks', () => {
+  it('impacts fade out with distance and walls ring a bit louder', async () => {
+    const { impactVolume, IMPACT_SOUND } = await import('../audio/impactSound');
+    expect(impactVolume('wall', 1)).toBe(IMPACT_SOUND.volume.wall);
+    expect(impactVolume('wall', 1)).toBeGreaterThan(impactVolume('ground', 1));
+    expect(impactVolume('ground', 20)).toBeLessThan(impactVolume('ground', 5));
+    expect(impactVolume('wall', 100)).toBe(0);
+  });
+  it('reports each impact with its surface kind', () => {
+    const scene = new THREE.Scene();
+    const heard: string[] = [];
+    const fx = createImpacts(scene, Math.random, (_p, kind) => heard.push(kind));
+    fx.spawn({ x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 1 });
+    fx.spawn({ x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
+    expect(heard).toEqual(['wall', 'ground']);
+    fx.dispose();
+  });
+  it('sparks keep a minimum on-screen width far away', () => {
+    expect(sparkWidth(1)).toBe(IMPACT.sparkWidth);
+    expect(sparkWidth(50)).toBeGreaterThan(IMPACT.sparkWidth);
   });
 });

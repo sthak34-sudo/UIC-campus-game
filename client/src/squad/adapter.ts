@@ -27,6 +27,7 @@ import { avoidWalls } from './wallSteer';
 import { createTracers } from '../render/tracers';
 import { createGunSound } from '../audio/gunSound';
 import { createImpacts } from '../render/impacts';
+import { createImpactSound } from '../audio/impactSound';
 import { createWallProbe } from '../player/wallProbe';
 import { applyDamage } from './downed';
 import { shootBot } from './botHits';
@@ -181,7 +182,13 @@ export function mountSquad(opts: {
   const tracers = createTracers(opts.world.scene);
   const gunSound = createGunSound(import.meta.env.BASE_URL);
   const earEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-  const impacts = createImpacts(opts.world.scene);
+  // Impact sounds: a crack on walls, a thud on the ground, heard from the camera.
+  const impactSound = createImpactSound(import.meta.env.BASE_URL);
+  const impactEar = new THREE.Euler(0, 0, 0, 'YXZ');
+  const impacts = createImpacts(opts.world.scene, Math.random, (p, kind) => {
+    impactEar.setFromQuaternion(opts.camera.quaternion);
+    impactSound.play(p, kind, opts.camera.position, impactEar.y);
+  });
   const onBotShot = (from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }, normal?: { x: number; y: number; z: number }) => {
     tracers.add(from, to);
     if (normal) impacts.spawn(to, normal);

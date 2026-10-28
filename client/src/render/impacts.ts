@@ -18,7 +18,43 @@ export const IMPACT = {
   puffLife: 0.5,
   gravity: 9.8,
   sparkColor: 0xffc469,
+  /** Spark streak width up close (m), and the minimum on-screen width in radians (~3 px at 1080p). */
+  sparkWidth: 0.022,
+  sparkMinAngle: 0.003,
 };
+
+/** Spark ribbon width (m) for a point `dist` meters from the camera (same rule as the shader). */
+export function sparkWidth(dist: number): number {
+  return Math.max(IMPACT.sparkWidth, dist * IMPACT.sparkMinAngle);
+}
+
+const SPARK_VERT = /* glsl */ `
+attribute vec3 aDir;
+attribute float aSide;
+attribute vec3 aCol;
+uniform float uWidth;
+uniform float uMinAngle;
+varying vec3 vCol;
+varying float vSide;
+void main() {
+  vec3 p = position;
+  vec3 toCam = cameraPosition - p;
+  float dist = length(toCam);
+  vec3 side = cross(aDir, toCam / max(dist, 1e-4));
+  float sl = length(side);
+  side = sl > 1e-4 ? side / sl : vec3(0.0, 1.0, 0.0);
+  p += side * aSide * max(uWidth, dist * uMinAngle) * 0.5;
+  vCol = aCol;
+  vSide = aSide;
+  gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+}`;
+const SPARK_FRAG = /* glsl */ `
+varying vec3 vCol;
+varying float vSide;
+void main() {
+  float core = 1.0 - vSide * vSide;
+  gl_FragColor = vec4(mix(vCol, vec3(1.0) * max(vCol.r, 0.0), core * 0.5) * core, 1.0);
+}`;
 
 export type SurfaceKind = 'wall' | 'ground';
 export function surfaceKind(normal: V3): SurfaceKind {
@@ -68,16 +104,42 @@ function puffTexture(): THREE.Texture {
   return new THREE.CanvasTexture(cv);
 }
 
-export function createImpacts(scene: THREE.Object3D, rand: () => number = Math.random): Impacts {
+/**
+ * `onSpawn` is called once per impact with the surface kind (impact sounds hook in here).
+ */
+export function createImpacts(
+  scene: THREE.Object3D,
+  rand: () => number = Math.random,
+  onSpawn?: (point: V3, kind: SurfaceKind) => void,
+): Impacts {
   const n = IMPACT.sparks;
-  // Sparks are short streaks: tail and head points per spark.
-  const pos = new Float32Array(n * 6);
-  const col = new Float32Array(n * 6);
+  // Sparks are short streaks drawn as camera-facing ribbons: 4 corners (tail and head, each side).
+  const pos = new Float32Array(n * 12);
+  const col = new Float32Array(n * 12);
+  const dirA = new Float32Array(n * 12);
+  const sideA = new Float32Array(n * 4);
+  const index: number[] = [];
+  for (let i = 0; i < n; i++) {
+    sideA.set([-1, 1, -1, 1], i * 4);
+    const b = i * 4;
+    index.push(b, b + 1, b + 2, b + 1, b + 3, b + 2);
+  }
   const geom = new THREE.BufferGeometry();
   geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geom.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  const mat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
-  const lines = new THREE.LineSegments(geom, mat);
+  geom.setAttribute('aCol', new THREE.BufferAttribute(col, 3));
+  geom.setAttribute('aDir', new THREE.BufferAttribute(dirA, 3));
+  geom.setAttribute('aSide', new THREE.BufferAttribute(sideA, 1));
+  geom.setIndex(index);
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: SPARK_VERT,
+    fragmentShader: SPARK_FRAG,
+    uniforms: { uWidth: { value: IMPACT.sparkWidth }, uMinAngle: { value: IMPACT.sparkMinAngle } },
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const lines = new THREE.Mesh(geom, mat);
   lines.frustumCulled = false;
   lines.name = 'impact-sparks';
   scene.add(lines);
@@ -113,6 +175,7 @@ export function createImpacts(scene: THREE.Object3D, rand: () => number = Math.r
         else sparks[nextSpark] = s;
         nextSpark = (nextSpark + 1) % n;
       }
+      onSpawn?.(point, kind);
       const puff = puffs[nextPuff]!;
       nextPuff = (nextPuff + 1) % puffs.length;
       puff.age = 0;
@@ -123,6 +186,7 @@ export function createImpacts(scene: THREE.Object3D, rand: () => number = Math.r
     update(dt) {
       pos.fill(0);
       col.fill(0);
+      dirA.fill(0);
       sparks.forEach((s, i) => {
         if (s.age >= s.life) return;
         s.age += dt;
@@ -130,15 +194,22 @@ export function createImpacts(scene: THREE.Object3D, rand: () => number = Math.r
         s.p.x += s.v.x * dt; s.p.y += s.v.y * dt; s.p.z += s.v.z * dt;
         if (s.age >= s.life) return;
         const k = 1 - s.age / s.life;
-        const o = i * 6;
-        const tail = 0.025; // seconds of motion the streak covers
-        pos[o] = s.p.x - s.v.x * tail; pos[o + 1] = s.p.y - s.v.y * tail; pos[o + 2] = s.p.z - s.v.z * tail;
-        pos[o + 3] = s.p.x; pos[o + 4] = s.p.y; pos[o + 5] = s.p.z;
-        col[o] = sc.r * 0.3 * k; col[o + 1] = sc.g * 0.2 * k; col[o + 2] = sc.b * 0.1 * k;
-        col[o + 3] = sc.r * k; col[o + 4] = sc.g * k; col[o + 5] = sc.b * k;
+        const o = i * 12;
+        const tail = 0.03; // seconds of motion the streak covers
+        const sp = Math.hypot(s.v.x, s.v.y, s.v.z) || 1;
+        const tx = s.p.x - s.v.x * tail, ty = s.p.y - s.v.y * tail, tz = s.p.z - s.v.z * tail;
+        for (let c = 0; c < 4; c++) {
+          const head = c >= 2;
+          const q = o + c * 3;
+          pos[q] = head ? s.p.x : tx; pos[q + 1] = head ? s.p.y : ty; pos[q + 2] = head ? s.p.z : tz;
+          dirA[q] = s.v.x / sp; dirA[q + 1] = s.v.y / sp; dirA[q + 2] = s.v.z / sp;
+          const b = head ? 1.3 * k : 0.3 * k;
+          col[q] = sc.r * b; col[q + 1] = sc.g * b * (head ? 1 : 0.7); col[q + 2] = sc.b * b * (head ? 1 : 0.4);
+        }
       });
       geom.attributes.position!.needsUpdate = true;
-      geom.attributes.color!.needsUpdate = true;
+      geom.attributes.aCol!.needsUpdate = true;
+      geom.attributes.aDir!.needsUpdate = true;
       for (const p of puffs) {
         if (p.age >= IMPACT.puffLife) continue;
         p.age += dt;

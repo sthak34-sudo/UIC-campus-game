@@ -27,6 +27,7 @@ import { createGunSound } from '../audio/gunSound';
 import { createAvatar, loadCharacterAssets, peekCharacterAssets } from '../player/characterLoader';
 import { yawFromDirection } from '../player/math';
 import { createImpacts } from '../render/impacts';
+import { createImpactSound } from '../audio/impactSound';
 
 /** Thin hooks the squad adapter installs so combat stays free of squad imports. */
 export interface CombatSquadBridge {
@@ -196,7 +197,12 @@ export async function mountCombat(opts: {
   };
 
   // Sparks and dust where the player's bullets hit walls and the ground.
-  const impacts = createImpacts(opts.world.scene);
+  const impactSound = createImpactSound(import.meta.env.BASE_URL);
+  const impactEar = new THREE.Euler(0, 0, 0, 'YXZ');
+  const impacts = createImpacts(opts.world.scene, Math.random, (p, kind) => {
+    impactEar.setFromQuaternion(opts.camera.quaternion);
+    impactSound.play(p, kind, opts.camera.position, impactEar.y);
+  });
 
   const fire = () => {
     const player = opts.player;
