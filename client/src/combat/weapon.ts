@@ -122,7 +122,7 @@ export class WeaponFx {
     this.flashSprite = new THREE.Sprite(new THREE.SpriteMaterial({
       map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0,
     }));
-    this.flashSprite.scale.set(0.45, 0.45, 0.45);
+    this.flashSprite.scale.set(0.8, 0.8, 0.8);
     this.flashSprite.visible = false;
     this.flashSprite.frustumCulled = false;
     this.scene.add(this.flashSprite);
@@ -151,8 +151,12 @@ export class WeaponFx {
   muzzle(at: { x: number; y: number; z: number }): void {
     this.flash.position.set(at.x, at.y, at.z);
     this.flashSprite.position.set(at.x, at.y, at.z);
-    this.flash.intensity = 14;
+    this.flash.intensity = 22;
     this.flashSprite.visible = true;
+    // A little size and spin variety so rapid fire doesn't look like one frozen sprite.
+    const k = 0.75 + Math.random() * 0.5;
+    this.flashSprite.scale.set(0.8 * k, 0.8 * k, 0.8 * k);
+    (this.flashSprite.material as THREE.SpriteMaterial).rotation = Math.random() * Math.PI * 2;
     (this.flashSprite.material as THREE.SpriteMaterial).opacity = 1;
     this.flashLife = 0.07;
   }
@@ -174,7 +178,7 @@ export class WeaponFx {
     if (this.flashLife > 0) {
       this.flashLife = Math.max(0, this.flashLife - dt);
       const k = this.flashLife / 0.07;
-      this.flash.intensity = 14 * k;
+      this.flash.intensity = 22 * k;
       (this.flashSprite.material as THREE.SpriteMaterial).opacity = k;
       this.flashSprite.visible = this.flashLife > 0;
     }

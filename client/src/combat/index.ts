@@ -22,6 +22,8 @@ import {
 import { LootField } from './loot';
 import { practiceLayout } from './range';
 import { castAimedShot, muzzlePoint, WeaponFx } from './weapon';
+import { createTracers } from '../render/tracers';
+import { createGunSound } from '../audio/gunSound';
 import { createAvatar, loadCharacterAssets, peekCharacterAssets } from '../player/characterLoader';
 import { yawFromDirection } from '../player/math';
 
@@ -101,6 +103,10 @@ export async function mountCombat(opts: {
   });
 
   const fx = new WeaponFx(opts.world.scene);
+  // The player's own shots get the same tracers and gunshot as the bots'.
+  const tracers = createTracers(opts.world.scene);
+  const gunSound = createGunSound(import.meta.env.BASE_URL);
+  const earEuler = new THREE.Euler(0, 0, 0, 'YXZ');
   // PUBG-style: the player starts empty-handed and loots a rifle (one lies on the ground by the spawn).
   let inventory: Inventory = emptyInventory();
   let vitals: Combatant = createCombatant();
@@ -220,6 +226,12 @@ export async function mountCombat(opts: {
     inventory = spendRound(inventory);
     player.playFire();
     fx.muzzle(muzzle);
+    // Tracer from the barrel to where the bullet stopped (what it hit, or the crosshair point).
+    const gunTip = player.getMuzzleWorld(new THREE.Vector3()) ?? null;
+    const from = gunTip ? { x: gunTip.x, y: gunTip.y, z: gunTip.z } : muzzle;
+    tracers.add(from, hit ? hit.point : shot.aimPoint);
+    earEuler.setFromQuaternion(opts.camera.quaternion);
+    gunSound.play(from, opts.camera.position, earEuler.y);
     hud.setMuzzleBlocked(shot.blocked);
     if (hit) {
       const target = dummies.lookup(hit.colliderHandle);
@@ -309,6 +321,7 @@ export async function mountCombat(opts: {
       reloading = false;
     }
     fx.update(dt);
+    tracers.update(dt);
     if (hud && opts.player && !playerDead()) {
       // Subtle cue: crosshair dims when the muzzle can't reach what it points at.
       const dir = new THREE.Vector3();
@@ -344,6 +357,7 @@ export async function mountCombat(opts: {
       for (const off of offs) off();
       hud?.dispose();
       fx.dispose();
+      tracers.dispose();
       dummies.dispose(opts.world.scene, physics);
       loot.dispose(opts.world.scene);
     },

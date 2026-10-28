@@ -59,6 +59,8 @@ export interface Player {
   setArmed(armed: boolean): void;
   /** Upper-body fire clip. Combat calls this when a shot actually leaves the gun. */
   playFire(): void;
+  /** World position of the held rifle's barrel tip, or null when no rifle is shown. */
+  getMuzzleWorld(out: THREE.Vector3): THREE.Vector3 | null;
   /** Upper-body reload clip, timed to the gameplay reload. */
   playReload(seconds: number): void;
   /**
@@ -336,6 +338,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
       }
     },
     playFire: () => model.playFire(),
+    getMuzzleWorld: (out) => model.getMuzzleWorld(out),
     playReload: (seconds) => model.playReload(seconds),
     flinch: (hitDir) => {
       model.flinch(hitDir);
