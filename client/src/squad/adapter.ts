@@ -17,6 +17,7 @@ import { createBotBodies } from '../player/botBodies';
 import { createBotGun } from '../player/botGun';
 import { createBotSight } from '../player/botSight';
 import { chestY, EYE_Y, muzzlePoint, pickVisibleTarget, shotOrigin } from './botTarget';
+import { canSeeFoe, stepFoeMemory, type FoeMemory } from './foeMemory';
 import { BOT_AIM, botAimPoint, botTrigger } from './botAim';
 import type { ZoneMount } from '../zone';
 import { DOWN } from './balance';
@@ -190,6 +191,7 @@ export function mountSquad(opts: {
       ? createBotGun(player.rapier.world, physBodies, player.rapier.playerCollider, () => player.position.y, onBotShot)
       : null;
   const triggerCooldown = new Map<PlayerId, number>();
+  const foeMemory = new Map<PlayerId, FoeMemory>();
   // Line of sight: walls and buildings block it, people do not.
   const botSight =
     player && physBodies
@@ -616,20 +618,35 @@ export function mountSquad(opts: {
       const seen = pickVisibleTarget(foes, (f) => {
         if (!botSight) return true;
         const o = state.members[f.id]!;
-        return botSight.clear(eyeAt, { x: o.pos.x, y: o.pos.y + chestY(o.life === 'downed'), z: o.pos.z });
+        return canSeeFoe(eyeAt, o.pos, o.life === 'downed', chestY, (a, b) => botSight.clear(a, b));
       });
+      // Remember where the last foe was seen, so the bot goes to look instead of forgetting it.
+      const memory = stepFoeMemory(
+        foeMemory.get(body.id) ?? null,
+        seen ? { id: seen.id, pos: state.members[seen.id]!.pos } : null,
+        member.pos,
+        dt,
+        (id) => (state.members[id]?.life !== 'alive' && state.members[id]?.life !== 'downed') || !canDamage(state, body.id, id),
+      );
+      if (memory) foeMemory.set(body.id, memory);
+      else foeMemory.delete(body.id);
       const nearestEnemyId: PlayerId | null = seen?.id ?? null;
       const nearestDist = seen?.dist ?? 28;
       const leaderId = body.enemy
         ? (state.squads[member.squad]!.members.find((id) => state.members[id]?.life === 'alive') ?? body.id)
         : playerId;
-      const intent = botIntent(state, body.id, {
+      let intent = botIntent(state, body.id, {
         leaderId,
         enemyVisible: nearestEnemyId != null,
         nearestEnemyId,
         inZoneDanger: false,
         zoneCenter: { x: feet.x, z: feet.z },
       });
+      if (memory && !seen && (intent.type === 'follow' || intent.type === 'idle')) {
+        // Lost sight of a foe: go check its last-seen spot, facing it, ready to shoot.
+        intent = { type: 'moveTo', x: memory.x, z: memory.z };
+        body.root.rotation.y = Math.atan2(memory.x - member.pos.x, memory.z - member.pos.z);
+      }
 
       let pos = { ...member.pos };
       let hold = false;
