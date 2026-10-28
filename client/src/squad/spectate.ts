@@ -43,3 +43,9 @@ export function nextTarget(
   const next = (i + step + targets.length) % targets.length;
   return targets[next]!;
 }
+
+/** Banner text while spectating a teammate, e.g. "Spectating Bot1 (1/2) · ← / → switch". */
+export function spectateLabel(name: string, index: number, count: number): string {
+  const cycle = count > 1 ? ' · ← / → switch' : '';
+  return `Spectating ${name} (${index + 1}/${count})${cycle}`;
+}

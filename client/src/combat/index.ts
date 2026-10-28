@@ -186,9 +186,11 @@ export async function mountCombat(opts: {
       soloStats = finish(soloStats, now());
       soloEnd.show(summarize(soloStats, now(), 'died', null, 1));
       console.info(`[match] solo death: kills ${soloStats.kills}, damage ${Math.round(soloStats.damage)}`);
-    } else {
+    } else if (!squad) {
       hud?.showDeath(true);
     }
+    // Squad mode: no death screen. The squad adapter spectates a living teammate
+    // and shows the match-end screen once the squad is wiped.
     reloading = false;
   };
 

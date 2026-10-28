@@ -14,7 +14,7 @@ export function clickToPlayText(state: LockState): { title: string; sub: string 
   return { title: 'Click to play', sub: 'Captures the mouse for aiming · Esc releases it' };
 }
 
-export function mountClickToPlay(dom: HTMLElement, parent: HTMLElement = document.getElementById('hud') ?? document.body): { dispose(): void } {
+export function mountClickToPlay(dom: HTMLElement, parent: HTMLElement = document.getElementById('hud') ?? document.body): { dispose(): void; setSuppressed(on: boolean): void } {
   const card = document.createElement('div');
   card.id = 'click-to-play';
   Object.assign(card.style, {
@@ -32,6 +32,7 @@ export function mountClickToPlay(dom: HTMLElement, parent: HTMLElement = documen
   dom.style.cursor = 'pointer';
 
   let state: LockState = 'idle';
+  let suppressed = false;
   let waitTimer: ReturnType<typeof setTimeout> | null = null;
   const render = () => {
     // Stay hidden behind the loading screen; check again shortly.
@@ -40,7 +41,7 @@ export function mountClickToPlay(dom: HTMLElement, parent: HTMLElement = documen
       waitTimer ??= setTimeout(() => { waitTimer = null; render(); }, 300);
       return;
     }
-    const t = clickToPlayText(state);
+    const t = suppressed ? null : clickToPlayText(state);
     card.style.display = t ? 'block' : 'none';
     dom.style.cursor = t ? 'pointer' : 'none';
     if (t) { title.textContent = t.title; sub.textContent = t.sub; }
@@ -54,6 +55,12 @@ export function mountClickToPlay(dom: HTMLElement, parent: HTMLElement = documen
   document.addEventListener('pointerlockerror', onError);
   render();
   return {
+    /** Hide while you can't play (dead / spectating). */
+    setSuppressed(on: boolean) {
+      if (suppressed === on) return;
+      suppressed = on;
+      render();
+    },
     dispose() {
       document.removeEventListener('pointerlockchange', onChange);
       document.removeEventListener('pointerlockerror', onError);
