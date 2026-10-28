@@ -1,3 +1,4 @@
+import { prefetchLateChunks, SHADER_WARM_CAP_MS, withTimeout } from './boot/warm';
 import * as THREE from 'three';
 import type { CampusData } from './core/campusData';
 import { World } from './core/world';
@@ -52,6 +53,8 @@ async function start(): Promise<void> {
   const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 5000);
 
   mark('renderer');
+  // Start fetching the combat/zone/squad chunks now so they overlap the campus build.
+  const late = prefetchLateChunks();
   setLoadProgress(0.12, 'Downloading map…');
   const data: CampusData = await (await fetch(`${import.meta.env.BASE_URL}data/campus.json`)).json();
   mark('campus.json');
@@ -121,9 +124,9 @@ async function start(): Promise<void> {
   // Combat (dummies, loot, HUD) registers the combat-range viewpoint, so it runs before the camera locks.
   mark('physics+loot');
   setLoadProgress(0.88, 'Combat & squads…');
-  const { mountCombat } = await import('./combat');
+  const { mountCombat } = await late.combat;
   const combat = await mountCombat({ world, player, camera, dom: container, extraLoot });
-  const { mountZone } = await import('./zone');
+  const { mountZone } = await late.zone;
   const zone = mountZone({
     world,
     player,
@@ -132,7 +135,7 @@ async function start(): Promise<void> {
     applyDamage: (amount) => combat.applyZoneDamage(amount),
   });
   // Squads (S3+S4): bots + downed/revive + HUD. Default/missing/?squad=solo = main solo behavior.
-  const { mountSquad } = await import('./squad/adapter');
+  const { mountSquad } = await late.squad;
   mountSquad({ world, player, camera, combat, search: location.search, zone });
 
   const vp = view ? world.viewpoints.get(view) : undefined;
@@ -154,6 +157,10 @@ async function start(): Promise<void> {
   });
 
   mark('combat+zone+squad');
+  // Compile shaders behind the loading screen (capped) instead of freezing on the first frame.
+  setLoadProgress(0.95, 'Preparing shaders…');
+  const warm = await withTimeout(gfx.renderer.compileAsync(world.scene, camera), SHADER_WARM_CAP_MS);
+  mark(`shaders(${warm})`);
   setLoadProgress(1, 'Almost ready…');
   clearLoadingUi();
   window.__bootMs = Math.round(loadElapsedMs());
