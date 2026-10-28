@@ -20,6 +20,8 @@ import type { ZoneMount } from '../zone';
 import { DOWN } from './balance';
 import { botIntent, stepToward } from './bots';
 import { steerStep } from './steer';
+import { avoidWalls } from './wallSteer';
+import { createWallProbe } from '../player/wallProbe';
 import { applyDamage } from './downed';
 import { shootBot } from './botHits';
 import { checkWipe } from './elimination';
@@ -157,6 +159,15 @@ export function mountSquad(opts: {
   // Each bot also gets a solid kinematic capsule so the player can't walk through it; the probe skips
   // the player and every bot capsule, so bots never stand on each other.
   const physBodies = player ? createBotBodies(player.rapier.world, player.rapier.playerCollider) : null;
+  // Wall look-ahead for bot steering; people are skipped (steerStep handles them).
+  const wallProbe =
+    player && physBodies
+      ? createWallProbe(
+          player.rapier.world,
+          (h) => h === player.rapier.playerCollider.handle || physBodies.lookup(h) != null,
+        )
+      : null;
+  const wallSide = new Map<PlayerId, 1 | -1>();
   const probe = physBodies?.probe ?? null;
   // Bot rifles use the same Rapier world, hitboxes and damage rules as the player's shots.
   const botGun =
@@ -661,6 +672,13 @@ export function mountSquad(opts: {
         }
         const steered = steerStep(member.pos, pos, others, Math.max(0.02, botSpeed * dt * 1.5));
         pos = { x: steered.x, y: pos.y, z: steered.z };
+        if (wallProbe) {
+          // Turn away from walls and buildings ahead.
+          const from = member.pos;
+          const w = avoidWalls(from, pos, (dx, dz, max) => wallProbe.clear(from.x, from.y, from.z, dx, dz, max), wallSide.get(body.id) ?? 1);
+          wallSide.set(body.id, w.side);
+          pos = { x: w.x, y: pos.y, z: w.z };
+        }
       }
       pos = { ...pos, y: snapBotY(probe, pos.x, pos.y, pos.z) };
       body.root.position.set(pos.x, pos.y, pos.z);
