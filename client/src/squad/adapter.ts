@@ -21,7 +21,6 @@ import { DOWN } from './balance';
 import { botIntent, stepToward } from './bots';
 import { steerStep } from './steer';
 import { avoidWalls } from './wallSteer';
-import { followRoute, newRouteState, planRoute, type RouteState } from './routePlan';
 import { createWallProbe } from '../player/wallProbe';
 import { applyDamage } from './downed';
 import { shootBot } from './botHits';
@@ -35,6 +34,7 @@ import { createMatch } from './roster';
 import { nextTarget, spectateTargets } from './spectate';
 import { step, type PlayerInput } from './step';
 import type { PlayerId, SquadEvent, SquadMatchState } from './types';
+import { followRoute, newRouteState, planRoute, type RouteState } from './routePlan';
 
 
 export type SquadMode = 'bots' | 'solo';
