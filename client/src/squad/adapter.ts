@@ -4,6 +4,7 @@
  * panel / markers / pings, enemy squads, placement screen, spectate cycling.
  * Pure rules stay in the other squad modules.
  */
+import { ENEMY_SPAWN, inSpawnGrace, memberOffset, pickEnemySquadSpots } from './enemySpawn';
 import * as THREE from 'three';
 import type { CombatMount, CombatSquadBridge } from '../combat';
 import { COMBAT } from '../combat/balance';
@@ -122,50 +123,7 @@ export function mountSquad(opts: {
     .map((m) => m.id);
   const allyBotIds = state.squads[localSquad]!.members.filter((id) => id !== playerId);
 
-  // Place ally bots near the player; enemy squads in a ring farther out.
-  const spawn = (player ? player.position : opts.world.spawn).clone();
-  const allyOffsets = [
-    { x: 3, z: 2 },
-    { x: -3, z: 2 },
-    { x: 0, z: 4 },
-  ];
-  let allySlot = 0;
-  const enemySquadOrder = Object.keys(state.squads).filter((id) => id !== localSquad).sort();
-  for (const id of botIds) {
-    const m = state.members[id]!;
-    let ox: number;
-    let oz: number;
-    if (m.squad === localSquad) {
-      const o = allyOffsets[allySlot++] ?? { x: 2 + allySlot, z: 2 };
-      ox = o.x;
-      oz = o.z;
-    } else {
-      const si = enemySquadOrder.indexOf(m.squad);
-      const angle = (si * 2 + m.slot) * 0.55 + si * 1.2;
-      const radius = 14 + si * 6 + m.slot * 1.2;
-      ox = Math.cos(angle) * radius;
-      oz = Math.sin(angle) * radius;
-    }
-    state = {
-      ...state,
-      members: {
-        ...state.members,
-        [id]: { ...m, pos: { x: spawn.x + ox, y: spawn.y, z: spawn.z + oz } },
-      },
-    };
-  }
-  // Sync player pos.
-  state = {
-    ...state,
-    members: {
-      ...state.members,
-      [playerId]: {
-        ...state.members[playerId]!,
-        pos: { x: spawn.x, y: spawn.y, z: spawn.z },
-      },
-    },
-  };
-
+  let matchElapsed = 0;
   const bots: BotBody[] = [];
   const assets = peekCharacterAssets();
   // Feet and body height come from the same downward ray the player uses (skipping the player capsule).
@@ -215,6 +173,70 @@ export function mountSquad(opts: {
     player && physBodies
       ? createBotSight(player.rapier.world, (h) => h === player.rapier.playerCollider.handle || physBodies.lookup(h) != null)
       : null;
+  // Place ally bots near the player; enemy squads in a ring farther out.
+  const spawn = (player ? player.position : opts.world.spawn).clone();
+  const allyOffsets = [
+    { x: 3, z: 2 },
+    { x: -3, z: 2 },
+    { x: 0, z: 4 },
+  ];
+  let allySlot = 0;
+  const enemySquadOrder = Object.keys(state.squads).filter((id) => id !== localSquad).sort();
+  const enemySpots = enemySquadOrder.length
+    ? pickEnemySquadSpots({ x: spawn.x, y: spawn.y, z: spawn.z }, enemySquadOrder.length, {
+        // First surface straight down from well above: roofs and walls come back too high and are rejected.
+        groundAt: (x, z) => (probe ? probe.sample(x, spawn.y + 40, z, 80) : spawn.y),
+        blocked: (a, b) => (botSight ? !botSight.clear(a, b) : true),
+        zone: opts.zone?.safeCircle?.() ?? null,
+      })
+    : [];
+  if (enemySquadOrder.length)
+    console.info(`[squad] enemy spawns ${enemySpots.length}/${enemySquadOrder.length}: ${enemySpots.map((p) => `${Math.round(Math.hypot(p.x - spawn.x, p.z - spawn.z))}m`).join(', ')}`);
+  for (const id of botIds) {
+    const m = state.members[id]!;
+    let ox: number;
+    let oz: number;
+    if (m.squad === localSquad) {
+      const o = allyOffsets[allySlot++] ?? { x: 2 + allySlot, z: 2 };
+      ox = o.x;
+      oz = o.z;
+    } else {
+      // Enemy squads start far away, out of sight, on walkable ground inside the zone.
+      const si = enemySquadOrder.indexOf(m.squad);
+      const spot = enemySpots[si];
+      const off = memberOffset(m.slot);
+      if (spot) {
+        state = {
+          ...state,
+          members: { ...state.members, [id]: { ...m, pos: { x: spot.x + off.x, y: spot.y, z: spot.z + off.z } } },
+        };
+        continue;
+      }
+      // No valid spot found: still keep them at least the minimum distance away.
+      const angle = (si / Math.max(1, enemySquadOrder.length)) * Math.PI * 2;
+      ox = Math.cos(angle) * (ENEMY_SPAWN.minDistM + 20) + off.x;
+      oz = Math.sin(angle) * (ENEMY_SPAWN.minDistM + 20) + off.z;
+    }
+    state = {
+      ...state,
+      members: {
+        ...state.members,
+        [id]: { ...m, pos: { x: spawn.x + ox, y: spawn.y, z: spawn.z + oz } },
+      },
+    };
+  }
+  // Sync player pos.
+  state = {
+    ...state,
+    members: {
+      ...state.members,
+      [playerId]: {
+        ...state.members[playerId]!,
+        pos: { x: spawn.x, y: spawn.y, z: spawn.z },
+      },
+    },
+  };
+
   const bodyGeom = new THREE.CapsuleGeometry(0.28, 0.9, 4, 8);
   const headGeom = new THREE.SphereGeometry(0.18, 12, 10);
   let allyColorIdx = 0;
@@ -566,6 +588,7 @@ export function mountSquad(opts: {
   };
 
   const onUpdate = (dt: number) => {
+    matchElapsed += dt;
     botFlashes.update(dt, opts.camera);
     tracers.update(dt);
     impacts.update(dt);
@@ -707,7 +730,7 @@ export function mountSquad(opts: {
         body.root.rotation.y = Math.atan2(foe.pos.x - pos.x, foe.pos.z - pos.z);
         const trig = botTrigger(triggerCooldown.get(body.id) ?? 0, dt, botGun != null, nearestDist, Math.random);
         triggerCooldown.set(body.id, trig.cooldown);
-        if (trig.fire && botGun) {
+        if (trig.fire && botGun && !inSpawnGrace(matchElapsed)) {
           // Bullets leave the rifle barrel (or the eye if the barrel is poking into a wall).
           const eye = { x: pos.x, y: pos.y + EYE_Y, z: pos.z };
           const muzzle = muzzlePoint(pos, body.root.rotation.y);

@@ -1,3 +1,4 @@
+import { inSpawnGrace } from './squad/enemySpawn';
 import { prefetchLateChunks, SHADER_WARM_CAP_MS, withTimeout } from './boot/warm';
 import * as THREE from 'three';
 import type { CampusData } from './core/campusData';
@@ -127,12 +128,16 @@ async function start(): Promise<void> {
   const { mountCombat } = await late.combat;
   const combat = await mountCombat({ world, player, camera, dom: container, extraLoot });
   const { mountZone } = await late.zone;
+  const zoneStart = performance.now();
   const zone = mountZone({
     world,
     player,
     bounds: data.bounds,
     search: location.search,
-    applyDamage: (amount) => combat.applyZoneDamage(amount),
+    // Spawn grace: the zone can't hurt anyone in the first few seconds.
+    applyDamage: (amount) => {
+      if (!inSpawnGrace((performance.now() - zoneStart) / 1000)) combat.applyZoneDamage(amount);
+    },
   });
   // Squads (S3+S4): bots + downed/revive + HUD. Default/missing/?squad=solo = main solo behavior.
   const { mountSquad } = await late.squad;
