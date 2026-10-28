@@ -14,6 +14,7 @@
  *
  * If the body or both clip files are missing, this returns null and the player keeps the procedural figure.
  */
+import { LAND_MIN_AIR_S, LAND_SHOW_S, fallShare, landWeight } from './airAnim';
 import * as THREE from 'three';
 import { sharedKtx2Loader } from '../render/textures';
 import { damp, turnToward } from './math';
@@ -52,6 +53,9 @@ export type ClipName = (typeof CLIP_NAMES)[number];
  * Optional no-weapon clips (CC0 Quaternius, baked by tools/anim-bake). Played full-body instead of
  * idle / walk / run / jump while `AnimFlags.unarmed` is set. Missing clips fall back to the armed set.
  */
+/** Optional air clips (CC0): looping fall after the take-off clip, and a one-shot landing. */
+export const AIR_CLIP_NAMES = ['fall', 'land'] as const;
+
 export const UNARMED_CLIP_NAMES = ['unarmed_idle', 'unarmed_walk', 'unarmed_run', 'unarmed_jump'] as const;
 type UnarmedLoco = 'idle' | 'walk' | 'run';
 const UNARMED_LOCO: UnarmedLoco[] = ['idle', 'walk', 'run'];
@@ -60,7 +64,7 @@ const LOCO_NAMES = ['idle', 'walk', 'run', 'crouch_idle', 'crouch_walk'] as cons
 type LocoName = (typeof LOCO_NAMES)[number];
 const UPPER_SPECIAL = ['aim_idle', 'fire', 'reload'] as const;
 type UpperSpecial = (typeof UPPER_SPECIAL)[number];
-const FULL_BODY = ['jump', 'death'] as const;
+const FULL_BODY = ['jump', 'death', 'fall', 'land'] as const;
 type FullBody = (typeof FULL_BODY)[number];
 
 /** Metres the lying death pose is pushed back up. The clip itself sinks about this far. */
@@ -513,7 +517,9 @@ function prepareClips(clips: THREE.AnimationClip[], upper: Set<string>): Prepare
     if (up.tracks.length) upperSpecial.set(name, up);
   }
   for (const name of FULL_BODY) {
-    const clip = findClip(clips, name);
+    const clip = name === 'fall' || name === 'land'
+      ? clips.find((c) => normalizeClipName(c.name) === name)
+      : findClip(clips, name);
     if (clip && clip.tracks.length) full.set(name, clip);
   }
   const unarmed = new Map<UnarmedLoco | 'jump', THREE.AnimationClip>();
@@ -548,6 +554,8 @@ class AnimatedCharacter implements CharacterVisual {
   private crouchBlend = 0;
   private aimBlend = 0;
   private jumpBlend = 0;
+  private airTime = 0;
+  private landT = -1;
   private firing = false;
   private reloading = false;
   private wasAir = false;
@@ -594,7 +602,7 @@ class AnimatedCharacter implements CharacterVisual {
       this.upperSpecial.set(name, this.makeAction(clip, name === 'aim_idle'));
     }
     for (const [name, clip] of assets.prepared.full) {
-      const action = this.makeAction(clip, false);
+      const action = this.makeAction(clip, name === 'fall');
       action.clampWhenFinished = true;
       this.full.set(name, action);
     }
@@ -699,7 +707,20 @@ class AnimatedCharacter implements CharacterVisual {
       this.reloading = false;
     } else {
       const wantJump = !!this.flags.jumping && this.full.has('jump');
+      if (wantJump) this.airTime += dt;
+      if (!wantJump && this.wasAir) {
+        if (this.airTime > LAND_MIN_AIR_S && this.full.has('land')) {
+          this.landT = 0;
+          this.full.get('land')!.reset().play();
+        }
+        this.airTime = 0;
+      } else if (this.landT >= 0) {
+        this.landT += dt;
+        if (this.landT >= LAND_SHOW_S) this.landT = -1;
+      }
       if (wantJump && !this.wasAir) {
+        this.landT = -1;
+        this.full.get('fall')?.reset().play();
         this.full.get('jump')!.reset().play();
         this.unarmed.get('jump')?.reset().play();
       }
@@ -716,7 +737,9 @@ class AnimatedCharacter implements CharacterVisual {
     const loco = stanceMix(stand, crouch, this.crouchBlend);
     const deathW = this.flags.dead && this.full.has('death') ? 1 : 0;
     const jumpW = deathW > 0 ? 0 : this.jumpBlend;
-    const body = Math.max(0, 1 - deathW - jumpW);
+    const landW = deathW > 0 || this.landT < 0 ? 0 : landWeight(this.landT) * (1 - jumpW);
+    const body = Math.max(0, 1 - deathW - jumpW - landW);
+    setWeight(this.full.get('land'), landW);
     const special = this.reloading ? 1 : this.firing ? 1 : 0;
     this.syncMovingClips();
     this.applyWeights(loco, body, jumpW, deathW === 0 ? special : 0);
@@ -853,6 +876,11 @@ class AnimatedCharacter implements CharacterVisual {
       setWeight(this.upperLoco.get(name), loco[name] * armScale * armed);
     }
     for (const name of UNARMED_LOCO) setWeight(this.unarmed.get(name), loco[name] * body * u);
+    // Long airs hand the take-off clip over to the fall loop.
+    const takeoff = (u > 0.5 ? this.unarmed.get('jump') : this.full.get('jump'))?.getClip().duration ?? 1;
+    const fall = this.full.has('fall') ? fallShare(this.airTime, takeoff) : 0;
+    setWeight(this.full.get('fall'), jumpW * fall);
+    jumpW *= 1 - fall;
     setWeight(this.unarmed.get('jump'), jumpW * u);
     jumpW *= 1 - u;
     setWeight(this.upperSpecial.get('aim_idle'), aimW);

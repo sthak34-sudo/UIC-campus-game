@@ -12,7 +12,7 @@ How it works: a world-space delta transfer (target = source_now * source_rest^-1
 That is only right when both rests have the same limb directions, so before baking each source rest
 rotation is swung so its bone axis matches the MakeHuman rest (legs, spine, arms, clavicles; feet keep
 their own flat rest). A small stance tidy then narrows the standing clips to about shoulder width.
-The clip file also carries an unarmed set (`unarmed_idle`, `unarmed_walk`, `unarmed_run`, `unarmed_jump`, from UAL `Idle_Loop`, `Walk_Loop`, `Sprint_Loop`, `Jump_Start`) that the game plays while the player has no weapon.
+The clip file also carries an unarmed set (`unarmed_idle`, `unarmed_walk`, `unarmed_run`, `unarmed_jump`, from UAL `Idle_Loop`, `Walk_Loop`, `Sprint_Loop`, `Jump_Start`) that the game plays while the player has no weapon, and the air clips `fall` (UAL `Jump_Loop`, looped once the take-off clip is nearly over) and `land` (UAL `Jump_Land`, played after a long fall).
 Env knobs: `LEG_IN`, `LEG_FB`, `ARM_IN` (degrees), `NOALIGN=1` to reproduce the old bake.
 
 ## Rifle (`rifle.mjs`)
