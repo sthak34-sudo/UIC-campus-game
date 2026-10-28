@@ -17,6 +17,7 @@ export function shootBot(
   victimId: PlayerId,
   zone: HitZone,
   distance: number,
+  baseDamage?: number,
 ): { state: SquadMatchState; events: SquadEvent[]; result: BotHitResult; headshot: boolean } {
   const headshot = zone === 'head';
   const victim = state.members[victimId];
@@ -25,8 +26,8 @@ export function shootBot(
   }
   const r =
     victim.life === 'downed'
-      ? applyDownedDamage(state, victimId, attackerId, resolveIncomingDamage({ zone, distance, armor: 0 }).healthDamage)
-      : applyDamage(state, victimId, attackerId, takeHit(victim.combatant, zone, distance));
+      ? applyDownedDamage(state, victimId, attackerId, resolveIncomingDamage({ zone, distance, armor: 0, baseDamage }).healthDamage)
+      : applyDamage(state, victimId, attackerId, takeHit(victim.combatant, zone, distance, baseDamage));
   const after = r.state.members[victimId]!;
   const result: BotHitResult =
     after.life === 'dead' ? 'killed' : after.life === 'downed' && victim.life !== 'downed' ? 'downed' : 'hit';

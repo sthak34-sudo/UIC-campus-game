@@ -55,4 +55,14 @@ describe('shootBot', () => {
     expect(s.members[e1]!.life).toBe('dead');
     expect(shootBot(s, you, e1, 'body', 2).result).toBe('blocked');
   });
+
+  it('scales damage for weaker bot rounds', () => {
+    const s = match();
+    const e1 = idOf(s, 'E1');
+    const hp = s.members[e1]!.combatant.health;
+    const full = hp - shootBot(s, idOf(s, 'You'), e1, 'body', 5).state.members[e1]!.combatant.health;
+    const weak = hp - shootBot(s, idOf(s, 'Mate'), e1, 'body', 5, 10).state.members[e1]!.combatant.health;
+    expect(weak).toBeLessThan(full);
+    expect(weak).toBeGreaterThan(0);
+  });
 });

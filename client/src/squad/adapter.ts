@@ -6,6 +6,7 @@
  */
 import * as THREE from 'three';
 import type { CombatMount, CombatSquadBridge } from '../combat';
+import { COMBAT } from '../combat/balance';
 import { createCombatant, takeDirectDamage, type Combatant } from '../combat/health';
 import type { World } from '../core/world';
 import type { Player } from '../player';
@@ -13,6 +14,8 @@ import { PLAYER_CONFIG } from '../player/config';
 import { createAvatar, peekCharacterAssets, type CharacterVisual } from '../player/characterLoader';
 import { snapBotY } from './botBody';
 import { createBotBodies } from '../player/botBodies';
+import { createBotGun } from '../player/botGun';
+import { BOT_AIM, botAimPoint, botTrigger } from './botAim';
 import type { ZoneMount } from '../zone';
 import { DOWN } from './balance';
 import { botIntent, stepToward } from './bots';
@@ -155,6 +158,12 @@ export function mountSquad(opts: {
   // the player and every bot capsule, so bots never stand on each other.
   const physBodies = player ? createBotBodies(player.rapier.world, player.rapier.playerCollider) : null;
   const probe = physBodies?.probe ?? null;
+  // Bot rifles use the same Rapier world, hitboxes and damage rules as the player's shots.
+  const botGun =
+    player && physBodies
+      ? createBotGun(player.rapier.world, physBodies, player.rapier.playerCollider, () => player.position.y)
+      : null;
+  const triggerCooldown = new Map<PlayerId, number>();
   const bodyGeom = new THREE.CapsuleGeometry(0.28, 0.9, 4, 8);
   const headGeom = new THREE.SphereGeometry(0.18, 12, 10);
   let allyColorIdx = 0;
@@ -612,7 +621,7 @@ export function mountSquad(opts: {
       } else if (intent.type === 'revive') {
         hold = true;
       } else if (intent.type === 'shoot' && nearestEnemyId) {
-        // Walk toward the target; deal a small tick of damage when close.
+        // Walk toward the target and shoot at it with a real hitscan.
         const foe = state.members[nearestEnemyId]!;
         const stepped = stepToward(
           { x: pos.x, z: pos.z },
@@ -623,13 +632,22 @@ export function mountSquad(opts: {
         );
         pos = { x: stepped.x, y: pos.y, z: stepped.z };
         body.root.rotation.y = Math.atan2(foe.pos.x - pos.x, foe.pos.z - pos.z);
-        if (nearestDist < 8 && canDamage(state, body.id, nearestEnemyId)) {
-          const outcome = takeDirectDamage(foe.combatant, 18 * dt);
-          const r = applyDamage(state, nearestEnemyId, body.id, outcome);
-          state = r.state;
-          eventsLog.push(...r.events);
-          if (nearestEnemyId === playerId) {
-            opts.combat.setVitals(state.members[playerId]!.combatant);
+        const trig = botTrigger(triggerCooldown.get(body.id) ?? 0, dt, botGun != null, nearestDist, Math.random);
+        triggerCooldown.set(body.id, trig.cooldown);
+        if (trig.fire && botGun) {
+          const eye = { x: pos.x, y: pos.y + 1.55, z: pos.z };
+          const aim = botAimPoint(foe.pos, nearestDist, foe.life === 'downed', Math.random);
+          const shot = botGun.fire(body.phys, eye, aim, BOT_AIM.range + 5);
+          const victimId =
+            shot?.kind === 'player' ? playerId : shot?.kind === 'bot' ? bots.find((b) => b.phys === shot.id)?.id : undefined;
+          if (shot && shot.kind !== 'world' && victimId) {
+            const r = shootBot(state, body.id, victimId, shot.zone, shot.distance, COMBAT.baseDamage * BOT_AIM.damageScale);
+            if (r.result !== 'blocked') {
+              state = r.state;
+              eventsLog.push(...r.events);
+              if (victimId === playerId) opts.combat.setVitals(state.members[playerId]!.combatant);
+              else if (r.result === 'hit') bots.find((b) => b.id === victimId)?.avatar?.flinch();
+            }
           }
         }
       }
