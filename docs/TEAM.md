@@ -85,16 +85,25 @@ Each specialist is an AI agent the Project Lead starts for a specific task. It w
 - No new runtime libraries without the Project Lead's OK.
 - Follow the asset and legal rules in `CLAUDE.md`.
 
-## Quality bars (DRAFT — the owner sets the final version)
+## Owner's standards (set Oct 28, 2026)
 
-These are starting points. They change to match the owner's standards once the owner states them.
+- **Reference game: PUBG.** Grounded and realistic, readable at range, weighty movement and gunplay. When in doubt, ask "what would PUBG do?"
+- **Priorities: all four areas.**
+  1. Looks and realism
+  2. Combat feel
+  3. Smooth and bug-free
+  4. Smarter bots and a finished-feeling UI
+- **Target device: a normal student laptop** (2020-era, integrated graphics, 8–16 GB RAM, Chrome or Edge). No gaming GPU assumed.
+- **Check-ins: after every batch.** The owner gets a short update with screenshots and the live link after each round of fixes.
 
-| Area | Draft bar |
+## Quality bars
+
+| Area | Bar (PUBG-referenced, student laptop) |
 |---|---|
-| **Stability** | A full `?squad=bots` match runs start to finish with no page errors, no softlocks, no falling through the world and no stuck player. |
-| **Performance** | On a 2020 integrated-GPU laptop at 1080p with auto quality: 30+ FPS, rarely dropping below, and first load under 30 s on home broadband. |
-| **Visuals** | No obvious placeholder boxes near the play area, no flickering surfaces, no floating or sinking objects, and characters and guns readable in sun and shade. |
-| **Combat feel** | Shots land where the crosshair is. Every hit gives visible and audible feedback. Reload, heal and pickup always respond. |
-| **Bots** | No bot stuck for more than 10 s. No shots through walls. Bots can lose fights. |
-| **UI** | Every action has a prompt or feedback. Text is readable on bright and dark backgrounds. No overlapping HUD elements. |
-| **Code** | Every fixed bug gets a test. No dead debug code in the public build. Docs match the code. |
+| **Stability** | A full `?squad=bots` match runs start to finish with:<br>• no page errors or softlocks<br>• no falling through the world, and no player or bot stuck in geometry<br>• no shooting through walls<br>• Play again works every time |
+| **Performance** | On the target laptop at 1080p with auto quality:<br>• a steady 30+ FPS in the open and in fights, with no hitches over 100 ms while playing<br>• first load under 30 s on home broadband, under 10 s on a revisit<br>• no memory growth across 3 Play-agains |
+| **Looks / realism** | Reads like a grounded, realistic game (PUBG tone) set at the real UIC:<br>• no placeholder boxes, flicker, z-fighting, floating or sinking props, or visible seams in the play area<br>• consistent lighting and materials<br>• characters and guns readable in sun and shade<br>• landmark buildings recognisable to a UIC student |
+| **Combat feel** | Like PUBG:<br>• weighty, deliberate movement<br>• shots go exactly where aimed, with recoil and a crosshair that tell the truth<br>• every hit gives visible and audible feedback (hitmarker, sound, impact)<br>• readable damage and time-to-kill<br>• reload, heal and pickup have clear timing and can't be spammed or broken |
+| **Bots** | They play like plausible human players:<br>• use cover, rotate with the zone, loot, heal and reposition<br>• aim that is good but human (reaction time, spread, misses at range)<br>• never stuck more than 10 s, never shoot through walls<br>• can be outplayed and can win fights |
+| **UI / HUD** | Finished and PUBG-clean:<br>• consistent style and typography<br>• readable on any background<br>• every action has feedback<br>• no overlapping elements<br>• clear loading, death, spectate and end screens<br>• a first-time player understands what to do within 30 s |
+| **Code** | Every fixed bug gets a regression test, no debug leftovers in the public build, and docs that match the code. |

@@ -261,7 +261,7 @@ Sound, a public link, accounts, seasonal events, phone controls. A public launch
 - **Title.** It should not sound like an official UIC product.
 - **Match start.** Decided: you start unarmed, with a rifle on the ground nearby.
 - **Voice and text chat.** Not planned. Squads use preset pings (P).
-- **Quality standards.** The owner will define them at the start of the Quality Pass (see `docs/TEAM.md`).
+- **Quality standards.** Set Oct 28: PUBG as the reference, all four areas, normal student laptop, review after every batch. See `docs/TEAM.md`.
 
 ---
 
