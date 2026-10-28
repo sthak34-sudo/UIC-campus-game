@@ -53,10 +53,13 @@ export interface SquadMount {
   getMode(): SquadMode;
 }
 
+/** Enemy bot squads on ?squad=bots when ?enemySquads is not given. */
+export const DEFAULT_ENEMY_SQUADS = 3;
+
 export function parseSquadOptions(search: string): {
   mode: SquadMode;
   bleedFast: boolean;
-  /** Enemy bot squads (0..4). Only used when mode is bots. Default 0. */
+  /** Enemy bot squads (0..4). Only used when mode is bots. Default 3 on bots, 0 on solo. */
   enemySquads: number;
 } {
   const q = new URLSearchParams(search.startsWith('?') ? search : `?${search}`);
@@ -65,7 +68,8 @@ export function parseSquadOptions(search: string): {
   const mode: SquadMode = raw === 'bots' ? 'bots' : 'solo';
   const bleed = q.get('bleedFast');
   const esRaw = q.get('enemySquads');
-  let enemySquads = 0;
+  // Bots mode defaults to 3 enemy squads of 4 so the match has opponents; ?enemySquads=N overrides.
+  let enemySquads = mode === 'bots' ? DEFAULT_ENEMY_SQUADS : 0;
   if (esRaw != null && esRaw !== '') {
     const n = Number(esRaw);
     if (Number.isFinite(n)) enemySquads = Math.max(0, Math.min(4, Math.floor(n)));

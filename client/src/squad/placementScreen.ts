@@ -1,7 +1,7 @@
 /**
  * Placement / victory overlay (S5). Thin DOM adapter; copy comes from matchSetup.
  */
-import { localPlacementLine } from './matchSetup';
+import { localPlacementLine, localSquadWon } from './matchSetup';
 import type { SquadId, SquadMatchState } from './types';
 
 export class PlacementScreen {
@@ -49,7 +49,7 @@ export class PlacementScreen {
       this.hide();
       return;
     }
-    const won = state.squadsAlive === 1 && !squad.eliminated;
+    const won = localSquadWon(state, localSquad);
     const wiped = squad.eliminated;
     if (!won && !wiped) {
       this.hide();

@@ -20,7 +20,7 @@ import {
   finishReload, grantLoot, lootLabel, pickupPrompt, pullMedkit, spendRound, emptyInventory, type Inventory,
 } from './inventory';
 import { LootField } from './loot';
-import { practiceLayout } from './range';
+import { practiceLayout, starterRifleSpot } from './range';
 import { castAimedShot, muzzlePoint, WeaponFx } from './weapon';
 import { createTracers } from '../render/tracers';
 import { createGunSound } from '../audio/gunSound';
@@ -91,9 +91,15 @@ export async function mountCombat(opts: {
     physics,
     bodies ? () => createAvatar(bodies) : null,
   );
+  // The starter rifle goes in front of where the player really stands (the safe-spawn search can
+  // move them off the marked spawn), so it is on screen at load in every mode, ?squad=bots included.
+  const feet = opts.player ? opts.player.position : spawn;
+  const startLoot = layout.loot.map((l) =>
+    l.kind === 'gun' ? { kind: l.kind, position: starterRifleSpot({ x: feet.x, y: feet.y, z: feet.z }, yaw) } : l,
+  );
   const allLoot = opts.extraLoot?.length
-    ? [...layout.loot, ...opts.extraLoot]
-    : layout.loot;
+    ? [...startLoot, ...opts.extraLoot]
+    : startLoot;
   const loot = new LootField(opts.world.scene, allLoot, bodies?.rifle ?? null);
   if (physics) physics.step();
 

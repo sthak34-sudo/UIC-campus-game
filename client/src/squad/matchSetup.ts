@@ -3,6 +3,7 @@
  */
 import { SQUAD_SIZE } from './balance';
 import type { SquadSpec } from './roster';
+import type { SquadId, SquadMatchState } from './types';
 
 const ENEMY_NAMES = ['Rex', 'Nova', 'Volt', 'Knox', 'Rae', 'Vex', 'Jax', 'Nyx'];
 
@@ -26,6 +27,17 @@ export function offlineRoster(enemySquads: number): SquadSpec[] {
     specs.push({ id, names, bots });
   }
   return specs;
+}
+
+/**
+ * True only when the local squad is the last one standing in a match that had other squads.
+ * A match with just your squad (no enemies) is never a win, so it cannot end at load.
+ */
+export function localSquadWon(state: SquadMatchState, localSquad: SquadId): boolean {
+  const squad = state.squads[localSquad];
+  if (!squad || squad.eliminated) return false;
+  const others = Object.values(state.squads).filter((s) => s.id !== localSquad);
+  return others.length > 0 && others.every((s) => s.eliminated);
 }
 
 /** Placement line for the local player's squad (or null if still alive). */
