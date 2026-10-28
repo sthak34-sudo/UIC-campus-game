@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { buildZone } from '../zone/zoneLogic';
 import { CAMPUS_LOOT, campusLootKind, campusLootSpots,
   insideZone, pointInRing, samplePolygon, type PlanPolygon } from './campusLoot';
 
@@ -58,5 +59,17 @@ describe('campus ground loot', () => {
   it('insideZone respects the margin', () => {
     expect(insideZone({ x: 0, z: 0, radius: 20 }, { x: 15, z: 0 })).toBe(true);
     expect(insideZone({ x: 0, z: 0, radius: 20 }, { x: 15, z: 0 }, 10)).toBe(false);
+  });
+});
+
+describe('loot and the seeded zone', () => {
+  it('campus loot sits inside the first shrink circle of the same seed', () => {
+    const bounds = { minX: -400, minY: -300, maxX: 400, maxY: 300 };
+    for (const seed of [1, 2, 99]) {
+      const first = buildZone(bounds, seed)[0]!.end;
+      const spots = campusLootSpots([square(0, 0, 350)], { zone: first, floorAt: () => 0, spawn: { x: 9999, z: 9999 } }, seeded(seed));
+      expect(spots.length).toBeGreaterThan(0);
+      for (const s of spots) expect(insideZone(first, s.position, CAMPUS_LOOT.zoneMarginM)).toBe(true);
+    }
   });
 });
