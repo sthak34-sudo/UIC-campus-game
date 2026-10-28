@@ -1,8 +1,15 @@
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
-const url = process.argv[2]; const out = process.argv[3] || '/workspace/forge/playtest/result.json';
+// usage: node playtest.mjs <url> [out.json] [--size WxH]   (default 320x180)
+const args = process.argv.slice(2);
+const sizeAt = args.indexOf('--size');
+const sizeArg = sizeAt >= 0 ? args.splice(sizeAt, 2)[1] : '320x180';
+const m = /^(\d+)x(\d+)$/.exec(sizeArg ?? '');
+if (!m) { console.error(`--size wants WxH, e.g. 1280x800 (got "${sizeArg}")`); process.exit(2); }
+const viewport = { width: +m[1], height: +m[2] };
+const url = args[0]; const out = args[1] || '/workspace/forge/playtest/result.json';
 const b = await chromium.launch({ executablePath: '/opt/google/chrome/chrome', args: ['--use-gl=angle','--use-angle=swiftshader-webgl','--enable-unsafe-swiftshader','--ignore-gpu-blocklist'] });
-const p = await b.newPage({ viewport: { width: 320, height: 180 } });
+const p = await b.newPage({ viewport });
 p.on('console', (m) => { if (m.type() === 'error') console.log('console', m.text().slice(0, 200)); });
 const errors = []; p.on('pageerror', (e) => errors.push(String(e)));
 const tBoot = Date.now();
