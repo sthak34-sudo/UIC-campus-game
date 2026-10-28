@@ -7,6 +7,7 @@ export interface InputActions {
   onReload(): void;
   onDebugHurt(): void;
   onUseMedkit(): void;
+  onUseBandage?(): void;
 }
 
 const MOVE_KEYS = new Set([
@@ -161,6 +162,9 @@ export class InputController {
         break;
       case 'KeyQ':
         this.actions.onUseMedkit();
+        break;
+      case 'KeyB':
+        this.actions.onUseBandage?.();
         break;
       case 'KeyC':
         this.crouchOn = !this.crouchOn;

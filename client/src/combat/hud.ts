@@ -11,6 +11,7 @@ export interface HudState {
   mag: number;
   reserve: number;
   medkits: number;
+  bandages: number;
   hasGun: boolean;
   reloading: boolean;
   reloadLeft: number;
@@ -137,7 +138,7 @@ export class CombatHud {
     if (!s.hasGun) this.ammoEl.textContent = 'No rifle';
     else if (s.reloading) this.ammoEl.textContent = `Reloading ${s.reloadLeft.toFixed(1)}s`;
     else this.ammoEl.textContent = `${s.mag} / ${COMBAT.magSize}    ${s.reserve} reserve`;
-    this.invEl.textContent = `Med kits ${s.medkits}    (Q to use)`;
+    this.invEl.textContent = `Med kits ${s.medkits} (Q)    Bandages ${s.bandages} (B)`;
     if (s.prompt) {
       this.promptEl.style.display = 'block';
       this.promptEl.textContent = s.prompt;

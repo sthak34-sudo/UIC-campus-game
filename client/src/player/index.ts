@@ -153,7 +153,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
 
   const events = new Emitter<PlayerEvents>();
   const eventLog: string[] = [];
-  for (const type of ['interact', 'jump', 'land', 'cameraMode', 'fire', 'reload', 'debugHurt', 'useMedkit'] as const) {
+  for (const type of ['interact', 'jump', 'land', 'cameraMode', 'fire', 'reload', 'debugHurt', 'useMedkit', 'useBandage'] as const) {
     events.on(type, () => {
       eventLog.push(type);
       if (eventLog.length > 200) eventLog.shift();
@@ -194,6 +194,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     onReload: () => events.emit('reload', {}),
     onDebugHurt: () => events.emit('debugHurt', {}),
     onUseMedkit: () => events.emit('useMedkit', {}),
+    onUseBandage: () => events.emit('useBandage', {}),
   });
 
   // Clear 'Click to play' card until the mouse is captured (clicks go through to the canvas).

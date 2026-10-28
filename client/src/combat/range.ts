@@ -14,6 +14,8 @@ export interface Vec3 {
 export interface LootSpot {
   kind: LootKind;
   position: Vec3;
+  /** Taken for good (match loot) instead of respawning (practice range). */
+  once?: boolean;
 }
 
 export interface PracticeLayout {

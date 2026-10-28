@@ -81,3 +81,18 @@ export function warnDroppedLoot(dropped: readonly DroppedLootMarker[]): void {
     );
   }
 }
+
+/** Top of the ray used to find outdoor floors (m above datum). */
+const FLOOR_PROBE_TOP_M = 150;
+
+/**
+ * Walkable outdoor floor at (x, z): the first surface straight down from high above, as long as
+ * there is no second floor under it (that would mean a roof or canopy). Null when there is none.
+ */
+export function walkableFloorAt(rapierWorld: RAPIER.World, x: number, z: number): number | null {
+  const top = rapierWorld.castRay(new RAPIER.Ray({ x, y: FLOOR_PROBE_TOP_M, z }, { x: 0, y: -1, z: 0 }), FLOOR_PROBE_TOP_M * 2, true);
+  if (!top) return null;
+  const y = FLOOR_PROBE_TOP_M - top.timeOfImpact;
+  const under = rapierWorld.castRay(new RAPIER.Ray({ x, y: y - 0.3, z }, { x: 0, y: -1, z: 0 }), 25, true);
+  return under ? null : y;
+}
