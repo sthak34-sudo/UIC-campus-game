@@ -17,6 +17,9 @@
 - If the private files are missing, the game uses the CC0 clips above. Only if both clip files are missing does it fall back to the procedural figure.
 - Do not add UIC logos, seals, Flames or Sparky artwork, restaurant or CTA logos, or Google 3D Tiles, Photorealistic Tiles, Maps, or Street View imagery or geometry.
 
+## Sound
+- `client/public/audio/gunshot_cc0.ogg` — **CC0 1.0**. "Random gunfire SFX" (`gunfire_sfx.wav`) by iamoneabe on OpenGameArt: https://opengameart.org/content/random-gunfire-sfx (licence on that page: CC0, https://creativecommons.org/publicdomain/zero/1.0/). Cut to 0.8 s with a fade-out, mixed to mono, and encoded as Ogg Vorbis (10 KB). Used for bot gunshots. Credit is not legally required under CC0 but given anyway.
+
 ## Surface textures (photo-scanned PBR, CC0)
 Downloaded by `tools/textures/fetch_cc0.py`; files in `client/public/textures/<folder>/`. All are licensed **CC0 1.0 (public domain)**.
 
