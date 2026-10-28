@@ -153,7 +153,8 @@ export async function mountCombat(opts: {
   const now = () => performance.now() / 1000;
   // Solo match-end screen (squads have their own in the squad adapter).
   let soloStats = newStats(now());
-  const soloEnd = opts.player ? new MatchEndScreen(hudParent) : null;
+  // Created on first solo death only, so squad mode has a single #match-end.
+  let soloEnd: MatchEndScreen | null = null;
 
   const playerDowned = () => (squad ? squad.isDowned() : false);
   const playerDead = () => (squad ? squad.isDead() : isDown(vitals));
@@ -182,7 +183,8 @@ export async function mountCombat(opts: {
 
   const killPlayer = () => {
     opts.player?.setControlsEnabled(false);
-    if (!squad && soloEnd) {
+    if (!squad && opts.player) {
+      soloEnd ??= new MatchEndScreen(hudParent);
       soloStats = finish(soloStats, now());
       soloEnd.show(summarize(soloStats, now(), 'died', null, 1));
       console.info(`[match] solo death: kills ${soloStats.kills}, damage ${Math.round(soloStats.damage)}`);
@@ -414,7 +416,7 @@ export async function mountCombat(opts: {
     hud?.tick(dt);
     syncHud();
   };
-  opts.world.onUpdate(onUpdate);
+  offs.push(opts.world.onUpdate(onUpdate));
   syncHud();
 
   return {
@@ -437,6 +439,7 @@ export async function mountCombat(opts: {
     dispose() {
       for (const off of offs) off();
       hud?.dispose();
+      soloEnd?.dispose();
       fx.dispose();
       tracers.dispose();
       dummies.dispose(opts.world.scene, physics);

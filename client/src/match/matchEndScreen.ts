@@ -3,6 +3,7 @@
  * Thin DOM layer; the numbers come from matchStats.ts.
  */
 import type { MatchSummary } from './matchStats';
+import { requestRestart } from './restart';
 
 export class MatchEndScreen {
   private readonly root: HTMLDivElement;
@@ -11,7 +12,7 @@ export class MatchEndScreen {
   private readonly stats: HTMLDivElement;
   private shown = false;
 
-  constructor(parent: HTMLElement, onPlayAgain: () => void = () => location.reload()) {
+  constructor(parent: HTMLElement, onPlayAgain: () => void = () => void requestRestart()) {
     this.root = document.createElement('div');
     this.root.id = 'match-end';
     Object.assign(this.root.style, {
