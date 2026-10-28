@@ -16,6 +16,7 @@ import { createBotBodies } from '../player/botBodies';
 import type { ZoneMount } from '../zone';
 import { DOWN } from './balance';
 import { botIntent, stepToward } from './bots';
+import { steerStep } from './steer';
 import { applyDamage } from './downed';
 import { checkWipe } from './elimination';
 import { canDamage } from './friendlyFire';
@@ -620,6 +621,16 @@ export function mountSquad(opts: {
         }
       }
 
+      if (member.life !== 'downed') {
+        // Keep personal space from the other bots and the player; slide around anyone in the way.
+        const others: { x: number; z: number }[] = [{ x: feet.x, z: feet.z }];
+        for (const o of Object.values(state.members)) {
+          if (o.id === body.id || o.id === playerId || o.life === 'dead') continue;
+          others.push(o.pos);
+        }
+        const steered = steerStep(member.pos, pos, others, Math.max(0.02, botSpeed * dt * 1.5));
+        pos = { x: steered.x, y: pos.y, z: steered.z };
+      }
       pos = { ...pos, y: snapBotY(probe, pos.x, pos.y, pos.z) };
       body.root.position.set(pos.x, pos.y, pos.z);
       physBodies?.move(body.phys, pos.x, pos.y, pos.z, true);
