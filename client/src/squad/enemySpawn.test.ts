@@ -9,7 +9,26 @@ const flat = (over: Partial<EnemySpawnEnv> = {}): EnemySpawnEnv => ({
   ...over,
 });
 
+function seeded(seed: number) {
+  let x = seed >>> 0;
+  return () => ((x = (x * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+}
+
 describe('enemy squad spawns', () => {
+  it('varies squad distances between about 150 and 400 m', () => {
+    const dists = new Set<number>();
+    for (let seed = 1; seed <= 20; seed++) {
+      for (const s of pickEnemySquadSpots(player, 3, flat(), seeded(seed))) {
+        const d = Math.hypot(s.x, s.z);
+        expect(d).toBeGreaterThanOrEqual(150);
+        expect(d).toBeLessThanOrEqual(400);
+        dists.add(Math.round(d));
+      }
+    }
+    // Several different rings get used, not just the nearest one.
+    expect(dists.size).toBeGreaterThanOrEqual(4);
+    expect(Math.max(...dists) - Math.min(...dists)).toBeGreaterThan(150);
+  });
   it('places 3 squads at least 150 m away, spread apart', () => {
     const spots = pickEnemySquadSpots(player, 3, flat());
     expect(spots).toHaveLength(3);

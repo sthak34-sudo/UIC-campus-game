@@ -8,7 +8,7 @@ export const ENEMY_SPAWN = {
   /** Closest an enemy squad may start to the player (m). */
   minDistM: 150,
   /** Farthest ring we try (m); clipped by the zone. */
-  maxDistM: 420,
+  maxDistM: 400,
   /** Rings between min and max, and bearings per ring. */
   rings: 6,
   bearings: 24,
@@ -52,7 +52,7 @@ export function spawnCandidates(origin: { x: number; z: number }, zone?: SpawnCi
   const out: { x: number; z: number }[] = [];
   const { minDistM, maxDistM, rings, bearings } = ENEMY_SPAWN;
   for (let r = 0; r < rings; r++) {
-    const radius = minDistM + 10 + ((maxDistM - minDistM - 10) * r) / Math.max(1, rings - 1);
+    const radius = minDistM + 5 + ((maxDistM - minDistM - 10) * r) / Math.max(1, rings - 1);
     for (let b = 0; b < bearings; b++) {
       // Offset each ring by half a step so rings do not line up.
       const a = ((b + (r % 2) * 0.5) / bearings) * Math.PI * 2;
@@ -84,11 +84,16 @@ export function validEnemySpot(player: Vec3, p: { x: number; z: number }, env: E
  * spacing, relaxes spacing (never distance, ground or sight). Returns fewer than `count` only
  * when no valid spot exists at all; callers then fall back to the farthest valid ground.
  */
-export function pickEnemySquadSpots(player: Vec3, count: number, env: EnemySpawnEnv): Vec3[] {
+export function pickEnemySquadSpots(player: Vec3, count: number, env: EnemySpawnEnv, rng: () => number = Math.random): Vec3[] {
   const valid: Vec3[] = [];
   for (const c of spawnCandidates(player, env.zone)) {
     const v = validEnemySpot(player, c, env);
     if (v) valid.push(v);
+  }
+  // Shuffle so squads land at varied distances (150-400 m) and bearings, not all on the nearest ring.
+  for (let i = valid.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [valid[i], valid[j]] = [valid[j]!, valid[i]!];
   }
   const picked: Vec3[] = [];
   for (const spacing of [ENEMY_SPAWN.squadSpacingM, ENEMY_SPAWN.squadSpacingM / 2, 0]) {
@@ -109,7 +114,7 @@ export function memberOffset(slot: number): { x: number; z: number } {
   return { x: Math.cos(a) * ENEMY_SPAWN.memberSpreadM, z: Math.sin(a) * ENEMY_SPAWN.memberSpreadM };
 }
 
-/** True while the spawn grace period is running. */
+/** True while the spawn grace period is running. `elapsedS` is game time (sum of frame dt), not wall time. */
 export function inSpawnGrace(elapsedS: number): boolean {
   return elapsedS < SPAWN_GRACE_S;
 }
