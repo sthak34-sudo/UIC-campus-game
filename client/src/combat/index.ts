@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import type { World } from '../core/world';
 import type { Player } from '../player';
+import type { LootKind } from './inventory';
 import { COMBAT } from './balance';
 import { PracticeDummies } from './dummy';
 import { CombatHud } from './hud';
@@ -67,6 +68,16 @@ export interface CombatMount {
   getVitals(): Combatant;
   /** Replace vitals after a revive / heal-all. */
   setVitals(c: Combatant): void;
+  /** Nearest pickup a bot could walk to (`accept` filters kinds), or null. */
+  lootNear(
+    at: { x: number; y: number; z: number },
+    radius: number,
+    accept: (kind: LootKind, at: { x: number; y: number; z: number }) => boolean,
+  ): { index: number; kind: LootKind; position: { x: number; y: number; z: number } } | null;
+  /** A bot picks up loot `index`. Returns its kind, or null if it was already taken. */
+  takeLoot(index: number): LootKind | null;
+  /** True once the player carries a rifle (teammate bots leave rifles for them until then). */
+  playerHasGun(): boolean;
 }
 
 export async function mountCombat(opts: {
@@ -406,6 +417,9 @@ export async function mountCombat(opts: {
       vitals = c;
       syncHud();
     },
+    lootNear: (at, radius, accept) => loot.nearestWithin(at, radius, clock, accept),
+    takeLoot: (index) => loot.take(index, clock),
+    playerHasGun: () => inventory.hasGun,
     dispose() {
       for (const off of offs) off();
       hud?.dispose();

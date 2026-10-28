@@ -24,6 +24,8 @@ import { BOT_AIM, botAimPoint, botTrigger } from './botAim';
 import type { ZoneMount } from '../zone';
 import { DOWN } from './balance';
 import { botIntent, stepToward } from './bots';
+import { BOT_LOOT, botSafe, botWants, canGrab, grantBotLoot, leaveForHuman, lootInReach, shouldBandage, starterKit, type BotKit } from './botLoot';
+import { healAmount, startHeal, stepHeal, type HealChannel } from '../combat/heal';
 import { steerStep } from './steer';
 import { avoidWalls } from './wallSteer';
 import { createTracers } from '../render/tracers';
@@ -168,6 +170,11 @@ export function mountSquad(opts: {
       : null;
   const triggerCooldown = new Map<PlayerId, number>();
   const foeMemory = new Map<PlayerId, FoeMemory>();
+  // Per-bot loot kit, bandage channel, last health seen, and seconds since a foe was seen.
+  const kits = new Map<PlayerId, BotKit>();
+  const healing = new Map<PlayerId, HealChannel>();
+  const lastHp = new Map<PlayerId, number>();
+  const sinceFoeS = new Map<PlayerId, number>();
   // Line of sight: walls and buildings block it, people do not.
   const botSight =
     player && physBodies
@@ -690,6 +697,55 @@ export function mountSquad(opts: {
         intent = { type: 'moveTo', x: memory.x, z: memory.z };
         body.root.rotation.y = Math.atan2(memory.x - member.pos.x, memory.z - member.pos.z);
       }
+
+      // Loot and bandages: only when calm (alive, following or idle, no foe seen for a while).
+      const sinceFoe = seen || memory ? 0 : (sinceFoeS.get(body.id) ?? BOT_LOOT.safeS) + dt;
+      sinceFoeS.set(body.id, sinceFoe);
+      let kit = kits.get(body.id) ?? starterKit();
+      const hpNow = member.combatant.health;
+      const calm = member.life === 'alive' && botSafe(sinceFoe) && (intent.type === 'follow' || intent.type === 'idle');
+      let channel = healing.get(body.id) ?? null;
+      if (channel && (!calm || hpNow < (lastHp.get(body.id) ?? hpNow))) {
+        channel = null;
+        console.info(`[squad] ${member.name} bandage interrupted`);
+      }
+      lastHp.set(body.id, hpNow);
+      if (calm && !channel && shouldBandage(hpNow, kit, sinceFoe)) {
+        channel = startHeal('bandage');
+        console.info(`[squad] ${member.name} bandaging at ${Math.round(hpNow)} HP`);
+      }
+      if (channel) {
+        const st = stepHeal(channel, dt);
+        channel = st.channel;
+        if (st.done) {
+          const add = healAmount('bandage', hpNow, member.combatant.maxHealth);
+          kit = { ...kit, bandages: kit.bandages - 1 };
+          const m = state.members[body.id]!;
+          state = { ...state, members: { ...state.members, [body.id]: { ...m, combatant: { ...m.combatant, health: hpNow + add } } } };
+          lastHp.set(body.id, hpNow + add);
+          console.info(`[squad] ${member.name} bandaged ${Math.round(hpNow)} -> ${Math.round(hpNow + add)} HP (${kit.bandages} left)`);
+        }
+        // Stand still while bandaging.
+        intent = { type: 'idle' };
+      } else if (calm) {
+        const leaderPos = leaderId !== body.id ? (state.members[leaderId]?.pos ?? null) : null;
+        const human = body.enemy ? null : { pos: feet, hasGun: opts.combat.playerHasGun() };
+        const want = opts.combat.lootNear(member.pos, BOT_LOOT.seekM, (k, at) => botWants(k, kit) && !leaveForHuman(k, at, human));
+        if (want && lootInReach(member.pos, want.position, leaderPos)) {
+          if (canGrab(member.pos, want.position)) {
+            const got = opts.combat.takeLoot(want.index);
+            if (got) {
+              kit = grantBotLoot(kit, got);
+              console.info(`[squad] ${member.name} picked up ${got} (rifles ${kit.rifles}, ammo ${kit.ammo}, bandages ${kit.bandages})`);
+            }
+          } else {
+            intent = { type: 'moveTo', x: want.position.x, z: want.position.z };
+          }
+        }
+      }
+      kits.set(body.id, kit);
+      if (channel) healing.set(body.id, channel);
+      else healing.delete(body.id);
 
       let pos = { ...member.pos };
       let hold = false;

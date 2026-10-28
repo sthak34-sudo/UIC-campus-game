@@ -191,6 +191,30 @@ export class LootField {
     return { index: best, kind: this.crates[best]!.kind };
   }
 
+  /** Nearest available pickup within `radius` m (flat distance) that `accept` likes, or null. */
+  nearestWithin(
+    at: Vec3,
+    radius: number,
+    now: number,
+    accept: (kind: LootKind, at: Vec3) => boolean,
+  ): { index: number; kind: LootKind; position: Vec3 } | null {
+    let best = -1;
+    let bestD = radius * radius;
+    for (let i = 0; i < this.crates.length; i++) {
+      const c = this.crates[i]!;
+      if (c.hiddenUntil > now || !accept(c.kind, c.position)) continue;
+      if (Math.abs(c.position.y - at.y) > 2.5) continue; // another floor
+      const d = (at.x - c.position.x) ** 2 + (at.z - c.position.z) ** 2;
+      if (d <= bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    if (best < 0) return null;
+    const c = this.crates[best]!;
+    return { index: best, kind: c.kind, position: c.position };
+  }
+
   take(index: number, now: number): LootKind | null {
     const c = this.crates[index];
     if (!c || c.hiddenUntil > now) return null;
