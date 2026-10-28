@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { hemisphereFill, SHADE_FILL } from './shadeFill';
 import { Sky } from 'three/addons/objects/Sky.js';
 import type { World } from '../core/world';
 import { campusSunAngles, sunDirectionWorld } from './solar';
@@ -385,7 +386,8 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
     const T = INTERIOR_KEY / inBase;
     if (!indoors) {
       interiorExp = null;
-      roomFill = T / 0.4;
+      // Without metering (low tier) this fixed fill is all a room gets, so give it a bit more.
+      roomFill = (T / 0.4) * (q.allowMetering ? 1 : SHADE_FILL.lowTierRoomFill);
       meterCount = 0;
       settled = false;
     } else {
@@ -406,7 +408,7 @@ export function createRenderer(container: HTMLElement, world: World): GameRender
     } else {
       scene.environment = hdriEnv ?? skyEnv;
       scene.environmentIntensity = envStrength * (1 - 0.75 * insideAmt);
-      fill.intensity = 0.25 * insideAmt * Math.min(1, lighting.totalHorizontal + 0.3);
+      fill.intensity = hemisphereFill(q.post, insideAmt, Math.min(1, lighting.totalHorizontal + 0.3));
     }
     const inExp = interiorExp ?? inBase;
     grade.exposure = outdoorExp + (inExp - outdoorExp) * insideAmt;
