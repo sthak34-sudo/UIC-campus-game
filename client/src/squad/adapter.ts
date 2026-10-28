@@ -24,7 +24,7 @@ import { BOT_AIM, botAimPoint, botTrigger } from './botAim';
 import type { ZoneMount } from '../zone';
 import { DOWN } from './balance';
 import { botIntent, stepToward } from './bots';
-import { BOT_LOOT, botSafe, botWants, canGrab, grantBotLoot, leaveForHuman, lootInReach, shouldBandage, starterKit, type BotKit } from './botLoot';
+import { BOT_LOOT, botCanShoot, botDry, botSafe, maybeStartReload, spendRound, stepBotReload, botWants, canGrab, grantBotLoot, leaveForHuman, lootInReach, shouldBandage, starterKit, type BotKit } from './botLoot';
 import { healAmount, startHeal, stepHeal, type HealChannel } from '../combat/heal';
 import { steerStep } from './steer';
 import { avoidWalls } from './wallSteer';
@@ -736,13 +736,19 @@ export function mountSquad(opts: {
             const got = opts.combat.takeLoot(want.index);
             if (got) {
               kit = grantBotLoot(kit, got);
-              console.info(`[squad] ${member.name} picked up ${got} (rifles ${kit.rifles}, ammo ${kit.ammo}, bandages ${kit.bandages})`);
+              console.info(`[squad] ${member.name} picked up ${got} (rifles ${kit.rifles}, mag ${kit.mag}, spare ${kit.ammo}, bandages ${kit.bandages})`);
             }
           } else {
             intent = { type: 'moveTo', x: want.position.x, z: want.position.z };
           }
         }
       }
+      // Reload: always when empty, topping up when calm. Same reload time as the player.
+      const wasReloading = kit.reloading > 0;
+      kit = maybeStartReload(kit, calm);
+      if (!wasReloading && kit.reloading > 0) console.info(`[squad] ${member.name} reloading (${kit.mag} in mag, ${kit.ammo} spare)`);
+      const rl = stepBotReload(kit, dt);
+      kit = rl.kit;
       kits.set(body.id, kit);
       if (channel) healing.set(body.id, channel);
       else healing.delete(body.id);
@@ -784,9 +790,14 @@ export function mountSquad(opts: {
         );
         pos = { x: stepped.x, y: pos.y, z: stepped.z };
         body.root.rotation.y = Math.atan2(foe.pos.x - pos.x, foe.pos.z - pos.z);
-        const trig = botTrigger(triggerCooldown.get(body.id) ?? 0, dt, botGun != null, nearestDist, Math.random);
+        const gunKit = kits.get(body.id) ?? starterKit();
+        const armed = botGun != null && botCanShoot(gunKit);
+        const trig = botTrigger(triggerCooldown.get(body.id) ?? 0, dt, armed, nearestDist, Math.random);
         triggerCooldown.set(body.id, trig.cooldown);
         if (trig.fire && botGun && !inSpawnGrace(matchElapsed)) {
+          const spent = spendRound(gunKit);
+          kits.set(body.id, spent);
+          if (botDry(spent)) console.info(`[squad] ${member.name} is out of ammo`);
           // Bullets leave the rifle barrel (or the eye if the barrel is poking into a wall).
           const eye = { x: pos.x, y: pos.y + EYE_Y, z: pos.z };
           const muzzle = muzzlePoint(pos, body.root.rotation.y);
