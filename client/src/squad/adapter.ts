@@ -21,6 +21,8 @@ import { DOWN } from './balance';
 import { botIntent, stepToward } from './bots';
 import { steerStep } from './steer';
 import { avoidWalls } from './wallSteer';
+import { createTracers } from '../render/tracers';
+import { createGunSound } from '../audio/gunSound';
 import { createWallProbe } from '../player/wallProbe';
 import { applyDamage } from './downed';
 import { shootBot } from './botHits';
@@ -169,10 +171,19 @@ export function mountSquad(opts: {
       : null;
   const wallSide = new Map<PlayerId, 1 | -1>();
   const probe = physBodies?.probe ?? null;
+  // Bot shots draw a tracer and play a gunshot (quieter and panned by where it came from).
+  const tracers = createTracers(opts.world.scene);
+  const gunSound = createGunSound(import.meta.env.BASE_URL);
+  const earEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+  const onBotShot = (from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }) => {
+    tracers.add(from, to);
+    earEuler.setFromQuaternion(opts.camera.quaternion);
+    gunSound.play(from, opts.camera.position, earEuler.y);
+  };
   // Bot rifles use the same Rapier world, hitboxes and damage rules as the player's shots.
   const botGun =
     player && physBodies
-      ? createBotGun(player.rapier.world, physBodies, player.rapier.playerCollider, () => player.position.y)
+      ? createBotGun(player.rapier.world, physBodies, player.rapier.playerCollider, () => player.position.y, onBotShot)
       : null;
   const triggerCooldown = new Map<PlayerId, number>();
   const bodyGeom = new THREE.CapsuleGeometry(0.28, 0.9, 4, 8);
@@ -526,6 +537,7 @@ export function mountSquad(opts: {
   };
 
   const onUpdate = (dt: number) => {
+    tracers.update(dt);
     if (!player) {
       // Viewpoint / screenshot demo: keep bot meshes posed, no match stepping.
       // Still drive the S4 HUD so markers / panel / feed show up in screenshots.
@@ -786,6 +798,7 @@ export function mountSquad(opts: {
       placementUi.dispose();
       panel.remove();
       physBodies?.dispose();
+      tracers.dispose();
       for (const b of bots) {
         opts.world.scene.remove(b.root);
         if (b.avatar) {
