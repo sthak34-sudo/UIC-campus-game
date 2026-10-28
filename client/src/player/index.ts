@@ -1,4 +1,5 @@
 import { mark } from '../core/bootTimings';
+import { mountClickToPlay } from './clickToPlay';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { World } from '../core/world';
@@ -195,6 +196,8 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     onUseMedkit: () => events.emit('useMedkit', {}),
   });
 
+  // Clear 'Click to play' card until the mouse is captured (clicks go through to the canvas).
+  const clickToPlay = mountClickToPlay(dom);
   const position = phys.feet.clone();
   let acc = 0;
   let simTime = 0;
@@ -346,6 +349,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     },
     dispose: () => {
       input.dispose();
+      clickToPlay.dispose();
       hud.dispose();
       world.scene.remove(model.root);
       model.dispose();

@@ -20,3 +20,11 @@ describe('parseSquadOptions', () => {
     expect(parseSquadOptions('?enemySquads=-3')).toEqual({ mode: 'solo', bleedFast: false, enemySquads: 0 });
   });
 });
+
+describe('squad key hint placement', () => {
+  it('sits above the bottom-left health / ammo stack instead of over it', async () => {
+    const { SQUAD_HINT_BOTTOM_PX } = await import('./adapter');
+    // Combat HUD stack: bottom 28 px, two bars + health line + 22 px ammo line + inventory line.
+    expect(SQUAD_HINT_BOTTOM_PX).toBeGreaterThanOrEqual(28 + 100);
+  });
+});

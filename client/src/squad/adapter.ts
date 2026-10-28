@@ -537,11 +537,11 @@ export function mountSquad(opts: {
     window.addEventListener('keyup', onKeyUp);
   }
 
-  // Small key hint under the S4 team panel (K/J/L/P/F).
+  // Small key hint (K/J/L/P/F), bottom left *above* the health / ammo stack so it never covers 'No rifle'.
   const panel = document.createElement('div');
   panel.id = 'squad-debug';
   panel.style.cssText =
-    'position:absolute;left:12px;bottom:48px;color:#e8e8e8;font:11px/1.35 ui-monospace,monospace;' +
+    `position:absolute;left:12px;bottom:${SQUAD_HINT_BOTTOM_PX}px;color:#e8e8e8;font:11px/1.35 ui-monospace,monospace;` +
     'background:rgba(0,0,0,.4);padding:6px 8px;border-radius:6px;pointer-events:none;z-index:20;white-space:pre';
   hudParent.appendChild(panel);
 
@@ -884,3 +884,5 @@ export function mountSquad(opts: {
   };
 }
 
+/** Bottom offset (px) of the squad key hint: clears the combat HUD stack (bottom 28 px, ~100 px tall). */
+export const SQUAD_HINT_BOTTOM_PX = 140;
