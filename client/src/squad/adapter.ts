@@ -21,6 +21,7 @@ import { DOWN } from './balance';
 import { botIntent, stepToward } from './bots';
 import { steerStep } from './steer';
 import { avoidWalls } from './wallSteer';
+import { followRoute, newRouteState, planRoute, type RouteState } from './routePlan';
 import { createWallProbe } from '../player/wallProbe';
 import { applyDamage } from './downed';
 import { shootBot } from './botHits';
@@ -168,6 +169,7 @@ export function mountSquad(opts: {
         )
       : null;
   const wallSide = new Map<PlayerId, 1 | -1>();
+  const routes = new Map<PlayerId, RouteState>();
   const probe = physBodies?.probe ?? null;
   // Bot rifles use the same Rapier world, hitboxes and damage rules as the player's shots.
   const botGun =
@@ -673,8 +675,21 @@ export function mountSquad(opts: {
         const steered = steerStep(member.pos, pos, others, Math.max(0.02, botSpeed * dt * 1.5));
         pos = { x: steered.x, y: pos.y, z: steered.z };
         if (wallProbe) {
-          // Turn away from walls and buildings ahead.
           const from = member.pos;
+          // Stuck (e.g. in a dead end)? Plan a short route round and follow its waypoints.
+          const goal =
+            intent.type === 'follow' ? state.members[intent.target]!.pos
+              : intent.type === 'moveTo' ? { x: intent.x, z: intent.z }
+                : intent.type === 'shoot' && nearestEnemyId ? state.members[nearestEnemyId]!.pos
+                  : null;
+          if (goal) {
+            const f = followRoute(routes.get(body.id) ?? newRouteState(), from, pos, goal, dt, (a, b) =>
+              planRoute(a, b, (x, z) => wallProbe.free(x, from.y, z)),
+            );
+            routes.set(body.id, f.rs);
+            pos = { x: f.to.x, y: pos.y, z: f.to.z };
+          }
+          // Turn away from walls and buildings ahead.
           const w = avoidWalls(from, pos, (dx, dz, max) => wallProbe.clear(from.x, from.y, from.z, dx, dz, max), wallSide.get(body.id) ?? 1);
           wallSide.set(body.id, w.side);
           pos = { x: w.x, y: pos.y, z: w.z };

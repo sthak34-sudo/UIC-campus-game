@@ -12,6 +12,8 @@ export const WALL_PROBE_Y = 0.8;
 export interface WallProbe {
   /** Free distance (up to `max`) from feet (x, y, z) along the flat direction (dx, dz). */
   clear(x: number, y: number, z: number, dx: number, dz: number, max: number): number;
+  /** True when a bot could stand at feet (x, y, z) without its waist being inside a wall. */
+  free(x: number, y: number, z: number): boolean;
 }
 
 export function createWallProbe(world: RAPIER.World, skip: (handle: number) => boolean): WallProbe {
@@ -36,6 +38,13 @@ export function createWallProbe(world: RAPIER.World, skip: (handle: number) => b
         (c) => !skip(c.handle),
       );
       return hit ? Math.max(0, hit.time_of_impact) : max;
+    },
+    free(x, y, z) {
+      const c = world.intersectionWithShape(
+        { x, y: y + WALL_PROBE_Y, z }, rot, ball, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS,
+        undefined, undefined, undefined, (col) => !skip(col.handle),
+      );
+      return c == null;
     },
   };
 }

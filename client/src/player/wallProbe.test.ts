@@ -17,5 +17,10 @@ describe('wall probe', () => {
     expect(probe.clear(0, 0, 0, 0, -1, 5)).toBe(5);
     expect(probe.clear(0, 0, 0, 0, 1, 5)).toBe(5);
     expect(probe.clear(0, 0, 0, -1, 0, 5)).toBe(5);
+    // Standing spots: free in the open and on the step, not inside the wall; people are skipped.
+    expect(probe.free(0, 0, 0)).toBe(true);
+    expect(probe.free(4, 0, 0)).toBe(false);
+    expect(probe.free(0, 0, -2)).toBe(true);
+    expect(probe.free(0, 0, 3)).toBe(true);
   });
 });
