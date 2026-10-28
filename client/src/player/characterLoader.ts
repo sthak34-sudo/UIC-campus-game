@@ -48,6 +48,14 @@ export const CLIP_NAMES = [
 ] as const;
 export type ClipName = (typeof CLIP_NAMES)[number];
 
+/**
+ * Optional no-weapon clips (CC0 Quaternius, baked by tools/anim-bake). Played full-body instead of
+ * idle / walk / run / jump while `AnimFlags.unarmed` is set. Missing clips fall back to the armed set.
+ */
+export const UNARMED_CLIP_NAMES = ['unarmed_idle', 'unarmed_walk', 'unarmed_run', 'unarmed_jump'] as const;
+type UnarmedLoco = 'idle' | 'walk' | 'run';
+const UNARMED_LOCO: UnarmedLoco[] = ['idle', 'walk', 'run'];
+
 const LOCO_NAMES = ['idle', 'walk', 'run', 'crouch_idle', 'crouch_walk'] as const;
 type LocoName = (typeof LOCO_NAMES)[number];
 const UPPER_SPECIAL = ['aim_idle', 'fire', 'reload'] as const;
@@ -304,6 +312,7 @@ interface PreparedClips {
   upperLoco: Map<LocoName, THREE.AnimationClip>;
   upperSpecial: Map<UpperSpecial, THREE.AnimationClip>;
   full: Map<FullBody, THREE.AnimationClip>;
+  unarmed: Map<UnarmedLoco | 'jump', THREE.AnimationClip>;
 }
 
 interface CharacterAssets {
@@ -507,7 +516,12 @@ function prepareClips(clips: THREE.AnimationClip[], upper: Set<string>): Prepare
     const clip = findClip(clips, name);
     if (clip && clip.tracks.length) full.set(name, clip);
   }
-  return { lower, upperLoco, upperSpecial, full };
+  const unarmed = new Map<UnarmedLoco | 'jump', THREE.AnimationClip>();
+  for (const name of [...UNARMED_LOCO, 'jump'] as const) {
+    const clip = clips.find((c) => normalizeClipName(c.name) === `unarmed_${name}`);
+    if (clip && clip.tracks.length) unarmed.set(name, clip);
+  }
+  return { lower, upperLoco, upperSpecial, full, unarmed };
 }
 
 const MOVING: LocoName[] = ['walk', 'run', 'crouch_walk'];
@@ -524,6 +538,8 @@ class AnimatedCharacter implements CharacterVisual {
   private readonly upperLoco = new Map<LocoName, THREE.AnimationAction>();
   private readonly upperSpecial = new Map<UpperSpecial, THREE.AnimationAction>();
   private readonly full = new Map<FullBody, THREE.AnimationAction>();
+  private readonly unarmed = new Map<UnarmedLoco | 'jump', THREE.AnimationAction>();
+  private unarmedBlend = 0;
   private readonly lodNodes: THREE.Object3D[] = [];
   private readonly hips: THREE.Object3D | null;
   private readonly spine: THREE.Object3D | null;
@@ -581,6 +597,11 @@ class AnimatedCharacter implements CharacterVisual {
       const action = this.makeAction(clip, false);
       action.clampWhenFinished = true;
       this.full.set(name, action);
+    }
+    for (const [name, clip] of assets.prepared.unarmed) {
+      const action = this.makeAction(clip, name !== 'jump');
+      action.clampWhenFinished = true;
+      this.unarmed.set(name, action);
     }
     for (let i = 0; i < 4; i++) {
       const node = rig.getObjectByName(`player_LOD${i}`);
@@ -666,6 +687,9 @@ class AnimatedCharacter implements CharacterVisual {
       this.root.rotation.x = 0;
     }
 
+    const unarmedTarget = this.flags.unarmed && this.unarmed.size === 4 ? 1 : 0;
+    this.unarmedBlend = this.unarmedBlend + (unarmedTarget - this.unarmedBlend) * damp(10, dt);
+    if (Math.abs(this.unarmedBlend - unarmedTarget) < 0.001) this.unarmedBlend = unarmedTarget;
     this.crouchBlend = this.crouchBlend + ((this.flags.crouch ? 1 : 0) - this.crouchBlend) * damp(8, dt);
     const aimTarget = this.flags.aiming && !this.flags.dead && !this.flags.jumping ? 1 : 0;
     this.aimBlend = this.aimBlend + (aimTarget - this.aimBlend) * damp(12, dt);
@@ -675,7 +699,10 @@ class AnimatedCharacter implements CharacterVisual {
       this.reloading = false;
     } else {
       const wantJump = !!this.flags.jumping && this.full.has('jump');
-      if (wantJump && !this.wasAir) this.full.get('jump')!.reset().play();
+      if (wantJump && !this.wasAir) {
+        this.full.get('jump')!.reset().play();
+        this.unarmed.get('jump')?.reset().play();
+      }
       this.wasAir = wantJump;
       const jumpTarget = wantJump ? 1 : 0;
       this.jumpBlend = this.jumpBlend + (jumpTarget - this.jumpBlend) * damp(10, dt);
@@ -800,19 +827,34 @@ class AnimatedCharacter implements CharacterVisual {
         action.time = u * (action.getClip().duration || 1);
       }
     }
+    for (const name of ['walk', 'run'] as const) {
+      const action = this.unarmed.get(name);
+      if (action && action !== leader) action.time = u * (action.getClip().duration || 1);
+    }
     for (const [name, lower] of this.lower) {
       const upper = this.upperLoco.get(name);
       if (upper) upper.time = lower.time;
     }
   }
 
+  /** Effective weight of a no-weapon clip (tests / debugging). */
+  unarmedWeight(name: UnarmedLoco | 'jump'): number {
+    return this.unarmed.get(name)?.getEffectiveWeight() ?? 0;
+  }
+
   private applyWeights(loco: StanceWeights, body: number, jumpW: number, special: number): void {
     const aimW = special > 0 ? 0 : this.aimBlend * body;
     const armScale = body * (1 - Math.max(special, this.aimBlend));
+    // Unarmed: standing idle / walk / run come from the no-weapon clips (full body), crouch stays shared.
+    const u = this.unarmedBlend;
     for (const name of LOCO_NAMES) {
-      setWeight(this.lower.get(name), loco[name] * body);
-      setWeight(this.upperLoco.get(name), loco[name] * armScale);
+      const armed = (UNARMED_LOCO as string[]).includes(name) ? 1 - u : 1;
+      setWeight(this.lower.get(name), loco[name] * body * armed);
+      setWeight(this.upperLoco.get(name), loco[name] * armScale * armed);
     }
+    for (const name of UNARMED_LOCO) setWeight(this.unarmed.get(name), loco[name] * body * u);
+    setWeight(this.unarmed.get('jump'), jumpW * u);
+    jumpW *= 1 - u;
     setWeight(this.upperSpecial.get('aim_idle'), aimW);
     setWeight(this.upperSpecial.get('fire'), special > 0 && this.firing ? body : 0);
     setWeight(this.upperSpecial.get('reload'), special > 0 && this.reloading ? body : 0);

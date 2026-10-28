@@ -96,6 +96,9 @@ const tRestLocal = {}; for (const n of order) tRestLocal[n] = tBones[n].quaterni
 const WANT = {
   idle: ['Idle_Loop'], walk: ['Walk_Loop'], run: ['Jog_Fwd_Loop'], crouch_idle: ['Crouch_Idle_Loop'], crouch_walk: ['Crouch_Fwd_Loop'],
   aim_idle: ['Pistol_Aim_Neutral'], fire: ['Pistol_Shoot'], reload: ['Pistol_Reload'], jump: ['Jump_Loop'], death: ['Death01'],
+  // No-weapon set, used while the player has nothing in hand: relaxed idle, walk, a full arm-pumping
+  // sprint for run, and the jump-start pose (arms thrown up) for the air.
+  unarmed_idle: ['Idle_Loop'], unarmed_walk: ['Walk_Loop'], unarmed_run: ['Sprint_Loop'], unarmed_jump: ['Jump_Start'],
 };
 const FPS = 30;
 // Stance tidy for the standing clips. The Quaternius idle is a wide game stance (ankles 1.4x shoulder
@@ -114,6 +117,7 @@ const armsIn = (a, back = 0) => ({ LeftArm: rotZ(-deg(a)), LeftForeArm: rotZ(-de
 const LEG_IN = Number(process.env.LEG_IN ?? 3), LEG_FB = Number(process.env.LEG_FB ?? 7), ARM_IN = Number(process.env.ARM_IN ?? 10);
 const STANCE = {
   idle: { ...legsIn(LEG_IN, LEG_FB), ...armsIn(ARM_IN, 14) },
+  unarmed_idle: legsIn(LEG_IN, LEG_FB),
   aim_idle: legsIn(LEG_IN, LEG_FB / 2), fire: legsIn(LEG_IN, LEG_FB / 2), reload: legsIn(LEG_IN, LEG_FB / 2), crouch_idle: legsIn(LEG_IN),
 };
 const baked = [];
