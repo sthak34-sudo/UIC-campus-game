@@ -46,12 +46,23 @@ export class World {
     this.colliders.push(mesh);
   }
 
-  onUpdate(fn: UpdateFn): void {
+  /** Register per-frame logic; returns an unsubscribe (used by match restart). */
+  onUpdate(fn: UpdateFn): () => void {
     this.updates.push(fn);
+    return () => {
+      const i = this.updates.indexOf(fn);
+      if (i >= 0) this.updates.splice(i, 1);
+    };
+  }
+
+  /** Number of per-frame callbacks (leak checks). */
+  get updateCount(): number {
+    return this.updates.length;
   }
 
   update(dt: number, elapsed: number): void {
-    for (const fn of this.updates) fn(dt, elapsed);
+    // Copy: a callback may unsubscribe (restart) mid-frame.
+    for (const fn of this.updates.slice()) fn(dt, elapsed);
   }
 
   addViewpoint(name: string, vp: Viewpoint): void {

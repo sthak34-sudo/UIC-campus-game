@@ -1,5 +1,6 @@
 import { debugKeysEnabled, helpText } from './debug/debugKeys';
 import { createPerfOverlay } from './debug/perfOverlay';
+import { setRestartHandler } from './match/restart';
 import { inSpawnGrace } from './squad/enemySpawn';
 import { prefetchLateChunks, SHADER_WARM_CAP_MS, withTimeout } from './boot/warm';
 import * as THREE from 'three';
@@ -38,6 +39,8 @@ declare global {
     __ready?: boolean;
     __viewpoints?: string[];
     __bootMs?: number;
+    __restarts?: number;
+    __leakCounts?: () => { scene: number; updates: number; bodies: number; colliders: number };
     __quality?: string;
     /** Prod-safe, read-only: true once playable. No setters or cheats are exposed. */
     readonly __uicReady?: boolean;
@@ -146,27 +149,62 @@ async function start(): Promise<void> {
   mark('physics+loot');
   setLoadProgress(0.88, 'Combat & squads…');
   const { mountCombat } = await late.combat;
-  const combat = await mountCombat({ world, player, camera, dom: container, extraLoot });
   const { mountZone } = await late.zone;
+  const { mountSquad } = await late.squad;
   // Grace counts game time (frame dt), same clock as the bot-fire grace in squad/adapter.ts.
   let zoneGameS = 0;
   world.onUpdate((dt) => {
     zoneGameS += dt;
   });
-  const zone = mountZone({
-    world,
-    player,
-    bounds: data.bounds,
-    search: location.search,
-    phases: zonePhases,
-    // Spawn grace: the zone can't hurt anyone in the first few seconds.
-    applyDamage: (amount) => {
-      if (!inSpawnGrace(zoneGameS)) combat.applyZoneDamage(amount);
-    },
+  // One match = combat (dummies, loot, HUD) + zone + squads. Play again disposes and remounts it.
+  const mountMatch = async () => {
+    zoneGameS = 0;
+    const combat = await mountCombat({ world, player, camera, dom: container, extraLoot });
+    const zone = mountZone({
+      world,
+      player,
+      bounds: data.bounds,
+      search: location.search,
+      phases: zonePhases,
+      // Spawn grace: the zone can't hurt anyone in the first few seconds.
+      applyDamage: (amount) => {
+        if (!inSpawnGrace(zoneGameS)) combat.applyZoneDamage(amount);
+      },
+    });
+    // Squads (S3+S4): bots + downed/revive + HUD. Default/missing/?squad=solo = main solo behavior.
+    const squad = mountSquad({ world, player, camera, combat, search: location.search, zone });
+    return () => {
+      squad?.dispose();
+      zone.dispose();
+      combat.dispose();
+    };
+  };
+  let disposeMatch = await mountMatch();
+  let restarting = false;
+  const leakCounts = () => ({
+    scene: world.scene.children.length,
+    updates: world.updateCount,
+    bodies: player?.rapier.world.bodies.len() ?? 0,
+    colliders: player?.rapier.world.colliders.len() ?? 0,
   });
-  // Squads (S3+S4): bots + downed/revive + HUD. Default/missing/?squad=solo = main solo behavior.
-  const { mountSquad } = await late.squad;
-  mountSquad({ world, player, camera, combat, search: location.search, zone });
+  window.__leakCounts = leakCounts;
+  setRestartHandler(async () => {
+    if (restarting) return;
+    restarting = true;
+    try {
+      const before = leakCounts();
+      disposeMatch();
+      if (player) {
+        player.teleport(world.spawn.clone());
+        player.setControlsEnabled(true);
+      }
+      disposeMatch = await mountMatch();
+      window.__restarts = (window.__restarts ?? 0) + 1;
+      console.info(`[restart] #${window.__restarts} before ${JSON.stringify(before)} after ${JSON.stringify(leakCounts())}`);
+    } finally {
+      restarting = false;
+    }
+  });
 
   const vp = view ? world.viewpoints.get(view) : undefined;
   world.focus.copy(player ? player.position : (vp?.position ?? camera.position));

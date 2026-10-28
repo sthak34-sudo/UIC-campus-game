@@ -194,7 +194,7 @@ export function mountZone(opts: {
     const amount = zoneDamage(snap.damagePerSecond, dt, feet, snap.current);
     if (amount > 0) opts.applyDamage(amount);
   };
-  opts.world.onUpdate(onUpdate);
+  const offUpdate = opts.world.onUpdate(onUpdate);
 
   const api = {
     getState(): ZoneDebugState {
@@ -227,6 +227,7 @@ export function mountZone(opts: {
       publish(latest);
     },
     dispose() {
+      offUpdate();
       window.removeEventListener('keydown', onKey);
       if (window.__zone === api) delete window.__zone;
       hud.dispose();

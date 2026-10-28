@@ -1004,12 +1004,13 @@ export function mountSquad(opts: {
       specHint;
   };
 
-  opts.world.onUpdate(onUpdate);
+  const offUpdate = opts.world.onUpdate(onUpdate);
 
   return {
     getState: () => state,
     getMode: () => mode,
     dispose() {
+      offUpdate();
       if (player) {
         opts.combat.setSquadBridge(null);
         window.removeEventListener('keydown', onKey);
