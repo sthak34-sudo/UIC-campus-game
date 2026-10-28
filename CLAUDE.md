@@ -1,7 +1,8 @@
 # UIC Campus Game: Team Handbook (read first)
 
 This is a realistic battle-royale game on the real UIC East Campus, played in the browser (squads of 4; see `PLAN.md`). Graphics stay on three.js. Walking and hitscan stay on Rapier. The dev server stays on Vite.
-The owner is a non-programmer. AI agents write all the code and the Tech Lead (the main session) reviews and merges.
+The owner is a non-programmer. AI agents write all the code. The **Project Lead** (the main session) plans, assigns, reviews and merges. Team charters and quality bars are in `docs/TEAM.md`.
+**Current phase: Quality Pass. No new features** unless the owner asks for them.
 Explain things to the owner in plain English.
 
 ## Commands
@@ -15,7 +16,7 @@ Explain things to the owner in plain English.
 - **Language and libraries:** TypeScript 7 (strict), Vite 8, three.js **0.186.1**, Rapier `@dimforge/rapier3d-compat` 0.21.0, Vitest 5.
 - **Renderer:** use **`THREE.WebGLRenderer`**, not WebGPURenderer. Our headless test browser only has WebGL2 (SwiftShader), and every visual change must be verifiable by screenshot. For post-processing, use `three/addons/postprocessing/*` (EffectComposer, RenderPass, GTAOPass/SAOPass, UnrealBloomPass, OutputPass, SMAAPass).
 - **Python:** Python 3.13 for data tools. pyarrow, shapely, laspy and numpy are pip-installable.
-- **No new runtime dependencies without the Tech Lead's OK.** Dev-only tools are fine if small.
+- **No new runtime dependencies without the Project Lead's OK.** Dev-only tools are fine if small.
 
 ## Coordinates and units (critical)
 - **Units:** 1 unit = **1 meter**.
@@ -23,15 +24,20 @@ Explain things to the owner in plain English.
 - **three.js world:** x = east, **y = up**, z = **south**. Use `planToWorld()` in `client/src/core/geo.ts`. Origin is near the Quad (41.8722, -87.6505).
 - **Texture UVs are in meters** (1 UV unit = 1 m of surface). Materials set their own texture repeat to match. This keeps every wall consistent.
 
-## Who owns what (only edit your own files; ask the Tech Lead for changes to shared files)
+## Who owns what (only edit your own files; ask the Project Lead for changes to shared files)
 | Role | Owns |
 |---|---|
-| Tech Lead | `client/src/main.ts`, `client/src/core/*`, `CLAUDE.md`, `PLAN.md`, package.json files |
-| Map Engineer | `tools/map-pipeline/**`, `client/public/data/**`, `client/src/world/campus/**` |
-| Graphics Engineer | `client/src/render/**` (renderer, sky, sun, shadows, post-processing, **material library**) |
-| Landmarks Engineer | `client/src/world/landmarks/**` (University Hall, Daley Library, their interiors) |
-| Player Engineer | `client/src/player/**` (Rapier physics, character, controls, camera, entering buildings) |
-| Combat Engineer | `client/src/combat/**` (shooting, health, dummies, loot, combat HUD) |
+| Project Lead | `client/src/main.ts`, `client/src/core/*`, `CLAUDE.md`, `PLAN.md`, `docs/TEAM.md`, `README.md`, package.json files |
+| QA & Playtest Lead | `client/src/integration/**`, `tools/playtest/**`, `tools/player-test/**`, `tools/screenshot/**`, `docs/qa/**` |
+| Art Director | `client/src/render/**` (renderer, sky, sun, shadows, post-processing, **material library**), `tools/textures/**`, `tools/anim-bake/**`, `client/public/{textures,hdri,models/characters,models/weapons}/**` |
+| World Builder | `tools/map-pipeline/**`, `client/public/data/**`, `client/public/models/buildings/**`, `client/src/world/**` (campus, buildings, landmarks) |
+| Gameplay & Combat Designer | `client/src/combat/**`, `client/src/zone/**`, `client/src/match/**`, `client/src/audio/**`, `client/src/player/**` (movement, controls, camera, character) |
+| AI Engineer | `client/src/squad/**` (bot teammates, enemy squads, bot steering and targeting) |
+| Performance Engineer | `client/src/boot/**`, `client/src/debug/perf*` and performance changes anywhere, done with the owning role's review |
+| UI/UX Designer | HUD and screen files (`*/hud.ts`, `match/matchEndScreen.ts`, `squad/placementScreen.ts`, `boot/loading.ts`), `client/index.html`, `client/src/style.css` |
+| Code Steward | `.github/**`, `client/src/debug/debugKeys*`, repo hygiene, cross-cutting refactors, done with the owning role's review |
+
+When two roles share a file (for example, a HUD file inside `combat/`), the listed owner of the **folder** reviews.
 
 ## Shared contracts (`client/src/core/`)
 - **`campusData.ts`:** the `campus.json` format. Buildings with `landmark` set are skipped by the generic campus builder.
@@ -53,7 +59,7 @@ Explain things to the owner in plain English.
   - Use `InstancedMesh` for repeated items.
   - Keep total draw calls under about 300 outdoors.
   - Shadows are cast by buildings and trees, not tiny props.
-- **Viewpoint names:** short kebab-case, prefixed by owner area: `map-*`, `gfx-*`, `uh-*`, `library-*`, `player-*`, `combat-*`.
+- **Viewpoint names:** short kebab-case, prefixed by owner area: `map-*`, `gfx-*`, `uh-*`, `library-*`, `player-*`, `combat-*`, `qa-*`.
 
 ## Legal rules
 - **No UIC logos, seals, Flames or Sparky artwork,** and no restaurant or CTA logos. Real building names are fine.
@@ -66,7 +72,8 @@ Explain things to the owner in plain English.
 
 ## Done means
 1. Typecheck, tests and build pass.
-2. You added or updated viewpoints and looked at your screenshots yourself.
-3. You committed on your branch with a clear message.
+2. You added or updated viewpoints and looked at your screenshots yourself (before and after for any visible change).
+3. You met the quality bar for your area in `docs/TEAM.md`, or you said exactly where you fell short.
+4. You committed on your branch with a clear message. The Project Lead opens the pull request and merges.
 
 In your hand-back, report what works, what doesn't, and screenshot paths.
