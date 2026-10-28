@@ -128,7 +128,11 @@ async function start(): Promise<void> {
   const { mountCombat } = await late.combat;
   const combat = await mountCombat({ world, player, camera, dom: container, extraLoot });
   const { mountZone } = await late.zone;
-  const zoneStart = performance.now();
+  // Grace counts game time (frame dt), same clock as the bot-fire grace in squad/adapter.ts.
+  let zoneGameS = 0;
+  world.onUpdate((dt) => {
+    zoneGameS += dt;
+  });
   const zone = mountZone({
     world,
     player,
@@ -136,7 +140,7 @@ async function start(): Promise<void> {
     search: location.search,
     // Spawn grace: the zone can't hurt anyone in the first few seconds.
     applyDamage: (amount) => {
-      if (!inSpawnGrace((performance.now() - zoneStart) / 1000)) combat.applyZoneDamage(amount);
+      if (!inSpawnGrace(zoneGameS)) combat.applyZoneDamage(amount);
     },
   });
   // Squads (S3+S4): bots + downed/revive + HUD. Default/missing/?squad=solo = main solo behavior.
