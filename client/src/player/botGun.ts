@@ -25,7 +25,8 @@ export function createBotGun(
   player: RAPIER.Collider | null,
   playerFeetY: () => number,
   /** Called for every shot with where it started and where it stopped (for tracers and sound). */
-  onShot?: (from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }) => void,
+  /** `normal` is set when the bullet hit the world (a wall, the ground), for impact effects. */
+  onShot?: (from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }, normal?: { x: number; y: number; z: number }) => void,
 ): BotGun {
   return {
     fire(shooter, origin, target, maxDistance) {
@@ -35,7 +36,7 @@ export function createBotGun(
       const len = Math.hypot(dx, dy, dz);
       if (len < 1e-6) return null;
       const dir = { x: dx / len, y: dy / len, z: dz / len };
-      const hit = world.castRay(
+      const hit = world.castRayAndGetNormal(
         new RAPIER.Ray(origin, dir),
         maxDistance,
         true,
@@ -47,14 +48,15 @@ export function createBotGun(
       );
       const t = hit ? hit.timeOfImpact : maxDistance;
       const point = { x: origin.x + dir.x * t, y: origin.y + dir.y * t, z: origin.z + dir.z * t };
-      onShot?.(origin, point);
-      if (!hit) return null;
+      if (!hit) { onShot?.(origin, point); return null; }
       if (player && hit.collider.handle === player.handle) {
+        onShot?.(origin, point);
         const zone: BotHitZone = point.y - playerFeetY() >= PLAYER_NECK_Y ? 'head' : 'body';
         return { kind: 'player', zone, distance: t, point };
       }
       const b = bodies.lookup(hit.collider.handle, point.y);
-      if (b) return { kind: 'bot', id: b.id, zone: b.zone, distance: t, point };
+      if (b) { onShot?.(origin, point); return { kind: 'bot', id: b.id, zone: b.zone, distance: t, point }; }
+      onShot?.(origin, point, { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z });
       return { kind: 'world', distance: t, point };
     },
   };

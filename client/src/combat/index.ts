@@ -24,6 +24,7 @@ import { practiceLayout } from './range';
 import { castAimedShot, muzzlePoint, WeaponFx } from './weapon';
 import { createAvatar, loadCharacterAssets, peekCharacterAssets } from '../player/characterLoader';
 import { yawFromDirection } from '../player/math';
+import { createImpacts } from '../render/impacts';
 
 /** Thin hooks the squad adapter installs so combat stays free of squad imports. */
 export interface CombatSquadBridge {
@@ -188,6 +189,9 @@ export async function mountCombat(opts: {
     syncHud();
   };
 
+  // Sparks and dust where the player's bullets hit walls and the ground.
+  const impacts = createImpacts(opts.world.scene);
+
   const fire = () => {
     const player = opts.player;
     if (!player || !hud) return;
@@ -232,6 +236,7 @@ export async function mountCombat(opts: {
           if (!bot.blocked) hud.flashCrosshair(bot.headshot ? 'head' : 'hit');
         } else {
           fx.decal(hit.point, hit.normal);
+          impacts.spawn(hit.point, hit.normal);
         }
       }
     }
@@ -318,6 +323,7 @@ export async function mountCombat(opts: {
         muzzlePoint(opts.player.position, dir), COMBAT.maxRange, opts.player.rapier.playerCollider);
       hud.setMuzzleBlocked(s.blocked);
     }
+    impacts.update(dt);
     dummies.update(dt, opts.camera, physics);
     loot.update(clock);
     hud?.tick(dt);
@@ -344,6 +350,7 @@ export async function mountCombat(opts: {
       for (const off of offs) off();
       hud?.dispose();
       fx.dispose();
+      impacts.dispose();
       dummies.dispose(opts.world.scene, physics);
       loot.dispose(opts.world.scene);
     },
