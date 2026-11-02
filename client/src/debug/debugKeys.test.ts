@@ -10,11 +10,19 @@ describe('debug keys', () => {
   it('normal keys still work', () => {
     for (const k of ['KeyP', 'KeyF', 'ArrowLeft', 'ArrowRight', 'KeyE']) expect(allowKey(k, false)).toBe(true);
   });
-  it('?debug or a dev build turns them on', () => {
+  it('bare ?debug, ?debug=cheats or a dev build turns them on', () => {
     expect(debugKeysEnabled('?debug', false)).toBe(true);
-    expect(debugKeysEnabled('?squad=bots&debug=perf', false)).toBe(true);
+    expect(debugKeysEnabled('?debug=', false)).toBe(true);
+    expect(debugKeysEnabled('?squad=bots&debug=cheats', false)).toBe(true);
+    expect(debugKeysEnabled('?debug=perf,cheats', false)).toBe(true);
+    expect(debugKeysEnabled('?debug=perf&debug=cheats', false)).toBe(true);
     expect(debugKeysEnabled('', true)).toBe(true);
     expect(allowKey('KeyK', true)).toBe(true);
+  });
+  it('?debug=perf (or any other value) does not enable cheats in a production build', () => {
+    for (const q of ['?debug=perf', '?squad=bots&debug=perf', '?debug=1', '?debug=cheat', '?debugx'])
+      expect(debugKeysEnabled(q, false)).toBe(false);
+    expect(allowKey('KeyK', debugKeysEnabled('?debug=perf', false))).toBe(false);
   });
   it('drops debug entries from the help bar when off', () => {
     const full = 'E pick up · V camera · H hurt (practice) · Z skip zone · F3 debug';
