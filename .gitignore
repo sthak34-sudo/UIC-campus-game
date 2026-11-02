@@ -17,3 +17,7 @@ client/public/models/private/
 # Local scratch test-scene pages for headless screenshots (never committed).
 client/*view.html
 client/unarmedanim.html
+
+# Decision Oct 28: routine screenshots are not committed (they bloat the repo). Save them under screenshots/ (ignored) or the scratchpad.
+screenshots/
+docs/qa/audit/**/*.png

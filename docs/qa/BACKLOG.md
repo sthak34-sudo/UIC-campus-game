@@ -77,10 +77,10 @@ Built by the Project Lead from the eight round-1 audits in [`docs/qa/audit/`](au
 - **Audio:** footsteps, hit, reload and heal sounds, and distance falloff (CMB-09)
 - **Smaller combat items:** fall damage, reload variants, bullet decals, tree cores (CMB-13, CMB-14, ART-09 to 13)
 
-## Needs the owner's decision
+## Owner decisions (Oct 28)
 
-1. **Licence (CODE-03).** There is no LICENSE file in a public repo, and the credits say "released under the project license". Options: MIT (anyone can reuse the code), all rights reserved (nobody may), or a non-commercial licence.
-2. **Branch cleanup (CODE-04).** 69 of 73 remote branches are merged or obsolete and safe to delete. This is easy to undo only on GitHub for 90 days. OK to delete them?
-3. **History size (CODE-05).** The repo is 237 MB, mostly old screenshots. Shrinking it means rewriting history, which breaks other copies. The proposal is not to rewrite and instead stop committing routine screenshots from now on.
-4. **Zone and loot design (WORLD-05).** The safe zone can end in places with nothing to fight over. Should the final circles be pulled toward the campus core and the buildings with loot?
-5. **Deploy rule.** Everything so far is on the working branch. Should finished batches go to the public GitHub Pages site (via a pull request to `main`) after each review, or stay private until you say so?
+1. **Branch cleanup: approved**, but GitHub blocks deleting branches from the Project Lead's environment. The owner (or anyone with a normal Git setup) deletes them: the 69 branches are listed in the audit (`audit/code.md`, CODE-04). Harmless to leave.
+2. **Screenshots: approved.** No more routine screenshots in the repo (`.gitignore` and `CLAUDE.md` updated). History is not rewritten.
+3. **Zone and loot: approved.** Pull the final safe circles toward the campus core and the enterable buildings, and add loot to Daley Library and University Hall (WORLD-05, WORLD-02, CMB-16, CMB-15). Part of Batch 2.
+4. **Public site: stay private** (see `docs/TEAM.md`).
+5. **Licence (CODE-03): pending.** The owner asked what it means; see the Project Lead's explanation.

@@ -71,6 +71,10 @@ When two roles share a file (for example, a HUD file inside `combat/`), the list
 - A CC0 body, if we add one, may live at `client/public/models/characters/player_base.glb` and must be listed in `CREDITS.md` before it is committed.
 - **No real people's names.** Professors and staff in the game are fictional.
 
+## Screenshots
+- **Do not commit screenshots** (owner decision, Oct 28): the repo is already very large because of them. Save screenshots under `screenshots/` (git-ignored) and describe them in your report. The Project Lead sends the owner what they need to see.
+- Existing committed screenshots stay; do not rewrite history.
+
 ## Done means
 1. Typecheck, tests and build pass.
 2. You added or updated viewpoints and looked at your screenshots yourself (before and after for any visible change).
