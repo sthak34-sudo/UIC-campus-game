@@ -77,8 +77,13 @@ Each specialist is an AI agent the Project Lead starts for a specific task. It w
 2. **Audit:** specialists audit the game against those bars in parallel and list findings with evidence (screenshots, numbers, repro steps).
 3. **Backlog:** the Project Lead merges the findings into one ranked list: most visible, most broken, cheapest-to-fix first.
 4. **Fix:** each fix goes on its own branch and is small and reviewable. The specialist hands back a report with before and after screenshots and test results.
-5. **Review and merge:** the Project Lead reviews, QA re-checks, then it's merged into `main`, and GitHub Pages updates automatically.
-6. **Owner playtest:** each batch ends with a short note to the owner on what changed, what to try, and what's still known to be off.
+5. **Review and merge:** the Project Lead reviews and QA re-checks, then merges into the working branch `claude/uic-campus-game-plan-btnm3c`. **Nothing is merged into `main` until the owner says so**, because `main` publishes the public GitHub Pages site automatically.
+6. **Owner playtest (private):** each batch is packaged into the owner's **private review link** with `tools/review-link/make_review_page.py`, and republished to the same link. The owner gets a short note written in plain English.
+
+### How the owner is told things
+- **Plain English, no jargon.** Say what a player would notice ("enemies now chase you"), not which file changed. No finding IDs, branch names or code terms in the note to the owner.
+- Every update has the same shape: **What changed · What to try (3–5 numbered steps) · What's still rough · What I need from you.**
+- Prefer screenshots over descriptions. Define any technical word the first time it appears.
 
 **Rules for everyone:**
 - Typecheck, tests and build must pass.
@@ -94,7 +99,8 @@ Each specialist is an AI agent the Project Lead starts for a specific task. It w
   3. Smooth and bug-free
   4. Smarter bots and a finished-feeling UI
 - **Target device: a normal student laptop** (2020-era, integrated graphics, 8–16 GB RAM, Chrome or Edge). No gaming GPU assumed.
-- **Check-ins: after every batch.** The owner gets a short update with screenshots and the live link after each round of fixes.
+- **Check-ins: after every batch.** The owner gets a short update in plain English with screenshots and the **private review link** after each round of fixes.
+- **Privacy (Oct 28):** changes stay private until the owner says otherwise. The review link is a private claude.ai page, and `main` and the public site are not touched.
 
 ## Quality bars
 

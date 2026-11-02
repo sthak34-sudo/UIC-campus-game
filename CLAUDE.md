@@ -3,6 +3,7 @@
 This is a realistic battle-royale game on the real UIC East Campus, played in the browser (squads of 4; see `PLAN.md`). Graphics stay on three.js. Walking and hitscan stay on Rapier. The dev server stays on Vite.
 The owner is a non-programmer. AI agents write all the code. The **Project Lead** (the main session) plans, assigns, reviews and merges. Team charters and quality bars are in `docs/TEAM.md`.
 **Current phase: Quality Pass. No new features** unless the owner asks for them.
+**Do not merge into `main` and do not open pull requests.** `main` publishes the public GitHub Pages site. The owner reviews work privately; the Project Lead merges into the working branch only.
 Explain things to the owner in plain English.
 
 ## Commands

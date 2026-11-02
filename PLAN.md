@@ -42,6 +42,7 @@ We build in **6 milestones**. Each one ends with something you can actually try:
 | Interiors | **Buildings stay enterable** | Fighting outside comes first. Doors and floors we already have stay; we don't seal buildings off. |
 | Setting | **Real UIC, as is** (owner's decision, Oct 28) | The game keeps the real campus and realistic weapons. The repo and the GitHub Pages build stay public. |
 | Scope (Oct 28) | **Quality before features** | No new features until the owner says the current version meets their standards. |
+| Privacy (Oct 28) | **Review privately** | Fixes are reviewed through a private link first. Nothing goes into `main` (and so onto the public site) until the owner says so. |
 
 ## 2. The team
 
