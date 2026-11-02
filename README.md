@@ -3,7 +3,7 @@
 A realistic battle royale on the real University of Illinois Chicago East Campus, played in a web browser.
 Built with three.js, Rapier, and Vite.
 
-**Play it:** https://sthak34-sudo.github.io/UIC-campus-game/ (rebuilt automatically from `main`)
+**Private project.** The owner plays it through a private review link or by running it on their own computer (below). It is not published anywhere.
 
 **Status:** the full single-player match loop is in:
 - loot, combat and a shrinking safe zone

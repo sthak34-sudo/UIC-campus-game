@@ -3,8 +3,7 @@
 name: Deploy to GitHub Pages
 
 on:
-  push:
-    branches: [main]
+  # Disabled automatic deploys (owner decision Oct 28: nothing public). Run by hand only if the owner ever wants a public site.
   workflow_dispatch:
 
 permissions:

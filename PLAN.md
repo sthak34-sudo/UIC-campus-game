@@ -24,7 +24,7 @@ We build in **6 milestones**. Each one ends with something you can actually try:
 
 **Current phase: Quality Pass.** No new features. The team raises what already exists to the owner's standards. See section 8a.
 
-**Play it:** https://sthak34-sudo.github.io/UIC-campus-game/ (rebuilt automatically from `main`).
+**Private project (Oct 28):** reviewed through a private link or run locally. Not published anywhere.
 
 **Cost:** $0 while we build. A server for real online matches comes only when you say so.
 
@@ -40,7 +40,8 @@ We build in **6 milestones**. Each one ends with something you can actually try:
 | Map | **Real East Campus first** | OpenStreetMap shapes, USGS heights. Wider map and streaming come in Milestone 6. |
 | Characters | **CC0 realistic body + CC0 animations** | The public game uses a committed CC0 MakeHuman body and Quaternius CC0 clips. A private Mixamo `anims.glb` is used instead when present locally, and is never committed. |
 | Interiors | **Buildings stay enterable** | Fighting outside comes first. Doors and floors we already have stay; we don't seal buildings off. |
-| Setting | **Real UIC, as is** (owner's decision, Oct 28) | The game keeps the real campus and realistic weapons. The repo and the GitHub Pages build stay public. |
+| Setting | **Real UIC, as is** (owner's decision, Oct 28) | The game keeps the real campus and realistic weapons. |
+| Visibility | **Private, nothing public** (owner's decision, Oct 28) | The GitHub repository is switched to private by the owner, and there is no public site. |
 | Scope (Oct 28) | **Quality before features** | No new features until the owner says the current version meets their standards. |
 | Privacy (Oct 28) | **Review privately** | Fixes are reviewed through a private link first. Nothing goes into `main` (and so onto the public site) until the owner says so. |
 
@@ -225,12 +226,11 @@ Sound, a public link, accounts, seasonal events, phone controls. A public launch
 |---|---|---|
 | Tools, map data, local play | Now | **$0** |
 | Mixamo / MakeHuman use | On your machine | **$0**, and those non-CC0 files are not uploaded |
-| Public game (GitHub Pages) | Now | **$0** |
 | Match server | Only after you approve hosting | To be priced then. Nothing is deployed yet. |
 
 ## 10. How to playtest
 
-**Play online:** https://sthak34-sudo.github.io/UIC-campus-game/
+**Play privately:** use the owner's private review link (the Project Lead updates it after every batch).
 
 **Run it locally:** `npm install`, then `npm run dev`, then open http://127.0.0.1:5173.
 
