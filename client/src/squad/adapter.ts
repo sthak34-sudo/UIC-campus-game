@@ -36,6 +36,7 @@ import { createWallProbe } from '../player/wallProbe';
 import { applyDamage, applyZoneDamage } from './downed';
 import { crawlTarget, CRAWL_STOP_M, dryRetreatTarget } from './botFallback';
 import { BOT_SENSE, canNotice, newAcquire, offAxisDeg, stepAcquire, turnToward, type Acquire } from './botSense';
+import { BOT_COVER, coverCandidates, pickCover, shouldCrouch, wantsCover } from './botCover';
 import { newWatchdog, spiralFree, stepWatchdog, unstickSpot, type Watchdog } from './unstick';
 import { newSquadGoal, SQUAD_GOAL, stepSquadGoal, type SquadGoal } from './squadGoal';
 import { BOT_ZONE, botZoneDamage, botZoneGoal } from './botZone';
@@ -170,6 +171,9 @@ export function mountSquad(opts: {
   const acquire = new Map<PlayerId, Acquire>();
   const alertUntil = new Map<PlayerId, number>();
   const senseHp = new Map<PlayerId, number>();
+  // AI-04: current cover spot (or 'none found') per bot, and who is crouching this frame.
+  const cover = new Map<PlayerId, { at: { x: number; z: number } | null; until: number }>();
+  const crouching = new Set<PlayerId>();
   const probe = physBodies?.probe ?? null;
   // Bot rifles flash at the muzzle when they fire.
   const botFlashes = createMuzzleFlashes(opts.world.scene);
@@ -716,7 +720,7 @@ export function mountSquad(opts: {
     const speed = dt > 0 ? Math.hypot(p.x - body.last.x, p.z - body.last.z) / dt : 0;
     body.last.x = p.x;
     body.last.z = p.z;
-    body.avatar.setFlags({ crouch: life === 'downed', dead: life === 'dead' });
+    body.avatar.setFlags({ crouch: life === 'downed' || crouching.has(body.id), dead: life === 'dead' });
     body.avatar.update(dt, speed, true, null, opts.camera.position.distanceTo(p));
   };
 
@@ -808,7 +812,7 @@ export function mountSquad(opts: {
       const seen = pickVisibleTarget(foes, (f) => {
         if (!botSight) return true;
         const o = state.members[f.id]!;
-        return canSeeFoe(eyeAt, o.pos, o.life === 'downed', chestY, (a, b) => botSight.clear(a, b));
+        return canSeeFoe(eyeAt, o.pos, o.life === 'downed' || crouching.has(f.id), chestY, (a, b) => botSight.clear(a, b));
       });
       // Remember where the last foe was seen, so the bot goes to look instead of forgetting it.
       const memory = stepFoeMemory(
@@ -938,6 +942,7 @@ export function mountSquad(opts: {
       let hold = false;
       let stepSpeed = botSpeed;
       dryGoal.delete(body.id);
+      crouching.delete(body.id);
       if (member.life === 'downed') {
         // AI-17: crawl toward the nearest alive teammate (stops inside revive range, never into a wall).
         const to = crawlTarget(state, body.id);
@@ -992,14 +997,35 @@ export function mountSquad(opts: {
       } else if (intent.type === 'shoot' && nearestEnemyId) {
         // Walk toward the target and shoot at it with a real hitscan.
         const foe = state.members[nearestEnemyId]!;
+        // AI-04 (first pass): hold ~10 m instead of walking up to 4 m; duck behind cover to reload or when hurt.
+        const kitNow = kits.get(body.id) ?? starterKit();
+        let spot = cover.get(body.id);
+        if (spot && matchElapsed > spot.until) spot = undefined;
+        if (!wantsCover(kitNow.reloading > 0, member.combatant.health, member.combatant.maxHealth)) spot = undefined;
+        else if (!spot && botSight && wallProbe) {
+          const foeEye = { x: foe.pos.x, y: foe.pos.y + EYE_Y, z: foe.pos.z };
+          const c = pickCover(
+            pos,
+            foe.pos,
+            coverCandidates(pos),
+            (p) => wallProbe.free(p.x, pos.y, p.z),
+            (p) => !botSight.clear(foeEye, { x: p.x, y: pos.y + chestY(false), z: p.z }),
+          );
+          // No cover nearby: remember that too, so the rays aren't cast again every frame.
+          spot = { at: c, until: matchElapsed + BOT_COVER.keepS };
+        }
+        if (spot) cover.set(body.id, spot);
+        else cover.delete(body.id);
+        const coverAt = spot?.at ?? null;
         const stepped = stepToward(
           { x: pos.x, z: pos.z },
-          { x: foe.pos.x, z: foe.pos.z },
-          botSpeed * 0.85,
+          coverAt ?? { x: foe.pos.x, z: foe.pos.z },
+          botSpeed * (coverAt ? 1 : 0.85),
           dt,
-          4,
+          coverAt ? 0.3 : BOT_COVER.holdM,
         );
         pos = { x: stepped.x, y: pos.y, z: stepped.z };
+        if (shouldCrouch(stepped.moved, nearestDist) || (coverAt && !stepped.moved)) crouching.add(body.id);
         body.root.rotation.y = Math.atan2(foe.pos.x - pos.x, foe.pos.z - pos.z);
         const gunKit = kits.get(body.id) ?? starterKit();
         // AI-02 / AI-03: fire only after the reaction delay and once the body has turned to face the target.
@@ -1012,12 +1038,14 @@ export function mountSquad(opts: {
           kits.set(body.id, spent);
           if (botDry(spent)) console.info(`[squad] ${member.name} is out of ammo`);
           // Bullets leave the rifle barrel (or the eye if the barrel is poking into a wall).
-          const eye = { x: pos.x, y: pos.y + EYE_Y, z: pos.z };
-          const muzzle = muzzlePoint(pos, body.root.rotation.y);
+          const drop = crouching.has(body.id) ? BOT_COVER.crouchDropM : 0;
+          const eye = { x: pos.x, y: pos.y + EYE_Y - drop, z: pos.z };
+          const m0 = muzzlePoint(pos, body.root.rotation.y);
+          const muzzle = { ...m0, y: m0.y - drop };
           const origin = botSight ? shotOrigin(eye, muzzle, (a, b) => botSight.clear(a, b)) : muzzle;
           // A crouched player is shorter: aim at their real head and chest (CODE-14).
           const foeHeight = nearestEnemyId === playerId && opts.player ? opts.player.bodyHeight() : undefined;
-          const aim = botAimPoint(foe.pos, nearestDist, foe.life === 'downed', Math.random, foeHeight);
+          const aim = botAimPoint(foe.pos, nearestDist, foe.life === 'downed' || crouching.has(nearestEnemyId), Math.random, foeHeight);
           const shot = botGun.fire(body.phys, origin, aim, BOT_AIM.range + 5);
           const victimId =
             shot?.kind === 'player' ? playerId : shot?.kind === 'bot' ? bots.find((b) => b.phys === shot.id)?.id : undefined;
@@ -1063,6 +1091,7 @@ export function mountSquad(opts: {
             intent.type === 'follow' ? state.members[intent.target]!.pos
               : intent.type === 'moveTo' ? { x: intent.x, z: intent.z }
                 : dryGoal.has(body.id) ? dryGoal.get(body.id)!
+                : intent.type === 'shoot' && cover.get(body.id)?.at ? cover.get(body.id)!.at!
                 : intent.type === 'shoot' && nearestEnemyId ? state.members[nearestEnemyId]!.pos
                   : null;
           // AI-06 / AI-07: no progress toward the goal for 8 s: jump to the nearest free cell on the way.
@@ -1090,7 +1119,8 @@ export function mountSquad(opts: {
       }
       pos = { ...pos, y: snapBotY(probe, pos.x, pos.y, pos.z) };
       body.root.position.set(pos.x, pos.y, pos.z);
-      physBodies?.move(body.phys, pos.x, pos.y, pos.z, member.life === 'downed' ? 'downed' : 'stand');
+      // A crouching bot uses the short (downed-height) hit body so its hitbox matches the pose (AI-04).
+      physBodies?.move(body.phys, pos.x, pos.y, pos.z, member.life === 'downed' || crouching.has(body.id) ? 'downed' : 'stand');
       if (intent.type === 'follow' || intent.type === 'moveTo') {
         const tx = intent.type === 'follow' ? state.members[intent.target]!.pos.x : intent.x;
         const tz = intent.type === 'follow' ? state.members[intent.target]!.pos.z : intent.z;
