@@ -34,6 +34,7 @@ import { createImpacts } from '../render/impacts';
 import { createImpactSound } from '../audio/impactSound';
 import { createWallProbe } from '../player/wallProbe';
 import { applyDamage, applyZoneDamage } from './downed';
+import { crawlTarget, CRAWL_STOP_M, dryRetreatTarget } from './botFallback';
 import { botZoneDamage, botZoneGoal } from './botZone';
 import { shootBot } from './botHits';
 import { checkWipe } from './elimination';
@@ -156,6 +157,8 @@ export function mountSquad(opts: {
   const routes = new Map<PlayerId, RouteState>();
   // AI-08: one route plan per frame for all bots, failed plans cached for 1.5 s.
   const planGate = createPlanGate(1, 1.5);
+  // AI-13: where a dry bot is heading this frame (for route planning).
+  const dryGoal = new Map<PlayerId, { x: number; z: number }>();
   const probe = physBodies?.probe ?? null;
   // Bot rifles flash at the muzzle when they fire.
   const botFlashes = createMuzzleFlashes(opts.world.scene);
@@ -862,8 +865,34 @@ export function mountSquad(opts: {
 
       let pos = { ...member.pos };
       let hold = false;
+      dryGoal.delete(body.id);
       if (member.life === 'downed') {
-        // Crawl in place for now.
+        // AI-17: crawl toward the nearest alive teammate (stops inside revive range, never into a wall).
+        const to = crawlTarget(state, body.id);
+        if (to) {
+          const stepped = stepToward({ x: pos.x, z: pos.z }, to, DOWN.crawlSpeed, dt, CRAWL_STOP_M);
+          if (!wallProbe || wallProbe.free(stepped.x, pos.y, stepped.z)) pos = { x: stepped.x, y: pos.y, z: stepped.z };
+          body.root.rotation.y = Math.atan2(to.x - pos.x, to.z - pos.z);
+        }
+      } else if (intent.type === 'shoot' && nearestEnemyId && botDry(kits.get(body.id) ?? starterKit())) {
+        // AI-13: no rounds left: grab ammo close by, else back off (to the leader if safer) instead of charging.
+        const foe = state.members[nearestEnemyId]!;
+        const dryKit = kits.get(body.id) ?? starterKit();
+        const ammo = opts.combat.lootNear(member.pos, BOT_LOOT.seekM, (k) => botWants(k, dryKit));
+        let to: { x: number; z: number };
+        if (ammo && canGrab(member.pos, ammo.position)) {
+          const got = opts.combat.takeLoot(ammo.index);
+          if (got) kits.set(body.id, grantBotLoot(dryKit, got));
+          to = { x: pos.x, z: pos.z };
+        } else if (ammo) {
+          to = { x: ammo.position.x, z: ammo.position.z };
+        } else {
+          const lead = leaderId !== body.id ? state.members[leaderId] : null;
+          to = dryRetreatTarget(pos, foe.pos, lead && lead.life === 'alive' ? lead.pos : null);
+        }
+        const stepped = stepToward({ x: pos.x, z: pos.z }, to, botSpeed, dt, 0.4);
+        pos = { x: stepped.x, y: pos.y, z: stepped.z };
+        dryGoal.set(body.id, to);
       } else if (intent.type === 'follow') {
         const leader = state.members[intent.target]!;
         const stepped = stepToward(
@@ -954,6 +983,7 @@ export function mountSquad(opts: {
           const goal =
             intent.type === 'follow' ? state.members[intent.target]!.pos
               : intent.type === 'moveTo' ? { x: intent.x, z: intent.z }
+                : dryGoal.has(body.id) ? dryGoal.get(body.id)!
                 : intent.type === 'shoot' && nearestEnemyId ? state.members[nearestEnemyId]!.pos
                   : null;
           if (goal) {
