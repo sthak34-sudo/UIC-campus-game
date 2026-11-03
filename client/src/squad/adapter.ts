@@ -42,7 +42,8 @@ import { SquadHud } from './hud';
 import { localSquadWon, offlineRoster } from './matchSetup';
 import { MatchEndScreen } from '../match/matchEndScreen';
 import { playerDamaged } from '../core/hitEvents';
-import { addDamage, addKills, damageBetween, finish, killsBy, newStats, summarize } from '../match/matchStats';
+import { addDamage, addKills, damageBetween, finish, killsBy, newStats, startClock, summarize } from '../match/matchStats';
+import { onFirstInput } from '../core/firstInput';
 import { placePing, tickPings, type Ping } from './pings';
 import { createMatch } from './roster';
 import { nextTarget, spectateCamera, spectateLabel, spectateTargets, type Vec3 } from './spectate';
@@ -421,6 +422,10 @@ export function mountSquad(opts: {
   });
   hudParent.appendChild(specBanner);
   let stats = newStats(performance.now() / 1000);
+  // Survived time counts from the player's first input, not from mount during boot (QA-01).
+  const offClock = onFirstInput(window, () => {
+    stats = startClock(stats, performance.now() / 1000);
+  });
   let statsCursor = 0;
   const checkEnd = () => {
     if (statsCursor < eventsLog.length) {
@@ -458,6 +463,10 @@ export function mountSquad(opts: {
     isDowned: () => state.members[playerId]?.life === 'downed',
     isDead: () => state.members[playerId]?.life === 'dead',
     getCombatant: () => ({ ...state.members[playerId]!.combatant }),
+    getKnock: () => {
+      const m = state.members[playerId];
+      return m?.life === 'downed' ? { hp: m.downHp, max: DOWN.hp } : null;
+    },
     setCombatant(c: Combatant) {
       syncPlayerCombatant(c);
       opts.combat.setVitals(c);
@@ -1054,6 +1063,9 @@ export function mountSquad(opts: {
       squadHud.dispose();
       endUi.dispose();
       panel.remove();
+      // QA-04: the banner was left behind on every Play again.
+      specBanner.remove();
+      offClock();
       botFlashes.dispose();
       physBodies?.dispose();
       tracers.dispose();

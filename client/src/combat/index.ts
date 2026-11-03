@@ -7,7 +7,8 @@
  */
 import { debugKeysEnabled } from '../debug/debugKeys';
 import { MatchEndScreen } from '../match/matchEndScreen';
-import { addDamage, addKills, finish, newStats, summarize } from '../match/matchStats';
+import { addDamage, addKills, finish, newStats, startClock, summarize } from '../match/matchStats';
+import { onFirstInput } from '../core/firstInput';
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import type { World } from '../core/world';
@@ -58,6 +59,8 @@ export interface CombatSquadBridge {
   applyPlayerDamage(amount: number, attackerId: string | null): { combatant: Combatant; dead: boolean };
   /** Pull the latest combatant snapshot from the squad match. */
   getCombatant(): Combatant;
+  /** Knock health while the player is downed, else null (QA-07 HUD). */
+  getKnock?(): { hp: number; max: number } | null;
   /** Write combatant back (medkit / heal-all). */
   setCombatant(c: Combatant): void;
   /**
@@ -176,6 +179,10 @@ export async function mountCombat(opts: {
   const now = () => performance.now() / 1000;
   // Solo match-end screen (squads have their own in the squad adapter).
   let soloStats = newStats(now());
+  // QA-01: the solo clock starts at the first input too.
+  const offClock = onFirstInput(window, () => {
+    soloStats = startClock(soloStats, now());
+  });
   // Created on first solo death only, so squad mode has a single #match-end.
   let soloEnd: MatchEndScreen | null = null;
 
@@ -201,6 +208,8 @@ export async function mountCombat(opts: {
       reloading,
       reloadLeft: reloading ? Math.max(0, reloadReadyAt - now()) : 0,
       prompt: healing ? channelLabel(healing) : near ? pickupPrompt(near.kind) : '',
+      knock: squad && playerDowned() ? squad.getKnock?.() ?? null : null,
+      hidden: !!squad && playerDead(),
     });
   };
 
@@ -475,6 +484,7 @@ export async function mountCombat(opts: {
   };
 
   const offs: (() => void)[] = [];
+  offs.push(offClock);
   if (opts.player) {
     offs.push(opts.player.events.on('fire', () => fire()));
     offs.push(opts.player.events.on('reload', () => reload()));

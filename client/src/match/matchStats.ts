@@ -15,6 +15,14 @@ export function newStats(nowS: number): MatchStats {
   return { kills: 0, damage: 0, startS: nowS, endS: null };
 }
 
+/**
+ * Restart the survival clock at `nowS` (QA-01: when the player first gives input, not at mount).
+ * No-op once the match has ended for you.
+ */
+export function startClock(s: MatchStats, nowS: number): MatchStats {
+  return s.endS != null ? s : { ...s, startS: nowS };
+}
+
 export function addDamage(s: MatchStats, amount: number): MatchStats {
   if (s.endS != null || !(amount > 0)) return s;
   return { ...s, damage: s.damage + amount };
