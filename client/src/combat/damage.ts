@@ -32,7 +32,8 @@ export interface ResolvedDamage {
 
 /**
  * Turns a hit into health damage and armor damage.
- * Armor soaks `armorMitigation` of the raw hit, but never more armor than the target has.
+ * Armor soaks `armorMitigation` of a raw body hit, but never more armor than the target has.
+ * Head and limb hits are not covered by the vest.
  */
 export function resolveIncomingDamage(input: {
   zone: HitZone;
@@ -43,7 +44,8 @@ export function resolveIncomingDamage(input: {
   const base = input.baseDamage ?? COMBAT.baseDamage;
   const raw = base * zoneMultiplier(input.zone) * distanceFalloff(input.distance);
   const armor = Math.max(0, input.armor);
-  const soaked = Math.min(armor, raw * COMBAT.armorMitigation);
+  // The vest only covers the torso (CMB-06). Head and limb hits go straight to health.
+  const soaked = input.zone === 'body' ? Math.min(armor, raw * COMBAT.armorMitigation) : 0;
   return {
     raw,
     healthDamage: raw - soaked,

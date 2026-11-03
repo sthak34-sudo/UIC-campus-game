@@ -24,6 +24,8 @@ export class InputController {
   private override: MoveInput | null = null;
   private jumpQueued = false;
   private fireQueued = false;
+  /** Left button is down (full-auto). Cleared on mouseup, blur and when controls turn off. */
+  private fireDown = false;
   /** When false, movement, look, and combat keys are ignored (death screen). */
   private controlsOn = true;
   private lookX = 0;
@@ -46,6 +48,7 @@ export class InputController {
     on(window, 'blur', () => {
       this.keys.clear();
       this.aimOn = false;
+      this.fireDown = false;
     });
     on(dom, 'click', () => {
       if (document.pointerLockElement !== dom) {
@@ -64,12 +67,16 @@ export class InputController {
       }
       if (e.button === 0) {
         this.dragging = true;
-        if (this.controlsOn) this.fireQueued = true;
+        if (this.controlsOn) {
+          this.fireQueued = true;
+          this.fireDown = true;
+        }
       }
     });
     on(dom, 'contextmenu', (e) => e.preventDefault());
     on(window, 'mouseup', (e) => {
       this.dragging = false;
+      if (e.button === 0) this.fireDown = false;
       if (e.button === 2) this.aimOn = false;
     });
     on(window, 'mousemove', (e) => {
@@ -98,6 +105,7 @@ export class InputController {
     if (!on) {
       this.keys.clear();
       this.fireQueued = false;
+      this.fireDown = false;
       this.jumpQueued = false;
       this.aimOn = false;
     }
@@ -215,6 +223,16 @@ export class InputController {
     const f = this.fireQueued && this.controlsOn;
     this.fireQueued = false;
     return f;
+  }
+
+  /** True while the left button is held (full-auto). The combat fire-rate limit sets the pace. */
+  get fireHeld(): boolean {
+    return this.controlsOn && this.fireDown;
+  }
+
+  /** Test hook: hold or release the trigger. */
+  setFireHeld(on: boolean): void {
+    this.fireDown = on;
   }
 
   /** Accumulated mouse movement since the last call (pixels). */
