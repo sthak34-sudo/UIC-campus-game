@@ -87,6 +87,8 @@ export interface Player {
   fireReady(): boolean;
   /** Current capsule height, feet to top of head: 1.75 standing, 1.2 crouched (CMB-11, CMB-12). */
   bodyHeight(): number;
+  /** Drop out of aim down sights now: FOV and mouse speed snap back (spectate, respawn). */
+  resetAim(): void;
   dispose(): void;
 }
 
@@ -370,6 +372,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
       cfg.camPivotHeight = h;
     },
     holdingRevive: () => input.holdingRevive(),
+    resetAim: () => rig.resetAim(),
     setAllowRun: (on) => {
       cfg.allowRun = on;
     },

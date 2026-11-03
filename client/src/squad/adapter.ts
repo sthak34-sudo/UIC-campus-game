@@ -960,6 +960,8 @@ export function mountSquad(opts: {
       const targets = spectateTargets(state, playerId);
       if (targets.length) {
         if (!spectateId || !targets.includes(spectateId)) {
+          // Entering spectate: drop the scope zoom so the follow camera is at the normal FOV.
+          if (!spectateId) player.resetAim();
           spectateId = targets[0]!;
         }
         const tpos = state.members[spectateId]!.pos;
