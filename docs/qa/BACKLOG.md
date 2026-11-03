@@ -34,6 +34,13 @@ Built by the Project Lead from the eight round-1 audits in [`docs/qa/audit/`](au
 | 12 | Kill feed no longer prints over the zone timer; objective and clean help text for new players; remove debug text from the public HUD | UI-17, UI-07, UI-09, UI-22 | UI/UX |
 | 13 | Small bugs: spectate banner leak, "Health 0" while downed, survived time includes loading | QA-04, QA-07, QA-01 | AI / UI / Gameplay |
 
+### Batch 1 follow-ups (found while doing items 4 to 7)
+
+| Item | Why | Owner |
+|---|---|---|
+| **Separate jog and sprint animations.** Jog (4.7 m/s) and sprint (6.3 m/s) play the same run clip, only sped up, so a sprint does not read as a sprint. Needs a CC0 sprint clip or a retarget. | Follow-up to CMB-08 | Art Director |
+| **Bot movement and sight.** Bots move at about 1.47 m/s, far below the player's 4.7 m/s jog. Their line-of-sight check is a fixed chest-height ray that ignores crouch, so crouching behind low cover does not change what a bot can see. | Follow-up to CMB-08, CMB-11 | AI |
+
 ## Batch 2: Fast and solid (Performance + World + Code Steward)
 
 *Goal: smooth on a student laptop, no holes in the world, a clean public build.*
