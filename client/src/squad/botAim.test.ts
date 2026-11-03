@@ -26,4 +26,13 @@ describe('bot trigger and aim', () => {
     };
     expect(err(30)).toBeGreaterThan(err(3));
   });
+
+  it('aims at a crouched player\'s real head, inside the 1.2 m capsule (CODE-14)', () => {
+    const feet = { x: 0, y: 0, z: 0 };
+    const head = botAimPoint(feet, 10, false, () => 0, 1.2).y; // rand 0: head shot, no spread
+    expect(head).toBeCloseTo(1.66 * (1.2 / 1.75), 5);
+    expect(head).toBeLessThan(1.2);
+    expect(head).toBeGreaterThanOrEqual(0.86 * 1.2);
+    expect(botAimPoint(feet, 10, false, () => 0).y).toBeCloseTo(1.66, 5);
+  });
 });

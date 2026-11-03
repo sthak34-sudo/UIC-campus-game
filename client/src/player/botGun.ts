@@ -6,8 +6,15 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { BotBodies, BotHitZone } from './botBodies';
 
-/** Player hits above this height (from the feet) count as head shots. */
+/** Standing player hits above this height (from the feet) count as head shots. */
 export const PLAYER_NECK_Y = 1.5;
+/** Neck as a share of the current body height (1.5 / 1.75), so a crouched player has a head too (CMB-11, CODE-14). */
+export const PLAYER_NECK_FRACTION = 0.86;
+
+/** Head or body for a hit `hitAboveFeet` meters above the feet of a body `bodyHeight` tall. */
+export function playerHitZone(hitAboveFeet: number, bodyHeight: number): BotHitZone {
+  return hitAboveFeet >= PLAYER_NECK_FRACTION * bodyHeight ? 'head' : 'body';
+}
 
 export type BotShotHit =
   | { kind: 'bot'; id: number; zone: BotHitZone; distance: number; point: { x: number; y: number; z: number } }
@@ -27,6 +34,8 @@ export function createBotGun(
   /** Called for every shot with where it started and where it stopped (for tracers and sound). */
   /** `normal` is set when the bullet hit the world (a wall, the ground), for impact effects. */
   onShot?: (from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }, normal?: { x: number; y: number; z: number }) => void,
+  /** The player's current capsule height (1.75 standing, 1.2 crouched). */
+  playerHeight: () => number = () => 1.75,
 ): BotGun {
   return {
     fire(shooter, origin, target, maxDistance) {
@@ -51,7 +60,7 @@ export function createBotGun(
       if (!hit) { onShot?.(origin, point); return null; }
       if (player && hit.collider.handle === player.handle) {
         onShot?.(origin, point);
-        const zone: BotHitZone = point.y - playerFeetY() >= PLAYER_NECK_Y ? 'head' : 'body';
+        const zone = playerHitZone(point.y - playerFeetY(), playerHeight());
         return { kind: 'player', zone, distance: t, point };
       }
       const b = bodies.lookup(hit.collider.handle, point.y);

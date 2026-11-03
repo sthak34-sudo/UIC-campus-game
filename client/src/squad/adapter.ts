@@ -89,7 +89,8 @@ const CRAWL_EYE = 0.5;
 const CRAWL_PIVOT = 0.45;
 const NORMAL_EYE = PLAYER_CONFIG.eyeHeight;
 const NORMAL_PIVOT = PLAYER_CONFIG.camPivotHeight;
-const CRAWL_SCALE = DOWN.crawlSpeed / PLAYER_CONFIG.walkSpeed;
+// The player's default pace is the jog now (CMB-08), so the crawl scale is relative to it.
+const CRAWL_SCALE = DOWN.crawlSpeed / PLAYER_CONFIG.jogSpeed;
 
 interface BotBody {
   id: PlayerId;
@@ -169,7 +170,7 @@ export function mountSquad(opts: {
   // Bot rifles use the same Rapier world, hitboxes and damage rules as the player's shots.
   const botGun =
     player && physBodies
-      ? createBotGun(player.rapier.world, physBodies, player.rapier.playerCollider, () => player.position.y, onBotShot)
+      ? createBotGun(player.rapier.world, physBodies, player.rapier.playerCollider, () => player.position.y, onBotShot, () => player.bodyHeight())
       : null;
   const triggerCooldown = new Map<PlayerId, number>();
   const foeMemory = new Map<PlayerId, FoeMemory>();
@@ -879,7 +880,9 @@ export function mountSquad(opts: {
           const eye = { x: pos.x, y: pos.y + EYE_Y, z: pos.z };
           const muzzle = muzzlePoint(pos, body.root.rotation.y);
           const origin = botSight ? shotOrigin(eye, muzzle, (a, b) => botSight.clear(a, b)) : muzzle;
-          const aim = botAimPoint(foe.pos, nearestDist, foe.life === 'downed', Math.random);
+          // A crouched player is shorter: aim at their real head and chest (CODE-14).
+          const foeHeight = nearestEnemyId === playerId && opts.player ? opts.player.bodyHeight() : undefined;
+          const aim = botAimPoint(foe.pos, nearestDist, foe.life === 'downed', Math.random, foeHeight);
           const shot = botGun.fire(body.phys, origin, aim, BOT_AIM.range + 5);
           const victimId =
             shot?.kind === 'player' ? playerId : shot?.kind === 'bot' ? bots.find((b) => b.phys === shot.id)?.id : undefined;

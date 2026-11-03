@@ -27,15 +27,24 @@ export function botTrigger(cooldown: number, dt: number, hasTarget: boolean, dis
   return { cooldown: BOT_AIM.interval + rand() * BOT_AIM.jitter, fire: true };
 }
 
-/** Aim point on a target standing at `feet` (downed targets are lower), with spread. */
+/** Standing body height the head (1.66) and chest (1.25) aim points are measured on. */
+const STANDING_HEIGHT = 1.75;
+
+/**
+ * Aim point on a target standing at `feet` (downed targets are lower), with spread. `bodyHeight`
+ * is the target's current height (1.2 for a crouched player), so the head and chest points
+ * drop with a crouch instead of passing over the head (CODE-14).
+ */
 export function botAimPoint(
   feet: { x: number; y: number; z: number },
   distance: number,
   downed: boolean,
   rand: () => number,
+  bodyHeight: number = STANDING_HEIGHT,
 ): { x: number; y: number; z: number } {
   const head = rand() < BOT_AIM.headAimChance;
-  const y = feet.y + (downed ? (head ? 0.95 : 0.55) : head ? 1.66 : 1.25);
+  const k = bodyHeight / STANDING_HEIGHT;
+  const y = feet.y + (downed ? (head ? 0.95 : 0.55) : (head ? 1.66 : 1.25) * k);
   const spread = BOT_AIM.spreadAt10 * Math.max(0.3, distance / 10);
   const a = rand() * Math.PI * 2;
   const r = spread * Math.sqrt(rand());

@@ -42,6 +42,10 @@ export class CameraRig {
   private recoilPitch = 0;
   private recoilYaw = 0;
   private sinceShot = Infinity;
+  /** 0 hip, 1 aiming: linear ADS zoom progress over `adsZoomTime` (CMB-10). */
+  private zoomBlend = 0;
+  /** FOV the camera had when the rig was made (60); ADS zooms relative to it. */
+  private readonly baseFov: number;
 
   constructor(
     readonly camera: THREE.PerspectiveCamera,
@@ -50,10 +54,32 @@ export class CameraRig {
   ) {
     this.zoom = cfg.camDistance;
     this.arm = cfg.camDistance;
+    this.baseFov = camera.fov;
+  }
+
+  /** Current FOV as a share of the normal FOV: 1 at the hip, `adsFovScale` fully aimed. */
+  get fovScale(): number {
+    const t = this.zoomBlend * this.zoomBlend * (3 - 2 * this.zoomBlend);
+    return 1 + (this.cfg.adsFovScale - 1) * t;
+  }
+
+  /** Snap out of ADS zoom (death, respawn, teleport). */
+  resetAim(): void {
+    this.zoomBlend = 0;
+    this.aimBlend = 0;
+    this.applyFov();
+  }
+
+  private applyFov(): void {
+    const fov = this.baseFov * this.fovScale;
+    if (Math.abs(this.camera.fov - fov) < 1e-6) return;
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
   }
 
   addLook(dx: number, dy: number): void {
-    const s = this.cfg.mouseSensitivity;
+    // Slower turning while zoomed, scaled by the FOV ratio so the crosshair tracks the same (CMB-10).
+    const s = this.cfg.mouseSensitivity * this.fovScale;
     this.yaw -= dx * s;
     const r = absorbRecoil(this.recoilPitch, dy * s);
     this.recoilPitch = r.recoil;
@@ -142,6 +168,12 @@ export class CameraRig {
     const c = this.cfg;
     this.crouch += ((crouching ? 1 : 0) - this.crouch) * damp(8, dt);
     this.aimBlend += ((aiming ? 1 : 0) - this.aimBlend) * damp(10, dt);
+    const zoomTarget = aiming ? 1 : 0;
+    if (this.zoomBlend !== zoomTarget) {
+      const step = dt / Math.max(1e-3, c.adsZoomTime);
+      this.zoomBlend = aiming ? Math.min(1, this.zoomBlend + step) : Math.max(0, this.zoomBlend - step);
+      this.applyFov();
+    }
     const ab = this.aimBlend;
     if (!this.initialised) this.reset(feet);
     // Follow: tight horizontally, softer vertically so stair steps don't jolt the view.

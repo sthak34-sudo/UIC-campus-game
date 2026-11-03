@@ -26,7 +26,10 @@ import {
   finishReload, grantLoot, lootLabel, pickupPrompt, pullBandage, pullMedkit, spendRound, emptyInventory, type Inventory,
 } from './inventory';
 import { LootField } from './loot';
-import { channelLabel, healAmount, healBlocked, startHeal, stepHeal, type HealChannel, type HealItem } from './heal';
+import {
+  channelLabel, healAmount, healBlocked, healBlockedByReload, healInterruptHint, reloadBlockedByHeal, startHeal, stepHeal,
+  type HealChannel, type HealItem,
+} from './heal';
 import { practiceLayout, starterRifleSpot } from './range';
 import { castAimedShot, muzzlePoint, WeaponFx } from './weapon';
 import { createTracers } from '../render/tracers';
@@ -140,7 +143,7 @@ export async function mountCombat(opts: {
   let reloadReadyAt = 0;
   let clock = 0;
   let squad: CombatSquadBridge | null = null;
-  // Bandage / med kit being applied (channelled; damage, firing or going down cancels it).
+  // Bandage / med kit being applied (channelled; bullet hits, firing, sprinting, jumping or going down cancel it).
   let healing: HealChannel | null = null;
   let zoneHurtThisFrame = false;
   let zonePulseCooldown = 0;
@@ -270,15 +273,16 @@ export async function mountCombat(opts: {
     if (!player || !hud) return;
     const alive = !playerDead();
     const downed = playerDowned();
+    const ready = player.fireReady();
     if (!canFire({
-      now: now(), lastShotAt, mag: inventory.mag, reloading, hasGun: inventory.hasGun, alive, downed,
+      now: now(), lastShotAt, mag: inventory.mag, reloading, hasGun: inventory.hasGun, alive, downed, ready,
     })) {
-      if (alive && !downed && inventory.hasGun && !reloading && inventory.mag <= 0) {
+      if (ready && alive && !downed && inventory.hasGun && !reloading && inventory.mag <= 0) {
         hud.flashHint(inventory.reserve > 0 ? 'Empty — press R to reload' : 'Out of ammo');
       }
       return;
     }
-    cancelHeal('Healing cancelled');
+    cancelHeal(healInterruptHint('fire'));
     const dir = new THREE.Vector3();
     opts.camera.getWorldDirection(dir);
     // The shot leaves somewhere inside the spread cone the crosshair shows (CMB-03).
@@ -286,7 +290,7 @@ export async function mountCombat(opts: {
     const cone = coneDirection({ x: dir.x, y: dir.y, z: dir.z }, spread, Math.random(), Math.random());
     dir.set(cone.x, cone.y, cone.z);
     const origin = opts.camera.position;
-    const muzzle = muzzlePoint(player.position, dir);
+    const muzzle = muzzlePoint(player.position, dir, player.bodyHeight());
     const shot = castAimedShot(
       player.rapier.world,
       { x: origin.x, y: origin.y, z: origin.z },
@@ -335,6 +339,11 @@ export async function mountCombat(opts: {
 
   const reload = () => {
     if (!opts.player || playerBlocked() || reloading) return;
+    const busy = reloadBlockedByHeal(healing !== null);
+    if (busy) {
+      hud?.flashHint(busy);
+      return;
+    }
     if (!canReload(inventory.mag, inventory.reserve)) {
       hud?.flashHint(inventory.mag >= COMBAT.magSize ? 'Magazine full' : 'No ammo left');
       return;
@@ -359,6 +368,11 @@ export async function mountCombat(opts: {
     if (!opts.player || playerBlocked()) return;
     if (healing) {
       hud?.flashHint('Already healing');
+      return;
+    }
+    const busy = healBlockedByReload(reloading);
+    if (busy) {
+      hud?.flashHint(busy);
       return;
     }
     if (squad) vitals = squad.getCombatant();
@@ -408,6 +422,8 @@ export async function mountCombat(opts: {
     offs.push(opts.player.events.on('useMedkit', () => useMedkit()));
     offs.push(opts.player.events.on('useBandage', () => useBandage()));
     offs.push(opts.player.events.on('interact', onInteract));
+    offs.push(opts.player.events.on('sprint', () => cancelHeal(healInterruptHint('sprint'))));
+    offs.push(opts.player.events.on('jump', () => cancelHeal(healInterruptHint('jump'))));
   }
 
   const onUpdate = (dt: number) => {
@@ -418,6 +434,7 @@ export async function mountCombat(opts: {
         const before = lastShotAt;
         if (!canFire({
           now: now(), lastShotAt, mag: inventory.mag, reloading, hasGun: inventory.hasGun, alive: !playerDead(), downed: playerDowned(),
+          ready: opts.player.fireReady(),
         })) break;
         fire();
         if (lastShotAt === before) break;
@@ -454,7 +471,7 @@ export async function mountCombat(opts: {
       opts.camera.getWorldDirection(dir);
       const o = opts.camera.position;
       const s = castAimedShot(opts.player.rapier.world, { x: o.x, y: o.y, z: o.z }, { x: dir.x, y: dir.y, z: dir.z },
-        muzzlePoint(opts.player.position, dir), COMBAT.maxRange, opts.player.rapier.playerCollider);
+        muzzlePoint(opts.player.position, dir, opts.player.bodyHeight()), COMBAT.maxRange, opts.player.rapier.playerCollider);
       hud.setMuzzleBlocked(s.blocked);
     }
     impacts.update(dt);

@@ -11,6 +11,7 @@ import { Emitter, type PlayerEvents } from './events';
 import { PlayerHud } from './hud';
 import { InputController } from './input';
 import { moveDirection, yawFromDirection, type MoveInput } from './math';
+import { fireReady, moveSpeed } from './movement';
 import { addPerfCampusColliders } from './perfCampus';
 import type { PhysicsStats } from './physics';
 import { buildTestCourse } from './testCourse';
@@ -18,7 +19,7 @@ import { buildTestCourse } from './testCourse';
 /**
  * Player character, physics (Rapier), controls and camera. OWNER: Player Engineer.
  *
- * Controls: click = capture mouse (Esc releases), mouse = look, WASD/arrows = move, Shift = run,
+ * Controls: click = capture mouse (Esc releases), mouse = look, WASD/arrows = move (jog), Shift = sprint,
  * C = crouch, right mouse = aim, Space = jump, left click = fire, R = reload, Q = med kit,
  * H = practice damage, V = first/third person, mouse wheel = zoom, E = interact, F3 = debug line.
  *
@@ -80,6 +81,12 @@ export interface Player {
   gunStance(): { crouched: boolean; speed: number; airborne: boolean; aiming: boolean };
   /** Gun recoil for one shot, radians (positive pitch climbs). Not a hit flinch. */
   addRecoil(pitch: number, yaw: number): void;
+  /** True while sprinting (Shift). The rifle cannot fire or aim then (CMB-08). */
+  isSprinting(): boolean;
+  /** False while sprinting and for `sprintToFire` seconds after (CMB-08). */
+  fireReady(): boolean;
+  /** Current capsule height, feet to top of head: 1.75 standing, 1.2 crouched (CMB-11, CMB-12). */
+  bodyHeight(): number;
   dispose(): void;
 }
 
@@ -92,6 +99,10 @@ export interface PlayerTestApi {
   isGrounded(): boolean;
   /** Horizontal speed actually achieved (m/s). */
   getSpeed(): number;
+  /** True while sprinting (CMB-08). */
+  isSprinting(): boolean;
+  /** Current camera vertical FOV in degrees (ADS zoom, CMB-10). */
+  getFov(): number;
   /** Runs `seconds` of simulation immediately (fixed 60 Hz steps, current input), no rendering. */
   advance(seconds: number): void;
   /** Total simulated time (s). */
@@ -164,7 +175,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
 
   const events = new Emitter<PlayerEvents>();
   const eventLog: string[] = [];
-  for (const type of ['interact', 'jump', 'land', 'cameraMode', 'fire', 'reload', 'debugHurt', 'useMedkit', 'useBandage'] as const) {
+  for (const type of ['interact', 'sprint', 'jump', 'land', 'cameraMode', 'fire', 'reload', 'debugHurt', 'useMedkit', 'useBandage'] as const) {
     events.on(type, () => {
       eventLog.push(type);
       if (eventLog.length > 200) eventLog.shift();
@@ -217,6 +228,8 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
   let jumpLatch = false;
   let armed = true;
   let dead = false;
+  let sprinting = false;
+  let sinceSprint = Infinity;
   events.on('jump', () => {
     jumpLatch = true;
   });
@@ -230,13 +243,29 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     if (input.crouching) phys.setCrouching(true);
     else phys.setCrouching(false);
     const dir = moveDirection(inp.forward, inp.right, rig.yaw);
-    const speed = (phys.crouching ? cfg.crouchSpeed : inp.run && cfg.allowRun ? cfg.runSpeed : cfg.walkSpeed) * cfg.speedScale;
+    const move = moveSpeed(
+      {
+        forward: inp.forward,
+        right: inp.right,
+        run: inp.run,
+        crouched: phys.crouching,
+        aiming: input.aiming && !dead,
+        firing: armed && !dead && input.fireHeld,
+        allowRun: cfg.allowRun,
+      },
+      cfg,
+    );
+    const speed = move.speed;
+    if (move.sprinting && !sprinting) events.emit('sprint', {});
+    if (sprinting && !move.sprinting) sinceSprint = 0;
+    sprinting = move.sprinting;
     acc += dt;
     let n = 0;
     while (acc >= cfg.fixedDt && n < maxSteps) {
       const r = phys.step(dir.x, dir.z, speed, input.consumeJump());
       acc -= cfg.fixedDt;
       simTime += cfg.fixedDt;
+      if (!sprinting) sinceSprint += cfg.fixedDt;
       n++;
       const p = { x: phys.feet.x, y: phys.feet.y, z: phys.feet.z };
       if (r.jumped) events.emit('jump', { position: p });
@@ -336,6 +365,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
       position.copy(p);
       rig.reset(p);
       rig.clearRecoil();
+      rig.resetAim();
       acc = 0;
     },
     syncColliders: () => phys.syncColliders(world.colliders),
@@ -349,6 +379,9 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
       input.setEnabled(enabled);
       dead = !enabled;
       clickToPlay.setSuppressed(!enabled);
+      rig.resetAim();
+      sprinting = false;
+      sinceSprint = Infinity;
       if (enabled) {
         jumpLatch = false;
         input.setCrouch(false);
@@ -370,6 +403,9 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
       aiming: input.aiming && !dead,
     }),
     addRecoil: (pitch, yaw) => rig.addRecoil(pitch, yaw),
+    isSprinting: () => sprinting,
+    fireReady: () => fireReady(sprinting, sinceSprint, cfg),
+    bodyHeight: () => (phys.crouching ? cfg.crouchHeight : cfg.height),
     dispose: () => {
       input.dispose();
       clickToPlay.dispose();
@@ -387,6 +423,8 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     setInput: (i) => input.setOverride(i),
     isGrounded: () => phys.grounded,
     getSpeed: () => phys.actualSpeed,
+    isSprinting: () => sprinting,
+    getFov: () => camera.fov,
     advance: (seconds) => {
       const steps = Math.round(seconds / cfg.fixedDt);
       acc = 0;
