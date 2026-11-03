@@ -35,6 +35,7 @@ import { createImpactSound } from '../audio/impactSound';
 import { createWallProbe } from '../player/wallProbe';
 import { applyDamage, applyZoneDamage } from './downed';
 import { crawlTarget, CRAWL_STOP_M, dryRetreatTarget } from './botFallback';
+import { newWatchdog, spiralFree, stepWatchdog, unstickSpot, type Watchdog } from './unstick';
 import { newSquadGoal, SQUAD_GOAL, stepSquadGoal, type SquadGoal } from './squadGoal';
 import { BOT_ZONE, botZoneDamage, botZoneGoal } from './botZone';
 import { shootBot } from './botHits';
@@ -162,6 +163,7 @@ export function mountSquad(opts: {
   const dryGoal = new Map<PlayerId, { x: number; z: number }>();
   // AI-01: loot -> rotate -> hunt goal for each squad without a human leader.
   const squadGoals = new Map<string, SquadGoal>();
+  const watchdogs = new Map<PlayerId, Watchdog>();
   const probe = physBodies?.probe ?? null;
   // Bot rifles flash at the muzzle when they fire.
   const botFlashes = createMuzzleFlashes(opts.world.scene);
@@ -251,6 +253,17 @@ export function mountSquad(opts: {
         [id]: { ...m, pos: { x: spawn.x + ox, y: spawn.y, z: spawn.z + oz } },
       },
     };
+  }
+  // AI-06: every bot start is checked (no wall, ground under it) and moved to the nearest free cell.
+  if (wallProbe && probe) {
+    for (const id of botIds) {
+      const m = state.members[id]!;
+      const ok = (x: number, z: number) => wallProbe.free(x, m.pos.y, z) && probe.sample(x, m.pos.y + 3, z, 8) != null;
+      const p = spiralFree(m.pos, ok);
+      if (!p || (p.x === m.pos.x && p.z === m.pos.z)) continue;
+      console.info(`[squad] ${m.name} start moved ${Math.hypot(p.x - m.pos.x, p.z - m.pos.z).toFixed(1)} m to a free spot`);
+      state = { ...state, members: { ...state.members, [id]: { ...m, pos: { x: p.x, y: m.pos.y, z: p.z } } } };
+    }
   }
   // Sync player pos.
   state = {
@@ -997,6 +1010,8 @@ export function mountSquad(opts: {
         }
       }
 
+      // Did the bot mean to move this frame? (Standing at follow spacing or in range is not "stuck".)
+      const wantedMove = Math.hypot(pos.x - member.pos.x, pos.z - member.pos.z) > 1e-3;
       if (member.life !== 'downed') {
         // Keep personal space from the other bots and the player; slide around anyone in the way.
         const others: { x: number; z: number }[] = [{ x: feet.x, z: feet.z }];
@@ -1015,7 +1030,17 @@ export function mountSquad(opts: {
                 : dryGoal.has(body.id) ? dryGoal.get(body.id)!
                 : intent.type === 'shoot' && nearestEnemyId ? state.members[nearestEnemyId]!.pos
                   : null;
-          if (goal) {
+          // AI-06 / AI-07: no progress toward the goal for 8 s: jump to the nearest free cell on the way.
+          const wd = stepWatchdog(watchdogs.get(body.id) ?? newWatchdog(), from, wantedMove ? goal : null, dt);
+          watchdogs.set(body.id, wd.w);
+          if (wd.fire && goal) {
+            const spot = unstickSpot(from, goal, (x, z) => wallProbe.free(x, from.y, z) && (!probe || probe.sample(x, from.y + 3, z, 8) != null));
+            if (spot) {
+              console.info(`[squad] ${member.name} stuck 8 s at (${from.x.toFixed(1)}, ${from.z.toFixed(1)}): moved to (${spot.x.toFixed(1)}, ${spot.z.toFixed(1)})`);
+              pos = { x: spot.x, y: pos.y, z: spot.z };
+              routes.set(body.id, newRouteState());
+            }
+          } else if (goal) {
             const f = followRoute(routes.get(body.id) ?? newRouteState(), from, pos, goal, dt, (a, b) =>
               planGate.plan(body.id, state.t, () => planRoute(a, b, (x, z) => wallProbe.free(x, from.y, z))),
             );
