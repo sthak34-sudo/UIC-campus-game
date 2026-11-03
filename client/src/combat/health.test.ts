@@ -16,7 +16,7 @@ describe('health', () => {
     const first = takeHit(createCombatant(), 'head', 0);
     expect(first.died).toBe(false);
     expect(first.headshot).toBe(true);
-    expect(first.combatant.health).toBeCloseTo(100 - COMBAT.baseDamage * 2, 6);
+    expect(first.combatant.health).toBeCloseTo(100 - COMBAT.baseDamage * COMBAT.headshotMultiplier, 6);
     const second = takeHit(first.combatant, 'head', 0);
     expect(second.died).toBe(true);
     expect(second.combatant.health).toBe(0);
@@ -29,9 +29,9 @@ describe('health', () => {
     const vested = addArmor(createCombatant(), 50);
     expect(vested.armor).toBe(50);
     const hit = takeHit(vested, 'body', 0);
-    expect(hit.armorDamage).toBeCloseTo(COMBAT.baseDamage * 0.5, 6);
-    expect(hit.combatant.health).toBeCloseTo(100 - COMBAT.baseDamage * 0.5, 6);
-    expect(hit.combatant.armor).toBeCloseTo(50 - COMBAT.baseDamage * 0.5, 6);
+    expect(hit.armorDamage).toBeCloseTo(COMBAT.baseDamage * COMBAT.armorMitigation, 6);
+    expect(hit.combatant.health).toBeCloseTo(100 - COMBAT.baseDamage * (1 - COMBAT.armorMitigation), 6);
+    expect(hit.combatant.armor).toBeCloseTo(50 - COMBAT.baseDamage * COMBAT.armorMitigation, 6);
   });
 
   it('lets the debug hurt key ignore armor and reach a death in four presses', () => {

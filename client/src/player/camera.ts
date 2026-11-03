@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { PlayerConfig } from './config';
 import { clamp, damp, springArm } from './math';
+import { absorbRecoil, addRecoil, recoverRecoil } from '../combat/gunFeel';
 
 /** Collision queries the camera needs (implemented by PlayerPhysics). */
 export interface CameraCollision {
@@ -37,6 +38,10 @@ export class CameraRig {
   /** Procedural hit reaction: additive look kick that eases out. */
   private kickYaw = 0;
   private kickPitch = 0;
+  /** Gun recoil offset in radians (positive pitch is up). Separate from the hit kick: it climbs while you spray. */
+  private recoilPitch = 0;
+  private recoilYaw = 0;
+  private sinceShot = Infinity;
 
   constructor(
     readonly camera: THREE.PerspectiveCamera,
@@ -50,7 +55,9 @@ export class CameraRig {
   addLook(dx: number, dy: number): void {
     const s = this.cfg.mouseSensitivity;
     this.yaw -= dx * s;
-    this.pitch += dy * s;
+    const r = absorbRecoil(this.recoilPitch, dy * s);
+    this.recoilPitch = r.recoil;
+    this.pitch += r.dPitch;
     this.clampPitch();
   }
 
@@ -91,6 +98,30 @@ export class CameraRig {
     }
   }
 
+  /** Gun recoil for one shot (radians; positive pitch climbs). Recovers after you stop shooting. */
+  addRecoil(pitch: number, yaw: number): void {
+    this.recoilPitch = addRecoil(this.recoilPitch, pitch);
+    this.recoilYaw = addRecoil(this.recoilYaw, yaw);
+    this.sinceShot = 0;
+  }
+
+  /** Current recoil offset (radians), for tests and the debug overlay. */
+  get recoil(): { pitch: number; yaw: number } {
+    return { pitch: this.recoilPitch, yaw: this.recoilYaw };
+  }
+
+  /** Current hit-kick offset (radians), for tests. */
+  get kickOffset(): { pitch: number; yaw: number } {
+    return { pitch: this.kickPitch, yaw: this.kickYaw };
+  }
+
+  /** Drop any recoil (respawn, teleport). */
+  clearRecoil(): void {
+    this.recoilPitch = 0;
+    this.recoilYaw = 0;
+    this.sinceShot = Infinity;
+  }
+
   private clampPitch(): void {
     const c = this.cfg;
     this.pitch = this.mode === 'first' ? clamp(this.pitch, c.fpPitchMin, c.fpPitchMax) : clamp(this.pitch, c.camPitchMin, c.camPitchMax);
@@ -126,7 +157,10 @@ export class CameraRig {
     this.kickPitch *= Math.exp(-12 * dt);
     if (Math.abs(this.kickYaw) < 1e-4) this.kickYaw = 0;
     if (Math.abs(this.kickPitch) < 1e-4) this.kickPitch = 0;
-    this.euler.set(-(this.pitch + this.kickPitch), this.yaw + this.kickYaw, 0);
+    this.sinceShot += dt;
+    this.recoilPitch = recoverRecoil(this.recoilPitch, dt, this.sinceShot);
+    this.recoilYaw = recoverRecoil(this.recoilYaw, dt, this.sinceShot);
+    this.euler.set(-(this.pitch + this.kickPitch - this.recoilPitch), this.yaw + this.kickYaw + this.recoilYaw, 0);
     this.camera.quaternion.setFromEuler(this.euler);
 
     const stance = c.crouchHeight / c.height;

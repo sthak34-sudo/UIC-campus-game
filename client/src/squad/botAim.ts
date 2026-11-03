@@ -3,7 +3,7 @@
  * bursts with some spread that tightens at close range, so a fight with them is winnable.
  */
 export const BOT_AIM = {
-  /** Seconds between bot shots (the player's rifle is 0.15). */
+  /** Seconds between bot shots (the player's rifle is 0.09). */
   interval: 0.5,
   /** Random extra wait so a squad does not fire in sync. */
   jitter: 0.25,
@@ -11,8 +11,11 @@ export const BOT_AIM = {
   range: 40,
   /** Aim error in meters at 10 m; grows with distance. */
   spreadAt10: 0.45,
-  /** Share of a player-weapon hit a bot shot does. */
-  damageScale: 0.6,
+  /**
+   * Share of a player-weapon hit a bot shot does. 0.5 of the 41 rifle is ~20 a body hit, so a bot
+   * still needs 5 body hits on an unarmored player (CMB-06; AI Engineer to confirm).
+   */
+  damageScale: 0.5,
   /** Chance a bot aims at the head instead of the chest. */
   headAimChance: 0.15,
 };

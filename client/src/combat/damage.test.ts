@@ -3,14 +3,14 @@ import { COMBAT } from './balance';
 import { applyReload, canFire, canReload, distanceFalloff, resolveIncomingDamage, zoneMultiplier } from './damage';
 
 describe('damage math', () => {
-  it('locks the milestone rules: headshots are 2x and dummies wait 5s', () => {
-    expect(COMBAT.headshotMultiplier).toBe(2);
+  it('locks the PUBG-like rules: headshots are 2.1x and dummies wait 5s', () => {
+    expect(COMBAT.headshotMultiplier).toBe(2.1);
     expect(COMBAT.dummyRespawn).toBe(5);
-    expect(zoneMultiplier('head')).toBe(2);
+    expect(zoneMultiplier('head')).toBe(2.1);
     expect(zoneMultiplier('body')).toBe(1);
   });
 
-  it('does full damage up close and half damage at the far end of falloff', () => {
+  it('does full damage up close and falls off gently to the far end', () => {
     expect(distanceFalloff(0)).toBe(1);
     expect(distanceFalloff(-10)).toBe(1);
     expect(distanceFalloff(COMBAT.falloffStart)).toBe(1);
@@ -26,15 +26,15 @@ describe('damage math', () => {
     expect(body.raw).toBe(COMBAT.baseDamage);
     expect(body.healthDamage).toBe(COMBAT.baseDamage);
     expect(body.armorDamage).toBe(0);
-    expect(head.raw).toBe(COMBAT.baseDamage * 2);
-    expect(head.healthDamage).toBe(COMBAT.baseDamage * 2);
+    expect(head.raw).toBeCloseTo(COMBAT.baseDamage * 2.1, 9);
+    expect(head.healthDamage).toBeCloseTo(COMBAT.baseDamage * 2.1, 9);
   });
 
-  it('lets armor soak half the hit, and no more armor than the target has', () => {
+  it('lets armor soak 40% of a body hit, and no more armor than the target has', () => {
     const vested = resolveIncomingDamage({ zone: 'body', distance: 0, armor: 100 });
-    expect(vested.armorDamage).toBeCloseTo(COMBAT.baseDamage * 0.5, 6);
-    expect(vested.healthDamage).toBeCloseTo(COMBAT.baseDamage * 0.5, 6);
-    expect(vested.armorAfter).toBeCloseTo(100 - COMBAT.baseDamage * 0.5, 6);
+    expect(vested.armorDamage).toBeCloseTo(COMBAT.baseDamage * 0.4, 6);
+    expect(vested.healthDamage).toBeCloseTo(COMBAT.baseDamage * 0.6, 6);
+    expect(vested.armorAfter).toBeCloseTo(100 - COMBAT.baseDamage * 0.4, 6);
 
     const scrap = resolveIncomingDamage({ zone: 'body', distance: 0, armor: 5 });
     expect(scrap.armorDamage).toBe(5);
@@ -42,9 +42,20 @@ describe('damage math', () => {
     expect(scrap.armorAfter).toBe(0);
   });
 
-  it('halves a far body shot', () => {
-    const far = resolveIncomingDamage({ zone: 'body', distance: 100, armor: 0 });
+  it('keeps full damage across a campus quad and only drops to 0.8x at long range', () => {
+    expect(resolveIncomingDamage({ zone: 'body', distance: 60, armor: 0 }).healthDamage).toBe(COMBAT.baseDamage);
+    const far = resolveIncomingDamage({ zone: 'body', distance: 400, armor: 0 });
     expect(far.healthDamage).toBeCloseTo(COMBAT.baseDamage * COMBAT.falloffMin, 6);
+    expect(COMBAT.falloffMin).toBe(0.8);
+  });
+
+  it('lets head and limb hits skip the vest', () => {
+    for (const zone of ['head', 'limb'] as const) {
+      const r = resolveIncomingDamage({ zone, distance: 0, armor: 100 });
+      expect(r.armorDamage).toBe(0);
+      expect(r.armorAfter).toBe(100);
+      expect(r.healthDamage).toBeCloseTo(r.raw, 9);
+    }
   });
 
   it('gates the fire rate, empty magazines, reloads, and being down', () => {

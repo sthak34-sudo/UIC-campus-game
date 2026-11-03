@@ -18,6 +18,14 @@ export interface HudState {
   prompt: string;
 }
 
+/** Crosshair arm size (px) and the gap limits. */
+const ARM_LEN = 6;
+const ARM_W = 2;
+const MIN_GAP = 3;
+const MAX_GAP = 160;
+/** Seconds a zone edge pulse takes to fade. */
+const EDGE_PULSE = 0.6;
+
 export class CombatHud {
   private readonly root: HTMLDivElement;
   private readonly healthFill: HTMLDivElement;
@@ -33,6 +41,10 @@ export class CombatHud {
   private hintLeft = 0;
   private crossLeft = 0;
   private crossColor = '#f4f7f4';
+  private readonly arms: HTMLDivElement[];
+  private gap = -1;
+  private readonly edge: HTMLDivElement;
+  private edgeLeft = 0;
 
   constructor(parent: HTMLElement, onRespawn: () => void) {
     this.root = document.createElement('div');
@@ -42,26 +54,36 @@ export class CombatHud {
       fontFamily: 'system-ui, sans-serif', userSelect: 'none',
     } satisfies Partial<CSSStyleDeclaration>);
 
+    // Crosshair: four arms whose inner ends sit on the edge of the real shot cone (setSpread),
+    // so every bullet lands inside them (CMB-03).
     this.cross = document.createElement('div');
+    this.cross.id = 'crosshair';
     this.cross.setAttribute('aria-hidden', 'true');
     Object.assign(this.cross.style, {
-      position: 'absolute', left: '50%', top: '50%', width: '18px', height: '18px',
-      transform: 'translate(-50%, -50%)',
+      position: 'absolute', left: '50%', top: '50%', width: '0', height: '0',
     } satisfies Partial<CSSStyleDeclaration>);
-    const arm = (x: string, y: string, w: string, h: string) => {
+    const arm = (w: number, h: number) => {
       const d = document.createElement('div');
       Object.assign(d.style, {
-        position: 'absolute', left: x, top: y, width: w, height: h, background: '#f4f7f4',
-        boxShadow: '0 0 0 1px rgba(0,0,0,0.85)',
+        position: 'absolute', left: '0', top: '0', width: `${w}px`, height: `${h}px`, background: '#f4f7f4',
+        boxShadow: '0 0 0 1px rgba(0,0,0,0.85)', willChange: 'transform',
       } satisfies Partial<CSSStyleDeclaration>);
       this.cross.appendChild(d);
       return d;
     };
-    arm('0', '8px', '5px', '2px');
-    arm('13px', '8px', '5px', '2px');
-    arm('8px', '0', '2px', '5px');
-    arm('8px', '13px', '2px', '5px');
+    this.arms = [arm(ARM_LEN, ARM_W), arm(ARM_LEN, ARM_W), arm(ARM_W, ARM_LEN), arm(ARM_W, ARM_LEN)];
+    this.setSpread(MIN_GAP);
     this.root.appendChild(this.cross);
+
+    // Zone damage cue: a soft red glow at the screen edge, pulsed about once a second (CMB-01).
+    this.edge = document.createElement('div');
+    this.edge.id = 'zone-edge';
+    this.edge.setAttribute('aria-hidden', 'true');
+    Object.assign(this.edge.style, {
+      position: 'absolute', inset: '0', opacity: '0',
+      boxShadow: 'inset 0 0 90px 18px rgba(200,30,30,0.55)',
+    } satisfies Partial<CSSStyleDeclaration>);
+    this.root.appendChild(this.edge);
 
     const stack = document.createElement('div');
     Object.assign(stack.style, {
@@ -162,6 +184,29 @@ export class CombatHud {
     this.paintCross();
   }
 
+  /**
+   * Crosshair gap in pixels from the centre to the inner end of each arm: where a shot on the
+   * edge of the current spread cone would land. Never drawn tighter than MIN_GAP.
+   */
+  setSpread(gapPx: number): void {
+    const g = Math.round(Math.max(MIN_GAP, Math.min(MAX_GAP, gapPx)) * 2) / 2;
+    if (g === this.gap) return;
+    this.gap = g;
+    const [l, r, t, b] = this.arms;
+    const hw = ARM_W / 2;
+    l!.style.transform = `translate(${-g - ARM_LEN}px, ${-hw}px)`;
+    r!.style.transform = `translate(${g}px, ${-hw}px)`;
+    t!.style.transform = `translate(${-hw}px, ${-g - ARM_LEN}px)`;
+    b!.style.transform = `translate(${-hw}px, ${g}px)`;
+    this.cross.dataset.gap = String(g);
+  }
+
+  /** One red edge pulse for zone damage. */
+  pulseZoneEdge(): void {
+    this.edgeLeft = EDGE_PULSE;
+    this.edge.style.opacity = '1';
+  }
+
   /** Crosshair fades a little while the muzzle is blocked short of the aim point. */
   setMuzzleBlocked(blocked: boolean): void {
     this.cross.style.opacity = blocked ? '0.35' : '';
@@ -178,6 +223,10 @@ export class CombatHud {
       this.hintLeft -= dt;
       if (this.hintLeft <= 0) this.hintEl.style.display = 'none';
     }
+    if (this.edgeLeft > 0) {
+      this.edgeLeft = Math.max(0, this.edgeLeft - dt);
+      this.edge.style.opacity = (this.edgeLeft / EDGE_PULSE).toFixed(2);
+    }
     if (this.crossLeft > 0) {
       this.crossLeft -= dt;
       if (this.crossLeft <= 0) {
@@ -188,7 +237,7 @@ export class CombatHud {
   }
 
   private paintCross(): void {
-    for (const child of this.cross.children) {
+    for (const child of this.arms) {
       (child as HTMLElement).style.background = this.crossColor;
     }
   }

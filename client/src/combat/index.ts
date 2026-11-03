@@ -17,6 +17,8 @@ import { COMBAT } from './balance';
 import { PracticeDummies } from './dummy';
 import { CombatHud } from './hud';
 import { canFire, canReload } from './damage';
+import { damageReaction, zonePulseStep, type DamageSource } from './damageRules';
+import { addBloom, coneDirection, crosshairGapPx, decayBloom, MAX_SHOTS_PER_FRAME, recoilKick, shotTime, spreadDegrees } from './gunFeel';
 import {
   addArmor, createCombatant, healCombatant, isDown, takeDirectDamage, type Combatant,
 } from './health';
@@ -140,6 +142,12 @@ export async function mountCombat(opts: {
   let squad: CombatSquadBridge | null = null;
   // Bandage / med kit being applied (channelled; damage, firing or going down cancels it).
   let healing: HealChannel | null = null;
+  let zoneHurtThisFrame = false;
+  let zonePulseCooldown = 0;
+  /** Extra spread from recent shots, degrees (CMB-03). */
+  let bloom = 0;
+  const currentSpread = () => (opts.player ? spreadDegrees(opts.player.gunStance(), bloom) : 0);
+
   const cancelHeal = (why: string) => {
     if (!healing) return;
     healing = null;
@@ -217,9 +225,19 @@ export async function mountCombat(opts: {
     opts.player.flinch({ x: p.x - from.x, y: p.y - from.y, z: p.z - from.z });
   };
 
-  const applyLocalDamage = (amount: number, attackerId: string | null, from: { x: number; y: number; z: number } | null = null) => {
+  const applyLocalDamage = (
+    amount: number,
+    attackerId: string | null,
+    from: { x: number; y: number; z: number } | null = null,
+    source: DamageSource = 'bullet',
+  ) => {
     if (!opts.player || amount <= 0) return;
-    cancelHeal('Healing interrupted');
+    const react = damageReaction(source);
+    if (react.cancelHeal) cancelHeal('Healing interrupted');
+    if (source === 'zone') zoneHurtThisFrame = true;
+    const flinch = (f: typeof from) => {
+      if (react.flinch) flinchFrom(f);
+    };
     if (squad) {
       if (squad.isDead()) return;
       // While downed, zone / finish damage is handled by the squad adapter via applyDownedDamage.
@@ -227,7 +245,7 @@ export async function mountCombat(opts: {
       const r = squad.applyPlayerDamage(amount, attackerId);
       vitals = r.combatant;
       if (r.dead) killPlayer();
-      else flinchFrom(from);
+      else flinch(from);
       syncHud();
       return;
     }
@@ -235,7 +253,7 @@ export async function mountCombat(opts: {
     const r = takeDirectDamage(vitals, amount);
     vitals = r.combatant;
     if (r.died) killPlayer();
-    else flinchFrom(from);
+    else flinch(from);
     syncHud();
   };
 
@@ -263,6 +281,10 @@ export async function mountCombat(opts: {
     cancelHeal('Healing cancelled');
     const dir = new THREE.Vector3();
     opts.camera.getWorldDirection(dir);
+    // The shot leaves somewhere inside the spread cone the crosshair shows (CMB-03).
+    const spread = currentSpread() * (Math.PI / 180);
+    const cone = coneDirection({ x: dir.x, y: dir.y, z: dir.z }, spread, Math.random(), Math.random());
+    dir.set(cone.x, cone.y, cone.z);
     const origin = opts.camera.position;
     const muzzle = muzzlePoint(player.position, dir);
     const shot = castAimedShot(
@@ -276,8 +298,11 @@ export async function mountCombat(opts: {
     const hit = shot.hit;
     // Damage direction is the bullet's real path (muzzle -> aim point), not the camera's.
     dir.set(shot.aimPoint.x - muzzle.x, shot.aimPoint.y - muzzle.y, shot.aimPoint.z - muzzle.z).normalize();
-    lastShotAt = now();
+    lastShotAt = shotTime(now(), lastShotAt);
     inventory = spendRound(inventory);
+    bloom = addBloom(bloom);
+    const kick = recoilKick(player.gunStance().aiming, Math.random);
+    player.addRecoil(kick.pitch * (Math.PI / 180), kick.yaw * (Math.PI / 180));
     player.playFire();
     fx.muzzle(muzzle);
     // Tracer from the barrel to where the bullet stopped (what it hit, or the crosshair point).
@@ -387,6 +412,25 @@ export async function mountCombat(opts: {
 
   const onUpdate = (dt: number) => {
     clock += dt;
+    // Full-auto: keep firing while the trigger is held; canFire paces it (CMB-02).
+    if (opts.player?.triggerHeld()) {
+      for (let i = 0; i < MAX_SHOTS_PER_FRAME; i++) {
+        const before = lastShotAt;
+        if (!canFire({
+          now: now(), lastShotAt, mag: inventory.mag, reloading, hasGun: inventory.hasGun, alive: !playerDead(), downed: playerDowned(),
+        })) break;
+        fire();
+        if (lastShotAt === before) break;
+      }
+    }
+    bloom = decayBloom(bloom, dt);
+    const pulse = zonePulseStep(zonePulseCooldown, dt, zoneHurtThisFrame);
+    zonePulseCooldown = pulse.cooldown;
+    zoneHurtThisFrame = false;
+    if (pulse.pulse) hud?.pulseZoneEdge();
+    if (hud && opts.player) {
+      hud.setSpread(crosshairGapPx(currentSpread(), opts.camera.fov, hudParent.clientHeight || window.innerHeight));
+    }
     if (healing) {
       if (playerBlocked()) {
         healing = null;
@@ -424,7 +468,8 @@ export async function mountCombat(opts: {
 
   return {
     applyZoneDamage(amount: number) {
-      applyLocalDamage(amount, null);
+      // Health only: no camera kick, no heal cancel (CMB-01). A red edge pulse shows it instead.
+      applyLocalDamage(amount, null, null, 'zone');
     },
     setSquadBridge(bridge: CombatSquadBridge | null) {
       squad = bridge;

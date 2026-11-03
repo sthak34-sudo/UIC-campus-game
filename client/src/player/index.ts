@@ -74,6 +74,12 @@ export interface Player {
    * `hitDir` is world-space impulse (attacker → victim).
    */
   flinch(hitDir?: HitDir): void;
+  /** True while the fire button is held (full-auto). */
+  triggerHeld(): boolean;
+  /** What the gun's spread cone depends on right now. */
+  gunStance(): { crouched: boolean; speed: number; airborne: boolean; aiming: boolean };
+  /** Gun recoil for one shot, radians (positive pitch climbs). Not a hit flinch. */
+  addRecoil(pitch: number, yaw: number): void;
   dispose(): void;
 }
 
@@ -329,6 +335,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
       phys.teleport(p);
       position.copy(p);
       rig.reset(p);
+      rig.clearRecoil();
       acc = 0;
     },
     syncColliders: () => phys.syncColliders(world.colliders),
@@ -355,6 +362,14 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
       model.flinch(hitDir);
       rig.kick(hitDir, 1);
     },
+    triggerHeld: () => !dead && input.fireHeld,
+    gunStance: () => ({
+      crouched: phys.crouching,
+      speed: Math.hypot(phys.velocity.x, phys.velocity.z),
+      airborne: !phys.grounded,
+      aiming: input.aiming && !dead,
+    }),
+    addRecoil: (pitch, yaw) => rig.addRecoil(pitch, yaw),
     dispose: () => {
       input.dispose();
       clickToPlay.dispose();
