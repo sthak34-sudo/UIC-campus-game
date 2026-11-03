@@ -35,6 +35,7 @@ import { createImpactSound } from '../audio/impactSound';
 import { createWallProbe } from '../player/wallProbe';
 import { applyDamage, applyZoneDamage } from './downed';
 import { crawlTarget, CRAWL_STOP_M, dryRetreatTarget } from './botFallback';
+import { newSquadGoal, SQUAD_GOAL, stepSquadGoal, type SquadGoal } from './squadGoal';
 import { BOT_ZONE, botZoneDamage, botZoneGoal } from './botZone';
 import { shootBot } from './botHits';
 import { checkWipe } from './elimination';
@@ -159,6 +160,8 @@ export function mountSquad(opts: {
   const planGate = createPlanGate(1, 1.5);
   // AI-13: where a dry bot is heading this frame (for route planning).
   const dryGoal = new Map<PlayerId, { x: number; z: number }>();
+  // AI-01: loot -> rotate -> hunt goal for each squad without a human leader.
+  const squadGoals = new Map<string, SquadGoal>();
   const probe = physBodies?.probe ?? null;
   // Bot rifles flash at the muzzle when they fire.
   const botFlashes = createMuzzleFlashes(opts.world.scene);
@@ -783,8 +786,9 @@ export function mountSquad(opts: {
       else foeMemory.delete(body.id);
       const nearestEnemyId: PlayerId | null = seen?.id ?? null;
       const nearestDist = seen?.dist ?? 28;
-      const leaderId = body.enemy
-        ? (state.squads[member.squad]!.members.find((id) => state.members[id]?.life === 'alive') ?? body.id)
+      // AI-16: once the human is out, the first living teammate bot leads the squad.
+      const leaderId = body.enemy || state.members[playerId]?.life === 'dead'
+        ? (state.squads[member.squad]!.members.find((id) => id !== playerId && state.members[id]?.life === 'alive') ?? body.id)
         : playerId;
       const zoneView = opts.zone?.snapshot?.() ?? null;
       const zoneGoal = member.life === 'alive' ? botZoneGoal(zoneView, member.pos) : null;
@@ -802,6 +806,9 @@ export function mountSquad(opts: {
         inZoneDanger: zoneGoal != null,
         zoneCenter: zoneGoal ?? { x: feet.x, z: feet.z },
       });
+      // AI-01: a squad leader used to 'follow' itself and never move. It now walks the squad goal below.
+      const leads = leaderId === body.id && intent.type === 'follow' && intent.target === body.id;
+      if (leads) intent = { type: 'idle' };
       if (memory && !seen && (intent.type === 'follow' || intent.type === 'idle')) {
         // Lost sight of a foe: go check its last-seen spot, facing it, ready to shoot.
         intent = { type: 'moveTo', x: memory.x, z: memory.z };
@@ -852,6 +859,24 @@ export function mountSquad(opts: {
             intent = { type: 'moveTo', x: want.position.x, z: want.position.z };
           }
         }
+      }
+      if (leads && intent.type === 'idle' && !channel) {
+        const foes: { x: number; z: number }[] = [];
+        for (const o of Object.values(state.members)) if (o.squad !== member.squad && o.life !== 'dead') foes.push(o.pos);
+        const leadKit = kit;
+        const g = stepSquadGoal(squadGoals.get(member.squad) ?? newSquadGoal(), {
+          leader: member.pos,
+          dt,
+          zone: zoneView,
+          findLoot: () => {
+            const l = opts.combat.lootNear(member.pos, SQUAD_GOAL.lootSeekM, (k) => botWants(k, leadKit));
+            return l ? { x: l.position.x, z: l.position.z } : null;
+          },
+          foes,
+        });
+        if (g.phase !== squadGoals.get(member.squad)?.phase) console.info(`[squad] squad ${member.squad} goal: ${g.phase}`);
+        squadGoals.set(member.squad, g);
+        if (g.target) intent = { type: 'moveTo', x: g.target.x, z: g.target.z };
       }
       // Reload: always when empty, topping up when calm. Same reload time as the player.
       const wasReloading = kit.reloading > 0;
