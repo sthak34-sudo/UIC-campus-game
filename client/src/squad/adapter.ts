@@ -35,7 +35,7 @@ import { createImpactSound } from '../audio/impactSound';
 import { createWallProbe } from '../player/wallProbe';
 import { applyDamage, applyZoneDamage } from './downed';
 import { crawlTarget, CRAWL_STOP_M, dryRetreatTarget } from './botFallback';
-import { botZoneDamage, botZoneGoal } from './botZone';
+import { BOT_ZONE, botZoneDamage, botZoneGoal } from './botZone';
 import { shootBot } from './botHits';
 import { checkWipe } from './elimination';
 import { canDamage } from './friendlyFire';
@@ -865,6 +865,7 @@ export function mountSquad(opts: {
 
       let pos = { ...member.pos };
       let hold = false;
+      let stepSpeed = botSpeed;
       dryGoal.delete(body.id);
       if (member.life === 'downed') {
         // AI-17: crawl toward the nearest alive teammate (stops inside revive range, never into a wall).
@@ -904,10 +905,13 @@ export function mountSquad(opts: {
         );
         pos = { x: stepped.x, y: pos.y, z: stepped.z };
       } else if (intent.type === 'moveTo') {
+        // AI-05: run when heading for the zone.
+        const running = zoneGoal != null && intent.x === zoneGoal.x && intent.z === zoneGoal.z;
+        if (running) stepSpeed = BOT_ZONE.sprintMps;
         const stepped = stepToward(
           { x: pos.x, z: pos.z },
           { x: intent.x, z: intent.z },
-          botSpeed,
+          running ? BOT_ZONE.sprintMps : botSpeed,
           dt,
           0.4,
         );
@@ -975,7 +979,7 @@ export function mountSquad(opts: {
           if (o.id === body.id || o.id === playerId || o.life === 'dead') continue;
           others.push(o.pos);
         }
-        const steered = steerStep(member.pos, pos, others, Math.max(0.02, botSpeed * dt * 1.5));
+        const steered = steerStep(member.pos, pos, others, Math.max(0.02, stepSpeed * dt * 1.5));
         pos = { x: steered.x, y: pos.y, z: steered.z };
         if (wallProbe) {
           const from = member.pos;

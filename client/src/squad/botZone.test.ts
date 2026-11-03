@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOT_ZONE, botZoneDamage, botZoneGoal, type BotZoneView } from './botZone';
+import { BOT_ZONE, botZoneDamage, botZoneGoal, rotateLeadFor, type BotZoneView } from './botZone';
 
 const view = (over: Partial<BotZoneView> = {}): BotZoneView => ({
   mode: 'wait',
@@ -30,5 +30,17 @@ describe('bots and the zone', () => {
     expect(botZoneGoal(f, { x: 10, z: 0 })).toBeNull();
     expect(botZoneGoal(f, { x: 40, z: 0 })).toEqual({ x: 0, z: 0 });
     expect(botZoneGoal(null, { x: 0, z: 0 })).toBeNull();
+  });
+  it('AI-05: a bot far from the next circle sets off earlier, sized by sprint time', () => {
+    const next = { x: 50, z: 0, radius: 100 };
+    // 300 m out, inner edge at 92 m: 208 m to run.
+    const far = { x: -250, z: 0 };
+    expect(rotateLeadFor(far, next)).toBeCloseTo(BOT_ZONE.rotateLeadS + 208 / BOT_ZONE.sprintMps);
+    expect(rotateLeadFor({ x: 50, z: 0 }, next)).toBe(BOT_ZONE.rotateLeadS);
+    // 60 s before the shrink: the near-edge bot waits, the far one (inside the big circle) goes.
+    const big = view({ current: { x: 0, z: 0, radius: 400 }, remaining: 60 });
+    expect(botZoneGoal(big, { x: -150, z: 0 })).toBeNull();
+    expect(botZoneGoal(big, far)).toEqual({ x: 50, z: 0 });
+    expect(BOT_ZONE.sprintMps).toBeGreaterThan(3.1);
   });
 });
