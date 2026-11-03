@@ -70,3 +70,40 @@ describe('route planning', () => {
     expect(rs.path).toBeNull();
   });
 });
+
+describe('AI-08 planner cost', () => {
+  it('heap pops in f order', async () => {
+    const { MinHeap } = await import('./routePlan');
+    const hp = new MinHeap();
+    for (const f of [5, 1, 4, 2, 3, 0.5]) hp.push({ i: 0, j: 0, f });
+    const out: number[] = [];
+    while (hp.size) out.push(hp.pop()!.f);
+    expect(out).toEqual([0.5, 1, 2, 3, 4, 5]);
+  });
+  it('unreachable goal stops at the node cap and stays fast', async () => {
+    const { planRoute, ROUTE } = await import('./routePlan');
+    expect(ROUTE.maxNodes).toBeLessThanOrEqual(1500);
+    // Goal sealed inside a ring wall: the search must give up, not scan for long.
+    let calls = 0;
+    const free = (x: number, z: number) => { calls++; const r = Math.hypot(x - 10, z); return !(r > 2 && r < 3); };
+    const t0 = performance.now();
+    planRoute({ x: 0, z: 0 }, { x: 10, z: 0 }, free);
+    const ms = performance.now() - t0;
+    expect(calls).toBeLessThan(ROUTE.maxNodes * 9 + 10);
+    expect(ms).toBeLessThan(50);
+  });
+  it('gate: one plan per frame, failed plans wait', async () => {
+    const { createPlanGate } = await import('./routePlan');
+    const g = createPlanGate(1, 1.5);
+    let runs = 0;
+    expect(g.plan('a', 0, () => { runs++; return null; })).toBeNull();
+    expect(g.plan('b', 0, () => { runs++; return [1]; })).toBeNull(); // budget used this frame
+    g.newFrame();
+    expect(g.plan('b', 0, () => { runs++; return [1]; })).toEqual([1]);
+    g.newFrame();
+    expect(g.plan('a', 1, () => { runs++; return [1]; })).toBeNull(); // still cooling down
+    g.newFrame();
+    expect(g.plan('a', 1.6, () => { runs++; return [1]; })).toEqual([1]);
+    expect(runs).toBe(3);
+  });
+});

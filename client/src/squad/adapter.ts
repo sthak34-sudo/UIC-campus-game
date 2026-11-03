@@ -53,7 +53,7 @@ import { allowKey, debugKeysEnabled } from '../debug/debugKeys';
 import { squadHintText } from './hintText';
 import { step, type PlayerInput } from './step';
 import type { PlayerId, SquadEvent, SquadMatchState } from './types';
-import { followRoute, newRouteState, planRoute, type RouteState } from './routePlan';
+import { createPlanGate, followRoute, newRouteState, planRoute, type RouteState } from './routePlan';
 
 /** Furthest a ping can land (m). */
 const PING_RANGE = 300;
@@ -154,6 +154,8 @@ export function mountSquad(opts: {
       : null;
   const wallSide = new Map<PlayerId, 1 | -1>();
   const routes = new Map<PlayerId, RouteState>();
+  // AI-08: one route plan per frame for all bots, failed plans cached for 1.5 s.
+  const planGate = createPlanGate(1, 1.5);
   const probe = physBodies?.probe ?? null;
   // Bot rifles flash at the muzzle when they fire.
   const botFlashes = createMuzzleFlashes(opts.world.scene);
@@ -690,6 +692,7 @@ export function mountSquad(opts: {
   };
 
   const onUpdate = (dt: number) => {
+    planGate.newFrame();
     matchElapsed += dt;
     botFlashes.update(dt, opts.camera);
     tracers.update(dt);
@@ -954,7 +957,7 @@ export function mountSquad(opts: {
                   : null;
           if (goal) {
             const f = followRoute(routes.get(body.id) ?? newRouteState(), from, pos, goal, dt, (a, b) =>
-              planRoute(a, b, (x, z) => wallProbe.free(x, from.y, z)),
+              planGate.plan(body.id, state.t, () => planRoute(a, b, (x, z) => wallProbe.free(x, from.y, z))),
             );
             routes.set(body.id, f.rs);
             pos = { x: f.to.x, y: pos.y, z: f.to.z };
