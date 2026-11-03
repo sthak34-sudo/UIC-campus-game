@@ -44,7 +44,9 @@ import { MatchEndScreen } from '../match/matchEndScreen';
 import { playerDamaged } from '../core/hitEvents';
 import { addDamage, addKills, damageBetween, finish, killsBy, newStats, startClock, summarize } from '../match/matchStats';
 import { onFirstInput } from '../core/firstInput';
-import { placePing, tickPings, type Ping } from './pings';
+import { pingTarget, placePing, tickPings, type Ping } from './pings';
+import { castHitscan } from '../combat/weapon';
+
 import { createMatch } from './roster';
 import { nextTarget, spectateCamera, spectateLabel, spectateTargets, type Vec3 } from './spectate';
 import { allowKey, debugKeysEnabled } from '../debug/debugKeys';
@@ -52,6 +54,9 @@ import { squadHintText } from './hintText';
 import { step, type PlayerInput } from './step';
 import type { PlayerId, SquadEvent, SquadMatchState } from './types';
 import { followRoute, newRouteState, planRoute, type RouteState } from './routePlan';
+
+/** Furthest a ping can land (m). */
+const PING_RANGE = 300;
 
 
 export type SquadMode = 'bots' | 'solo';
@@ -609,11 +614,18 @@ export function mountSquad(opts: {
       player?.setControlsEnabled(true);
     } else if (e.code === 'KeyP') {
       // Ping (P). Q stays combat medkit; design doc said Q but that key is taken.
-      const feet = player?.position ?? state.members[playerId]!.pos;
+      // UI-03: ping where the camera points (ray hit), not at your own feet.
+      const f = player?.position ?? state.members[playerId]!.pos;
+      const feet = { x: f.x, y: typeof f.y === 'number' ? f.y : 0, z: f.z };
+      const dir = opts.camera.getWorldDirection(new THREE.Vector3());
+      const cam = opts.camera.position;
+      const hit = player
+        ? castHitscan(player.rapier.world, { x: cam.x, y: cam.y, z: cam.z }, { x: dir.x, y: dir.y, z: dir.z }, PING_RANGE, player.rapier.playerCollider)
+        : null;
       pings = placePing(
         pings,
         playerId,
-        { x: feet.x, y: typeof feet.y === 'number' ? feet.y : 0, z: feet.z },
+        pingTarget({ x: cam.x, y: cam.y, z: cam.z }, { x: dir.x, y: dir.y, z: dir.z }, hit ? hit.distance : null, feet, PING_RANGE),
         state.t,
       );
     } else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {

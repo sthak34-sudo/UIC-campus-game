@@ -3,6 +3,8 @@
  * DOM overlay like combat/hud.ts. Map dots are fed to the zone minimap via setSquadMarks.
  */
 import { feedTopPx } from './hintText';
+import { reviveStatus } from './reviveUi';
+import { pingDistanceLabel } from './pings';
 import * as THREE from 'three';
 import { DOWN } from './balance';
 import { clampToScreenEdge } from './markerMath';
@@ -67,6 +69,9 @@ export class SquadHud {
   private readonly markersRoot: HTMLDivElement;
   private readonly markers = new Map<PlayerId, MarkerEl>();
   private feedMeasuredAt = -Infinity;
+  private readonly downedText: HTMLDivElement;
+  private readonly downedBar: HTMLDivElement;
+  private readonly downedTrack: HTMLDivElement;
   private readonly feedRoot: HTMLDivElement;
   private readonly feed: FeedLine[] = [];
   private readonly pingRoot: HTMLDivElement;
@@ -171,6 +176,18 @@ export class SquadHud {
       display: 'none',
       letterSpacing: '0.02em',
     } satisfies Partial<CSSStyleDeclaration>);
+    this.downedText = document.createElement('div');
+    const track = document.createElement('div');
+    Object.assign(track.style, {
+      marginTop: '6px', height: '6px', background: 'rgba(0,0,0,0.45)', borderRadius: '3px', overflow: 'hidden',
+    } satisfies Partial<CSSStyleDeclaration>);
+    this.downedBar = document.createElement('div');
+    Object.assign(this.downedBar.style, {
+      height: '100%', width: '100%', background: '#fff', transformOrigin: 'left center',
+    } satisfies Partial<CSSStyleDeclaration>);
+    track.appendChild(this.downedBar);
+    this.downedTrack = track;
+    this.downedBanner.append(this.downedText, track);
     this.root.appendChild(this.downedBanner);
 
     opts.parent.appendChild(this.root);
@@ -288,15 +305,24 @@ export class SquadHud {
       row.append(swatch, body);
     }
 
-    const local = state.members[this.localId];
-    if (local?.life === 'downed') {
-      this.downedBanner.style.display = 'block';
-      const left = Math.max(0, local.downHp);
-      this.downedBanner.textContent = `Downed · hold F for revive · ${left.toFixed(0)} knock hp`;
-      const pulse = 0.65 + 0.35 * Math.sin(nowMs * 0.008);
-      this.downedBanner.style.opacity = String(pulse);
+    // UI-01 / UI-02: downed banner with a bleed-out bar, revive prompt and revive progress.
+    const st = reviveStatus(state, this.localId);
+    const b = this.downedBanner.style;
+    if (!st) {
+      b.display = 'none';
     } else {
-      this.downedBanner.style.display = 'none';
+      b.display = 'block';
+      const downed = st.kind === 'downed' || st.kind === 'beingRevived';
+      b.top = downed ? '18%' : '60%';
+      b.fontSize = downed ? '18px' : '15px';
+      b.background = st.kind === 'downed' ? 'rgba(120,16,24,0.72)' : 'rgba(10,14,20,0.66)';
+      b.opacity = st.kind === 'downed' ? String(0.8 + 0.2 * Math.sin(nowMs * 0.006)) : '1';
+      if (this.downedText.textContent !== st.text) this.downedText.textContent = st.text;
+      this.downedTrack.style.display = st.bar == null ? 'none' : 'block';
+      if (st.bar != null) {
+        this.downedBar.style.transform = `scaleX(${st.bar})`;
+        this.downedBar.style.background = st.kind === 'downed' ? '#ff6a5a' : '#6ee38a';
+      }
     }
 
     // Expire kill feed lines after ~6 s.
@@ -429,9 +455,20 @@ export class SquadHud {
           background: 'rgba(255,229,102,0.35)',
           boxShadow: '0 0 0 1px rgba(0,0,0,0.6)',
         } satisfies Partial<CSSStyleDeclaration>);
+        const label = document.createElement('div');
+        Object.assign(label.style, {
+          position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)',
+          color: '#ffe566', fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap', textShadow: '0 1px 2px #000',
+        } satisfies Partial<CSSStyleDeclaration>);
+        el.appendChild(label);
         this.pingRoot.appendChild(el);
         this.pingEls.set(key, el);
       }
+      // UI-03: distance from the camera to the ping.
+      const cam = this.camera.position;
+      const txt = pingDistanceLabel(Math.hypot(p.x - cam.x, p.y - cam.y, p.z - cam.z));
+      const lab = el.firstChild as HTMLDivElement | null;
+      if (lab && lab.textContent !== txt) lab.textContent = txt;
       this._v.set(p.x, p.y + 0.5, p.z);
       this._v.project(this.camera);
       const scr = clampToScreenEdge(this._v.x, this._v.y, this._v.z, w, h, 28);
