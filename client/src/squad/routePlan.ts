@@ -10,8 +10,8 @@ export const ROUTE = {
   cell: 0.75,
   /** Search no further than this from the bot (m). */
   radius: 24,
-  /** Give up after expanding this many cells. */
-  maxNodes: 5000,
+  /** Give up after expanding this many cells (AI-08: was 5000, which could hitch a frame). */
+  maxNodes: 1500,
   /** Seconds of little progress before a bot plans a route. */
   stuckAfter: 0.7,
   /** A planned route is dropped after this long (the goal has probably moved). */
@@ -42,14 +42,14 @@ export function planRoute(from: P, to: P, isFree: (x: number, z: number) => bool
   const h = (i: number, j: number) => Math.hypot(i - gi, j - gj);
   const g = new Map<number, number>([[key(0, 0), 0]]);
   const parent = new Map<number, number>();
-  const open: { i: number; j: number; f: number }[] = [{ i: 0, j: 0, f: h(0, 0) }];
+  // AI-08: binary-heap open list (was a linear scan + splice per pop, quadratic in open size).
+  const open = new MinHeap();
+  open.push({ i: 0, j: 0, f: h(0, 0) });
   const closed = new Set<number>();
   let best = { i: 0, j: 0, h: h(0, 0) };
   let expanded = 0;
-  while (open.length && expanded < maxNodes) {
-    let bi = 0;
-    for (let k = 1; k < open.length; k++) if (open[k]!.f < open[bi]!.f) bi = k;
-    const cur = open.splice(bi, 1)[0]!;
+  while (open.size && expanded < maxNodes) {
+    const cur = open.pop()!;
     const ck = key(cur.i, cur.j);
     if (closed.has(ck)) continue;
     closed.add(ck);
@@ -83,6 +83,71 @@ export function planRoute(from: P, to: P, isFree: (x: number, z: number) => bool
   }
   cells.reverse();
   return smoothPath(from, cells, isFree, cell / 3);
+}
+
+type Node = { i: number; j: number; f: number };
+
+/** Small binary min-heap on `f`. */
+export class MinHeap {
+  private readonly a: Node[] = [];
+  get size(): number {
+    return this.a.length;
+  }
+  push(n: Node): void {
+    const a = this.a;
+    a.push(n);
+    let i = a.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (a[p]!.f <= a[i]!.f) break;
+      [a[p], a[i]] = [a[i]!, a[p]!];
+      i = p;
+    }
+  }
+  pop(): Node | undefined {
+    const a = this.a;
+    if (!a.length) return undefined;
+    const top = a[0]!;
+    const last = a.pop()!;
+    if (a.length) {
+      a[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = i * 2 + 1, r = l + 1;
+        let m = i;
+        if (l < a.length && a[l]!.f < a[m]!.f) m = l;
+        if (r < a.length && a[r]!.f < a[m]!.f) m = r;
+        if (m === i) break;
+        [a[m], a[i]] = [a[i]!, a[m]!];
+        i = m;
+      }
+    }
+    return top;
+  }
+}
+
+/**
+ * AI-08: at most `perFrame` route plans per frame across all bots, and a bot whose plan failed
+ * waits `failCooldown` seconds before trying again (an unreachable goal used to re-plan the
+ * full search every 0.7 s per bot).
+ */
+export function createPlanGate(perFrame = 1, failCooldown = 1.5) {
+  let used = 0;
+  const failedUntil = new Map<string, number>();
+  return {
+    newFrame(): void {
+      used = 0;
+    },
+    plan<T>(id: string, now: number, run: () => T | null): T | null {
+      if (used >= perFrame) return null;
+      if ((failedUntil.get(id) ?? -Infinity) > now) return null;
+      used++;
+      const r = run();
+      if (r == null) failedUntil.set(id, now + failCooldown);
+      else failedUntil.delete(id);
+      return r;
+    },
+  };
 }
 
 /** Drops waypoints that can be skipped with a straight, wall-free walk. */

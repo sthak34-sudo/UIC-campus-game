@@ -2,6 +2,8 @@
  * Gunshot sound (CC0, see CREDITS.md) played with Web Audio: quieter with distance and panned
  * left/right by where the shot came from. Loads lazily; silent until the browser allows audio.
  */
+import { sharedAudioContext } from './audioContext';
+
 type V3 = { x: number; y: number; z: number };
 
 export const GUN_SOUND = {
@@ -44,9 +46,9 @@ export function createGunSound(baseUrl: string): GunSound {
   let windowStart = 0;
   let count = 0;
   const load = () => {
-    if (loading || typeof AudioContext === 'undefined') return;
+    if (loading || !sharedAudioContext()) return;
     loading = true;
-    ctx = new AudioContext();
+    ctx = sharedAudioContext();
     fetch(baseUrl + GUN_SOUND.url)
       .then((r) => r.arrayBuffer())
       .then((a) => ctx!.decodeAudioData(a))

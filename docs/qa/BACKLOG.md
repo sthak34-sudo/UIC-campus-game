@@ -40,6 +40,7 @@ Built by the Project Lead from the eight round-1 audits in [`docs/qa/audit/`](au
 |---|---|---|
 | **Separate jog and sprint animations.** Jog (4.7 m/s) and sprint (6.3 m/s) play the same run clip, only sped up, so a sprint does not read as a sprint. Needs a CC0 sprint clip or a retarget. | Follow-up to CMB-08 | Art Director |
 | **Bot movement and sight.** Bots move at about 1.47 m/s, far below the player's 4.7 m/s jog. Their line-of-sight check is a fixed chest-height ray that ignores crouch, so crouching behind low cover does not change what a bot can see. | Follow-up to CMB-08, CMB-11 | AI |
+| **Hit feedback uses the shared hit events, not `notifyHit`.** Items 6 and 7 were built on the existing `core/hitEvents.ts` buses instead of a new `notifyHit` call: `playerDamaged {amount, source, from?, lethal?}` for hits on the player (the squad adapter emits bot hits, combat emits zone / fall / debug) and `playerHitEnemy {zone, damage, killed, distance}` for the player's hits. New damage sources should emit these. | Note on items 6 and 7 (CMB-04/05, UI-04/05) | Gameplay / AI |
 
 ## Batch 2: Fast and solid (Performance + World + Code Steward)
 

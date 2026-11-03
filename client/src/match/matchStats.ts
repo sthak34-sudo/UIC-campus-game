@@ -15,6 +15,14 @@ export function newStats(nowS: number): MatchStats {
   return { kills: 0, damage: 0, startS: nowS, endS: null };
 }
 
+/**
+ * Restart the survival clock at `nowS` (QA-01: when the player first gives input, not at mount).
+ * No-op once the match has ended for you.
+ */
+export function startClock(s: MatchStats, nowS: number): MatchStats {
+  return s.endS != null ? s : { ...s, startS: nowS };
+}
+
 export function addDamage(s: MatchStats, amount: number): MatchStats {
   if (s.endS != null || !(amount > 0)) return s;
   return { ...s, damage: s.damage + amount };
@@ -64,6 +72,8 @@ export function endTitle(reason: MatchEndReason): string {
 export function placementText(placement: number | null, squads: number, reason: MatchEndReason): string {
   if (reason === 'won') return `#1 of ${squads} squads`;
   if (squads <= 1 || placement == null) return 'Solo practice';
+  // AI-15: the last squads all went down together; nobody won.
+  if (reason === 'wiped' && placement === 1) return `No survivors · tied for #1 of ${squads} squads`;
   return `#${placement} of ${squads} squads`;
 }
 

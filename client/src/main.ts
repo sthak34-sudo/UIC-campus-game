@@ -1,4 +1,5 @@
-import { debugKeysEnabled, helpText } from './debug/debugKeys';
+import { debugKeysEnabled } from './debug/debugKeys';
+import { mountStartHelp } from './player/startHelp';
 import { createPerfOverlay } from './debug/perfOverlay';
 import { setRestartHandler } from './match/restart';
 import { inSpawnGrace } from './squad/enemySpawn';
@@ -52,7 +53,8 @@ async function start(): Promise<void> {
   initLoadingUi();
   const params = new URLSearchParams(location.search);
   const helpEl = document.getElementById('help');
-  if (helpEl) helpEl.textContent = helpText(helpEl.textContent ?? '', debugKeysEnabled(location.search));
+  // UI-07 / UI-22: short top line, start card, '?' controls overlay (no debug keys in public builds).
+  if (helpEl?.parentElement) mountStartHelp(helpEl.parentElement, debugKeysEnabled(location.search));
   const container = document.getElementById('app')!;
   setLoadProgress(0.05, 'Starting renderer…');
   const world = new World();

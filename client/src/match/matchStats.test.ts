@@ -29,3 +29,14 @@ describe('match-end stats', () => {
     expect(formatSurvival(3725)).toBe('1:02:05');
   });
 });
+
+describe('startClock (QA-01)', () => {
+  it('moves the start to the first input; survived time no longer counts loading', async () => {
+    const m = await import('./matchStats');
+    const s = m.startClock(m.newStats(10), 40);
+    expect(m.survivalSeconds(m.finish(s, 100), 200)).toBeCloseTo(60);
+    // After the match ended, a late start does nothing.
+    const done = m.finish(m.newStats(10), 20);
+    expect(m.startClock(done, 30).startS).toBe(10);
+  });
+});

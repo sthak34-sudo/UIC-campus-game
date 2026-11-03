@@ -48,6 +48,7 @@ export function localPlacementLine(
 ): string | null {
   if (won) return 'Victory! Your squad wins.';
   if (placement == null) return null;
+  if (placement === 1) return 'No survivors · every squad went down';
   const suffix = placement === 1 ? 'st' : placement === 2 ? 'nd' : placement === 3 ? 'rd' : 'th';
   return `#${placement}${suffix} place · ${squadsAlive} squad${squadsAlive === 1 ? '' : 's'} still alive`;
 }

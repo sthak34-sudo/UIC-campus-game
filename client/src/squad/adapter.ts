@@ -33,23 +33,35 @@ import { createGunSound } from '../audio/gunSound';
 import { createImpacts } from '../render/impacts';
 import { createImpactSound } from '../audio/impactSound';
 import { createWallProbe } from '../player/wallProbe';
-import { applyDamage } from './downed';
-import { botZoneDamage, botZoneGoal } from './botZone';
+import { applyDamage, applyZoneDamage } from './downed';
+import { crawlTarget, CRAWL_STOP_M, dryRetreatTarget } from './botFallback';
+import { BOT_SENSE, canNotice, newAcquire, offAxisDeg, stepAcquire, turnToward, type Acquire } from './botSense';
+import { BOT_COVER, coverCandidates, pickCover, shouldCrouch, wantsCover } from './botCover';
+import { newWatchdog, spiralFree, stepWatchdog, unstickSpot, type Watchdog } from './unstick';
+import { newSquadGoal, SQUAD_GOAL, stepSquadGoal, type SquadGoal } from './squadGoal';
+import { BOT_ZONE, botZoneDamage, botZoneGoal } from './botZone';
 import { shootBot } from './botHits';
 import { checkWipe } from './elimination';
 import { canDamage } from './friendlyFire';
 import { SquadHud } from './hud';
 import { localSquadWon, offlineRoster } from './matchSetup';
 import { MatchEndScreen } from '../match/matchEndScreen';
-import { playerDamaged } from '../core/hitEvents';
-import { addDamage, addKills, damageBetween, finish, killsBy, newStats, summarize } from '../match/matchStats';
-import { placePing, tickPings, type Ping } from './pings';
+import { playerDamaged, playerFired } from '../core/hitEvents';
+import { addDamage, addKills, damageBetween, finish, killsBy, newStats, startClock, summarize } from '../match/matchStats';
+import { onFirstInput } from '../core/firstInput';
+import { pingTarget, placePing, tickPings, type Ping } from './pings';
+import { castHitscan } from '../combat/weapon';
+
 import { createMatch } from './roster';
 import { nextTarget, spectateCamera, spectateLabel, spectateTargets, type Vec3 } from './spectate';
 import { allowKey, debugKeysEnabled } from '../debug/debugKeys';
+import { squadHintText } from './hintText';
 import { step, type PlayerInput } from './step';
 import type { PlayerId, SquadEvent, SquadMatchState } from './types';
-import { followRoute, newRouteState, planRoute, type RouteState } from './routePlan';
+import { createPlanGate, followRoute, newRouteState, planRoute, type RouteState } from './routePlan';
+
+/** Furthest a ping can land (m). */
+const PING_RANGE = 300;
 
 
 export type SquadMode = 'bots' | 'solo';
@@ -147,6 +159,21 @@ export function mountSquad(opts: {
       : null;
   const wallSide = new Map<PlayerId, 1 | -1>();
   const routes = new Map<PlayerId, RouteState>();
+  // AI-08: one route plan per frame for all bots, failed plans cached for 1.5 s.
+  const planGate = createPlanGate(1, 1.5);
+  // AI-13: where a dry bot is heading this frame (for route planning).
+  const dryGoal = new Map<PlayerId, { x: number; z: number }>();
+  // AI-01: loot -> rotate -> hunt goal for each squad without a human leader.
+  const squadGoals = new Map<string, SquadGoal>();
+  const watchdogs = new Map<PlayerId, Watchdog>();
+  // AI-02 / AI-03: facing with a turn rate, reaction delay per target, alert after a hit or a heard shot.
+  const facing = new Map<PlayerId, number>();
+  const acquire = new Map<PlayerId, Acquire>();
+  const alertUntil = new Map<PlayerId, number>();
+  const senseHp = new Map<PlayerId, number>();
+  // AI-04: current cover spot (or 'none found') per bot, and who is crouching this frame.
+  const cover = new Map<PlayerId, { at: { x: number; z: number } | null; until: number }>();
+  const crouching = new Set<PlayerId>();
   const probe = physBodies?.probe ?? null;
   // Bot rifles flash at the muzzle when they fire.
   const botFlashes = createMuzzleFlashes(opts.world.scene);
@@ -167,7 +194,11 @@ export function mountSquad(opts: {
     earEuler.setFromQuaternion(opts.camera.quaternion);
     gunSound.play(from, opts.camera.position, earEuler.y);
     botFlashes.spawn(from, to);
+    heardShots.push({ x: from.x, z: from.z, t: matchElapsed });
   };
+  // AI-03: recent gunshots (bots and the player); a bot that hears one looks all around for a moment.
+  const heardShots: { x: number; z: number; t: number }[] = [];
+  const offFired = playerFired.on((e) => heardShots.push({ x: e.from.x, z: e.from.z, t: matchElapsed }));
   // Bot rifles use the same Rapier world, hitboxes and damage rules as the player's shots.
   const botGun =
     player && physBodies
@@ -236,6 +267,17 @@ export function mountSquad(opts: {
         [id]: { ...m, pos: { x: spawn.x + ox, y: spawn.y, z: spawn.z + oz } },
       },
     };
+  }
+  // AI-06: every bot start is checked (no wall, ground under it) and moved to the nearest free cell.
+  if (wallProbe && probe) {
+    for (const id of botIds) {
+      const m = state.members[id]!;
+      const ok = (x: number, z: number) => wallProbe.free(x, m.pos.y, z) && probe.sample(x, m.pos.y + 3, z, 8) != null;
+      const p = spiralFree(m.pos, ok);
+      if (!p || (p.x === m.pos.x && p.z === m.pos.z)) continue;
+      console.info(`[squad] ${m.name} start moved ${Math.hypot(p.x - m.pos.x, p.z - m.pos.z).toFixed(1)} m to a free spot`);
+      state = { ...state, members: { ...state.members, [id]: { ...m, pos: { x: p.x, y: m.pos.y, z: p.z } } } };
+    }
   }
   // Sync player pos.
   state = {
@@ -421,6 +463,10 @@ export function mountSquad(opts: {
   });
   hudParent.appendChild(specBanner);
   let stats = newStats(performance.now() / 1000);
+  // Survived time counts from the player's first input, not from mount during boot (QA-01).
+  const offClock = onFirstInput(window, () => {
+    stats = startClock(stats, performance.now() / 1000);
+  });
   let statsCursor = 0;
   const checkEnd = () => {
     if (statsCursor < eventsLog.length) {
@@ -458,6 +504,10 @@ export function mountSquad(opts: {
     isDowned: () => state.members[playerId]?.life === 'downed',
     isDead: () => state.members[playerId]?.life === 'dead',
     getCombatant: () => ({ ...state.members[playerId]!.combatant }),
+    getKnock: () => {
+      const m = state.members[playerId];
+      return m?.life === 'downed' ? { hp: m.downHp, max: DOWN.hp } : null;
+    },
     setCombatant(c: Combatant) {
       syncPlayerCombatant(c);
       opts.combat.setVitals(c);
@@ -599,11 +649,18 @@ export function mountSquad(opts: {
       player?.setControlsEnabled(true);
     } else if (e.code === 'KeyP') {
       // Ping (P). Q stays combat medkit; design doc said Q but that key is taken.
-      const feet = player?.position ?? state.members[playerId]!.pos;
+      // UI-03: ping where the camera points (ray hit), not at your own feet.
+      const f = player?.position ?? state.members[playerId]!.pos;
+      const feet = { x: f.x, y: typeof f.y === 'number' ? f.y : 0, z: f.z };
+      const dir = opts.camera.getWorldDirection(new THREE.Vector3());
+      const cam = opts.camera.position;
+      const hit = player
+        ? castHitscan(player.rapier.world, { x: cam.x, y: cam.y, z: cam.z }, { x: dir.x, y: dir.y, z: dir.z }, PING_RANGE, player.rapier.playerCollider)
+        : null;
       pings = placePing(
         pings,
         playerId,
-        { x: feet.x, y: typeof feet.y === 'number' ? feet.y : 0, z: feet.z },
+        pingTarget({ x: cam.x, y: cam.y, z: cam.z }, { x: dir.x, y: dir.y, z: dir.z }, hit ? hit.distance : null, feet, PING_RANGE),
         state.t,
       );
     } else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
@@ -647,7 +704,7 @@ export function mountSquad(opts: {
   const panel = document.createElement('div');
   panel.id = 'squad-debug';
   panel.style.cssText =
-    `position:absolute;left:12px;bottom:${SQUAD_HINT_BOTTOM_PX}px;color:#e8e8e8;font:11px/1.35 ui-monospace,monospace;` +
+    `position:absolute;left:12px;bottom:${SQUAD_HINT_BOTTOM_PX}px;color:#e8e8e8;font:12px/1.35 system-ui,sans-serif;` +
     'background:rgba(0,0,0,.4);padding:6px 8px;border-radius:6px;pointer-events:none;z-index:20;white-space:pre';
   hudParent.appendChild(panel);
 
@@ -663,11 +720,12 @@ export function mountSquad(opts: {
     const speed = dt > 0 ? Math.hypot(p.x - body.last.x, p.z - body.last.z) / dt : 0;
     body.last.x = p.x;
     body.last.z = p.z;
-    body.avatar.setFlags({ crouch: life === 'downed', dead: life === 'dead' });
+    body.avatar.setFlags({ crouch: life === 'downed' || crouching.has(body.id), dead: life === 'dead' });
     body.avatar.update(dt, speed, true, null, opts.camera.position.distanceTo(p));
   };
 
   const onUpdate = (dt: number) => {
+    planGate.newFrame();
     matchElapsed += dt;
     botFlashes.update(dt, opts.camera);
     tracers.update(dt);
@@ -728,20 +786,33 @@ export function mountSquad(opts: {
       }
       body.root.visible = true;
 
-      // Visibility: nearest living foe within 28 m that the bot has a clear line of sight to.
+      // AI-03: hurt, or heard a shot close by: look all around for a few seconds.
+      const hpSense = member.combatant.health + member.combatant.armor;
+      if (hpSense < (senseHp.get(body.id) ?? hpSense)) alertUntil.set(body.id, matchElapsed + BOT_SENSE.alertS);
+      senseHp.set(body.id, hpSense);
+      while (heardShots.length && heardShots[0]!.t < matchElapsed - BOT_SENSE.alertS) heardShots.shift();
+      for (const s of heardShots) {
+        if (Math.hypot(s.x - member.pos.x, s.z - member.pos.z) < BOT_SENSE.hearM) {
+          alertUntil.set(body.id, Math.max(alertUntil.get(body.id) ?? -1, s.t + BOT_SENSE.alertS));
+        }
+      }
+      const alert = (alertUntil.get(body.id) ?? -1) > matchElapsed;
+      const yawNow = facing.get(body.id) ?? body.root.rotation.y;
+      const tracked = acquire.get(body.id)?.target ?? null;
+      // Visibility: nearest living foe within 28 m, in the bot's view (AI-03), with a clear line of sight.
       const foes: { id: PlayerId; dist: number }[] = [];
       for (const other of Object.values(state.members)) {
         if (other.id === body.id) continue;
         if (other.life === 'dead') continue;
         if (!canDamage(state, body.id, other.id)) continue;
         const d = Math.hypot(other.pos.x - member.pos.x, other.pos.z - member.pos.z);
-        if (d < 28) foes.push({ id: other.id, dist: d });
+        if (d < BOT_SENSE.rangeM && (other.id === tracked || canNotice(yawNow, member.pos, other.pos, alert))) foes.push({ id: other.id, dist: d });
       }
       const eyeAt = { x: member.pos.x, y: member.pos.y + EYE_Y, z: member.pos.z };
       const seen = pickVisibleTarget(foes, (f) => {
         if (!botSight) return true;
         const o = state.members[f.id]!;
-        return canSeeFoe(eyeAt, o.pos, o.life === 'downed', chestY, (a, b) => botSight.clear(a, b));
+        return canSeeFoe(eyeAt, o.pos, o.life === 'downed' || crouching.has(f.id), chestY, (a, b) => botSight.clear(a, b));
       });
       // Remember where the last foe was seen, so the bot goes to look instead of forgetting it.
       const memory = stepFoeMemory(
@@ -754,15 +825,27 @@ export function mountSquad(opts: {
       if (memory) foeMemory.set(body.id, memory);
       else foeMemory.delete(body.id);
       const nearestEnemyId: PlayerId | null = seen?.id ?? null;
-      const nearestDist = seen?.dist ?? 28;
-      const leaderId = body.enemy
-        ? (state.squads[member.squad]!.members.find((id) => state.members[id]?.life === 'alive') ?? body.id)
+      const nearestDist = seen?.dist ?? BOT_SENSE.rangeM;
+      // AI-02: a new target costs a reaction delay before the first shot.
+      const acq = stepAcquire(
+        acquire.get(body.id) ?? newAcquire(),
+        nearestEnemyId,
+        nearestDist,
+        seen ? offAxisDeg(yawNow, member.pos, state.members[seen.id]!.pos) : 0,
+        dt,
+        Math.random,
+      );
+      acquire.set(body.id, acq.a);
+      // AI-16: once the human is out, the first living teammate bot leads the squad.
+      const leaderId = body.enemy || state.members[playerId]?.life === 'dead'
+        ? (state.squads[member.squad]!.members.find((id) => id !== playerId && state.members[id]?.life === 'alive') ?? body.id)
         : playerId;
       const zoneView = opts.zone?.snapshot?.() ?? null;
       const zoneGoal = member.life === 'alive' ? botZoneGoal(zoneView, member.pos) : null;
       const zoneHurt = inSpawnGrace(matchElapsed) ? 0 : botZoneDamage(zoneView, member.pos, dt, DOWN.zoneDamageMult);
       if (zoneHurt > 0) {
-        const r = applyDamage(state, body.id, 'zone', takeDirectDamage(member.combatant, zoneHurt));
+        // AI-14: downed bots lose knock health in the zone too.
+        const r = applyZoneDamage(state, body.id, zoneHurt);
         state = r.state;
         eventsLog.push(...r.events);
       }
@@ -773,6 +856,9 @@ export function mountSquad(opts: {
         inZoneDanger: zoneGoal != null,
         zoneCenter: zoneGoal ?? { x: feet.x, z: feet.z },
       });
+      // AI-01: a squad leader used to 'follow' itself and never move. It now walks the squad goal below.
+      const leads = leaderId === body.id && intent.type === 'follow' && intent.target === body.id;
+      if (leads) intent = { type: 'idle' };
       if (memory && !seen && (intent.type === 'follow' || intent.type === 'idle')) {
         // Lost sight of a foe: go check its last-seen spot, facing it, ready to shoot.
         intent = { type: 'moveTo', x: memory.x, z: memory.z };
@@ -824,6 +910,24 @@ export function mountSquad(opts: {
           }
         }
       }
+      if (leads && intent.type === 'idle' && !channel) {
+        const foes: { x: number; z: number }[] = [];
+        for (const o of Object.values(state.members)) if (o.squad !== member.squad && o.life !== 'dead') foes.push(o.pos);
+        const leadKit = kit;
+        const g = stepSquadGoal(squadGoals.get(member.squad) ?? newSquadGoal(), {
+          leader: member.pos,
+          dt,
+          zone: zoneView,
+          findLoot: () => {
+            const l = opts.combat.lootNear(member.pos, SQUAD_GOAL.lootSeekM, (k) => botWants(k, leadKit));
+            return l ? { x: l.position.x, z: l.position.z } : null;
+          },
+          foes,
+        });
+        if (g.phase !== squadGoals.get(member.squad)?.phase) console.info(`[squad] squad ${member.squad} goal: ${g.phase}`);
+        squadGoals.set(member.squad, g);
+        if (g.target) intent = { type: 'moveTo', x: g.target.x, z: g.target.z };
+      }
       // Reload: always when empty, topping up when calm. Same reload time as the player.
       const wasReloading = kit.reloading > 0;
       kit = maybeStartReload(kit, calm);
@@ -836,8 +940,36 @@ export function mountSquad(opts: {
 
       let pos = { ...member.pos };
       let hold = false;
+      let stepSpeed = botSpeed;
+      dryGoal.delete(body.id);
+      crouching.delete(body.id);
       if (member.life === 'downed') {
-        // Crawl in place for now.
+        // AI-17: crawl toward the nearest alive teammate (stops inside revive range, never into a wall).
+        const to = crawlTarget(state, body.id);
+        if (to) {
+          const stepped = stepToward({ x: pos.x, z: pos.z }, to, DOWN.crawlSpeed, dt, CRAWL_STOP_M);
+          if (!wallProbe || wallProbe.free(stepped.x, pos.y, stepped.z)) pos = { x: stepped.x, y: pos.y, z: stepped.z };
+          body.root.rotation.y = Math.atan2(to.x - pos.x, to.z - pos.z);
+        }
+      } else if (intent.type === 'shoot' && nearestEnemyId && botDry(kits.get(body.id) ?? starterKit())) {
+        // AI-13: no rounds left: grab ammo close by, else back off (to the leader if safer) instead of charging.
+        const foe = state.members[nearestEnemyId]!;
+        const dryKit = kits.get(body.id) ?? starterKit();
+        const ammo = opts.combat.lootNear(member.pos, BOT_LOOT.seekM, (k) => botWants(k, dryKit));
+        let to: { x: number; z: number };
+        if (ammo && canGrab(member.pos, ammo.position)) {
+          const got = opts.combat.takeLoot(ammo.index);
+          if (got) kits.set(body.id, grantBotLoot(dryKit, got));
+          to = { x: pos.x, z: pos.z };
+        } else if (ammo) {
+          to = { x: ammo.position.x, z: ammo.position.z };
+        } else {
+          const lead = leaderId !== body.id ? state.members[leaderId] : null;
+          to = dryRetreatTarget(pos, foe.pos, lead && lead.life === 'alive' ? lead.pos : null);
+        }
+        const stepped = stepToward({ x: pos.x, z: pos.z }, to, botSpeed, dt, 0.4);
+        pos = { x: stepped.x, y: pos.y, z: stepped.z };
+        dryGoal.set(body.id, to);
       } else if (intent.type === 'follow') {
         const leader = state.members[intent.target]!;
         const stepped = stepToward(
@@ -849,10 +981,13 @@ export function mountSquad(opts: {
         );
         pos = { x: stepped.x, y: pos.y, z: stepped.z };
       } else if (intent.type === 'moveTo') {
+        // AI-05: run when heading for the zone.
+        const running = zoneGoal != null && intent.x === zoneGoal.x && intent.z === zoneGoal.z;
+        if (running) stepSpeed = BOT_ZONE.sprintMps;
         const stepped = stepToward(
           { x: pos.x, z: pos.z },
           { x: intent.x, z: intent.z },
-          botSpeed,
+          running ? BOT_ZONE.sprintMps : botSpeed,
           dt,
           0.4,
         );
@@ -862,17 +997,40 @@ export function mountSquad(opts: {
       } else if (intent.type === 'shoot' && nearestEnemyId) {
         // Walk toward the target and shoot at it with a real hitscan.
         const foe = state.members[nearestEnemyId]!;
+        // AI-04 (first pass): hold ~10 m instead of walking up to 4 m; duck behind cover to reload or when hurt.
+        const kitNow = kits.get(body.id) ?? starterKit();
+        let spot = cover.get(body.id);
+        if (spot && matchElapsed > spot.until) spot = undefined;
+        if (!wantsCover(kitNow.reloading > 0, member.combatant.health, member.combatant.maxHealth)) spot = undefined;
+        else if (!spot && botSight && wallProbe) {
+          const foeEye = { x: foe.pos.x, y: foe.pos.y + EYE_Y, z: foe.pos.z };
+          const c = pickCover(
+            pos,
+            foe.pos,
+            coverCandidates(pos),
+            (p) => wallProbe.free(p.x, pos.y, p.z),
+            (p) => !botSight.clear(foeEye, { x: p.x, y: pos.y + chestY(false), z: p.z }),
+          );
+          // No cover nearby: remember that too, so the rays aren't cast again every frame.
+          spot = { at: c, until: matchElapsed + BOT_COVER.keepS };
+        }
+        if (spot) cover.set(body.id, spot);
+        else cover.delete(body.id);
+        const coverAt = spot?.at ?? null;
         const stepped = stepToward(
           { x: pos.x, z: pos.z },
-          { x: foe.pos.x, z: foe.pos.z },
-          botSpeed * 0.85,
+          coverAt ?? { x: foe.pos.x, z: foe.pos.z },
+          botSpeed * (coverAt ? 1 : 0.85),
           dt,
-          4,
+          coverAt ? 0.3 : BOT_COVER.holdM,
         );
         pos = { x: stepped.x, y: pos.y, z: stepped.z };
+        if (shouldCrouch(stepped.moved, nearestDist) || (coverAt && !stepped.moved)) crouching.add(body.id);
         body.root.rotation.y = Math.atan2(foe.pos.x - pos.x, foe.pos.z - pos.z);
         const gunKit = kits.get(body.id) ?? starterKit();
-        const armed = botGun != null && botCanShoot(gunKit);
+        // AI-02 / AI-03: fire only after the reaction delay and once the body has turned to face the target.
+        const facingFoe = offAxisDeg(facing.get(body.id) ?? body.root.rotation.y, pos, foe.pos) <= BOT_SENSE.aimConeDeg;
+        const armed = botGun != null && botCanShoot(gunKit) && acq.ready && facingFoe;
         const trig = botTrigger(triggerCooldown.get(body.id) ?? 0, dt, armed, nearestDist, Math.random);
         triggerCooldown.set(body.id, trig.cooldown);
         if (trig.fire && botGun && !inSpawnGrace(matchElapsed)) {
@@ -880,12 +1038,14 @@ export function mountSquad(opts: {
           kits.set(body.id, spent);
           if (botDry(spent)) console.info(`[squad] ${member.name} is out of ammo`);
           // Bullets leave the rifle barrel (or the eye if the barrel is poking into a wall).
-          const eye = { x: pos.x, y: pos.y + EYE_Y, z: pos.z };
-          const muzzle = muzzlePoint(pos, body.root.rotation.y);
+          const drop = crouching.has(body.id) ? BOT_COVER.crouchDropM : 0;
+          const eye = { x: pos.x, y: pos.y + EYE_Y - drop, z: pos.z };
+          const m0 = muzzlePoint(pos, body.root.rotation.y);
+          const muzzle = { ...m0, y: m0.y - drop };
           const origin = botSight ? shotOrigin(eye, muzzle, (a, b) => botSight.clear(a, b)) : muzzle;
           // A crouched player is shorter: aim at their real head and chest (CODE-14).
           const foeHeight = nearestEnemyId === playerId && opts.player ? opts.player.bodyHeight() : undefined;
-          const aim = botAimPoint(foe.pos, nearestDist, foe.life === 'downed', Math.random, foeHeight);
+          const aim = botAimPoint(foe.pos, nearestDist, foe.life === 'downed' || crouching.has(nearestEnemyId), Math.random, foeHeight);
           const shot = botGun.fire(body.phys, origin, aim, BOT_AIM.range + 5);
           const victimId =
             shot?.kind === 'player' ? playerId : shot?.kind === 'bot' ? bots.find((b) => b.phys === shot.id)?.id : undefined;
@@ -913,6 +1073,8 @@ export function mountSquad(opts: {
         }
       }
 
+      // Did the bot mean to move this frame? (Standing at follow spacing or in range is not "stuck".)
+      const wantedMove = Math.hypot(pos.x - member.pos.x, pos.z - member.pos.z) > 1e-3;
       if (member.life !== 'downed') {
         // Keep personal space from the other bots and the player; slide around anyone in the way.
         const others: { x: number; z: number }[] = [{ x: feet.x, z: feet.z }];
@@ -920,7 +1082,7 @@ export function mountSquad(opts: {
           if (o.id === body.id || o.id === playerId || o.life === 'dead') continue;
           others.push(o.pos);
         }
-        const steered = steerStep(member.pos, pos, others, Math.max(0.02, botSpeed * dt * 1.5));
+        const steered = steerStep(member.pos, pos, others, Math.max(0.02, stepSpeed * dt * 1.5));
         pos = { x: steered.x, y: pos.y, z: steered.z };
         if (wallProbe) {
           const from = member.pos;
@@ -928,11 +1090,23 @@ export function mountSquad(opts: {
           const goal =
             intent.type === 'follow' ? state.members[intent.target]!.pos
               : intent.type === 'moveTo' ? { x: intent.x, z: intent.z }
+                : dryGoal.has(body.id) ? dryGoal.get(body.id)!
+                : intent.type === 'shoot' && cover.get(body.id)?.at ? cover.get(body.id)!.at!
                 : intent.type === 'shoot' && nearestEnemyId ? state.members[nearestEnemyId]!.pos
                   : null;
-          if (goal) {
+          // AI-06 / AI-07: no progress toward the goal for 8 s: jump to the nearest free cell on the way.
+          const wd = stepWatchdog(watchdogs.get(body.id) ?? newWatchdog(), from, wantedMove ? goal : null, dt);
+          watchdogs.set(body.id, wd.w);
+          if (wd.fire && goal) {
+            const spot = unstickSpot(from, goal, (x, z) => wallProbe.free(x, from.y, z) && (!probe || probe.sample(x, from.y + 3, z, 8) != null));
+            if (spot) {
+              console.info(`[squad] ${member.name} stuck 8 s at (${from.x.toFixed(1)}, ${from.z.toFixed(1)}): moved to (${spot.x.toFixed(1)}, ${spot.z.toFixed(1)})`);
+              pos = { x: spot.x, y: pos.y, z: spot.z };
+              routes.set(body.id, newRouteState());
+            }
+          } else if (goal) {
             const f = followRoute(routes.get(body.id) ?? newRouteState(), from, pos, goal, dt, (a, b) =>
-              planRoute(a, b, (x, z) => wallProbe.free(x, from.y, z)),
+              planGate.plan(body.id, state.t, () => planRoute(a, b, (x, z) => wallProbe.free(x, from.y, z))),
             );
             routes.set(body.id, f.rs);
             pos = { x: f.to.x, y: pos.y, z: f.to.z };
@@ -945,12 +1119,17 @@ export function mountSquad(opts: {
       }
       pos = { ...pos, y: snapBotY(probe, pos.x, pos.y, pos.z) };
       body.root.position.set(pos.x, pos.y, pos.z);
-      physBodies?.move(body.phys, pos.x, pos.y, pos.z, member.life === 'downed' ? 'downed' : 'stand');
+      // A crouching bot uses the short (downed-height) hit body so its hitbox matches the pose (AI-04).
+      physBodies?.move(body.phys, pos.x, pos.y, pos.z, member.life === 'downed' || crouching.has(body.id) ? 'downed' : 'stand');
       if (intent.type === 'follow' || intent.type === 'moveTo') {
         const tx = intent.type === 'follow' ? state.members[intent.target]!.pos.x : intent.x;
         const tz = intent.type === 'follow' ? state.members[intent.target]!.pos.z : intent.z;
         body.root.rotation.y = Math.atan2(tx - pos.x, tz - pos.z);
       }
+      // AI-03: the code above sets where the bot wants to face; the body turns there at 300 deg/s.
+      const turned = turnToward(facing.get(body.id) ?? body.root.rotation.y, body.root.rotation.y, dt);
+      facing.set(body.id, turned);
+      body.root.rotation.y = turned;
       physBodies?.setYaw(body.phys, body.root.rotation.y);
 
       state = {
@@ -1028,13 +1207,12 @@ export function mountSquad(opts: {
       poseBot(body, m.life, dt);
     }
 
-    const specHint = spectateId ? ` · spectate ${state.members[spectateId]?.name ?? spectateId}` : '';
-    panel.textContent =
-      (debugKeys ? `K knock/finish you · J knock Bot1 · L heal · P ping · hold F revive · O wipe` : `P ping · hold F revive`) +
-      (bleedFast ? ' · bleedFast' : '') +
-      (enemySquads ? ` · enemy×${enemySquads}` : '') +
-      (pings.length ? ` · ping×${pings.length}` : '') +
-      specHint;
+    // UI-09: public HUD shows only the key hint; counters stay behind ?debug.
+    const hint = squadHintText({
+      debug: debugKeys, bleedFast, enemySquads, pings: pings.length,
+      spectating: spectateId ? state.members[spectateId]?.name ?? spectateId : null,
+    });
+    if (panel.textContent !== hint) panel.textContent = hint;
   };
 
   const offUpdate = opts.world.onUpdate(onUpdate);
@@ -1054,6 +1232,10 @@ export function mountSquad(opts: {
       squadHud.dispose();
       endUi.dispose();
       panel.remove();
+      // QA-04: the banner was left behind on every Play again.
+      specBanner.remove();
+      offClock();
+      offFired();
       botFlashes.dispose();
       physBodies?.dispose();
       tracers.dispose();

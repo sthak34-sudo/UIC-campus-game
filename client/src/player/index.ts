@@ -1,5 +1,6 @@
 import { mark } from '../core/bootTimings';
 import { mountClickToPlay } from './clickToPlay';
+import { debugKeysEnabled } from '../debug/debugKeys';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { World } from '../core/world';
@@ -210,7 +211,10 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
   };
   const input = new InputController(dom, {
     onToggleView: () => setMode(rig.mode === 'third' ? 'first' : 'third'),
-    onToggleDebug: () => hud.toggleDebug(),
+    // UI-22: F3 is a debug key; it does nothing in public builds unless ?debug is set.
+    onToggleDebug: () => {
+      if (debugKeysEnabled(location.search)) hud.toggleDebug();
+    },
     onInteract: () => {
       const f = rig.forward();
       events.emit('interact', { position: { x: phys.feet.x, y: phys.feet.y, z: phys.feet.z }, facing: f });

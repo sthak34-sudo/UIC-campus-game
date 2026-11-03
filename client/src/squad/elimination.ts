@@ -26,6 +26,10 @@ export function checkWipe(
   // Snapshot squad ids so we process a stable order.
   const squadIds = Object.keys(nextState.squads).sort();
 
+  // AI-15 tie rule: every squad wiped in the same step is ranked together. The one with the
+  // most knock health left places best; equal knock health shares the place. A step that wipes
+  // every remaining squad has no winner (no matchWon), never a "Victory".
+  const wiped: { sid: string; score: number }[] = [];
   for (const sid of squadIds) {
     const squad = nextState.squads[sid]!;
     if (squad.eliminated) continue;
@@ -33,8 +37,19 @@ export function checkWipe(
     if (members.length === 0) continue;
     const allOut = members.every((m) => m.life === 'downed' || m.life === 'dead');
     if (!allOut) continue;
-
-    const placement = nextState.squadsAlive;
+    const score = members.reduce((a, m) => a + (m.life === 'downed' ? Math.max(0, m.downHp) : 0), 0);
+    wiped.push({ sid, score });
+  }
+  wiped.sort((a, b) => b.score - a.score || (a.sid < b.sid ? -1 : 1));
+  const aliveBefore = nextState.squadsAlive;
+  const firstPlace = aliveBefore - wiped.length + 1;
+  let place = firstPlace;
+  wiped.forEach((w, idx) => {
+    if (idx > 0 && w.score < wiped[idx - 1]!.score) place = firstPlace + idx;
+    const sid = w.sid;
+    const squad = nextState.squads[sid]!;
+    const members = squad.members.map((id) => nextState.members[id]!).filter(Boolean);
+    const placement = place;
     const membersMap = { ...nextState.members };
     for (const m of members) {
       if (m.life === 'downed') {
@@ -59,7 +74,7 @@ export function checkWipe(
       squadsAlive: nextState.squadsAlive - 1,
     };
     events.push({ type: 'squadWiped', squad: sid, placement });
-  }
+  });
 
   // Last squad standing wins.
   // Needs at least two squads in the match: a lone squad (no enemies) never 'wins' by default.

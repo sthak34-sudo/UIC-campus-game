@@ -1,7 +1,7 @@
 /**
  * Downed state, bleed-out and finish damage. Pure: no three.js, no Rapier, no DOM.
  */
-import type { HitOutcome } from '../combat/health';
+import { takeDirectDamage, type HitOutcome } from '../combat/health';
 import { DOWN } from './balance';
 import { hasAliveTeammate } from './roster';
 import type { PlayerId, SquadEvent, SquadMatchState, SquadMember } from './types';
@@ -148,4 +148,21 @@ export function tickBleed(
   }
 
   return { state: nextState, events };
+}
+
+/**
+ * Zone damage for any squad member (AI-14). Alive members take it as normal health damage;
+ * downed members lose knock health (applyDamage ignores downed victims, so the zone used to
+ * leave downed bots alone until they bled out). Credit goes to 'zone'.
+ */
+export function applyZoneDamage(
+  state: SquadMatchState,
+  id: PlayerId,
+  amount: number,
+): { state: SquadMatchState; events: SquadEvent[] } {
+  const m = state.members[id];
+  if (!m || amount <= 0) return { state, events: [] };
+  if (m.life === 'downed') return applyDownedDamage(state, id, 'zone', amount);
+  if (m.life !== 'alive') return { state, events: [] };
+  return applyDamage(state, id, 'zone', takeDirectDamage(m.combatant, amount));
 }

@@ -3,6 +3,7 @@
  * Sits on the page's #hud layer (pointer-events pass through except the respawn button).
  */
 import { COMBAT } from './balance';
+import { vitalsReadout } from './vitalsReadout';
 import type { HitmarkerStyle } from './hitFeedback';
 
 export interface HudState {
@@ -17,6 +18,10 @@ export interface HudState {
   reloading: boolean;
   reloadLeft: number;
   prompt: string;
+  /** Knock health while downed (QA-07); null or absent when up. */
+  knock?: { hp: number; max: number } | null;
+  /** Hide health, ammo and kit lines (dead and spectating, QA-07). */
+  hidden?: boolean;
 }
 
 /** Crosshair arm size (px) and the gap limits. */
@@ -36,6 +41,7 @@ export class CombatHud {
   private readonly root: HTMLDivElement;
   private readonly healthFill: HTMLDivElement;
   private readonly healthText: HTMLDivElement;
+  private readonly stack: HTMLDivElement;
   private readonly armorFill: HTMLDivElement;
   private readonly ammoEl: HTMLDivElement;
   private readonly invEl: HTMLDivElement;
@@ -126,6 +132,7 @@ export class CombatHud {
     this.root.appendChild(this.marker);
 
     const stack = document.createElement('div');
+    this.stack = stack;
     Object.assign(stack.style, {
       position: 'absolute', left: '16px', bottom: '28px', width: '240px',
       textShadow: '0 1px 2px #000', color: '#f4f7f4',
@@ -193,10 +200,13 @@ export class CombatHud {
   }
 
   setState(s: HudState): void {
-    const h = s.maxHealth <= 0 ? 0 : Math.max(0, Math.min(1, s.health / s.maxHealth));
-    this.healthFill.style.transform = `scaleX(${h})`;
+    const show = s.hidden ? 'none' : 'block';
+    if (this.stack.style.display !== show) this.stack.style.display = show;
+    const v = vitalsReadout(s);
+    this.healthFill.style.transform = `scaleX(${v.fill})`;
+    this.healthFill.style.background = v.color;
     this.armorFill.style.transform = `scaleX(${Math.max(0, Math.min(1, s.armor / COMBAT.armorCap))})`;
-    this.healthText.textContent = `Health ${Math.ceil(s.health)}    Armor ${Math.ceil(s.armor)}`;
+    this.healthText.textContent = v.text;
     if (!s.hasGun) this.ammoEl.textContent = 'No rifle';
     else if (s.reloading) this.ammoEl.textContent = `Reloading ${s.reloadLeft.toFixed(1)}s`;
     else this.ammoEl.textContent = `${s.mag} / ${COMBAT.magSize}    ${s.reserve} reserve`;
@@ -212,6 +222,11 @@ export class CombatHud {
   }
 
   flashHint(text: string): void {
+    // Same text already on screen: just keep it up, no DOM rewrite (no flicker).
+    if (this.hintLeft > 0 && this.hint === text) {
+      this.hintLeft = 1.4;
+      return;
+    }
     this.hint = text;
     this.hintLeft = 1.4;
     this.hintEl.style.display = 'block';

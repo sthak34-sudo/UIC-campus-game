@@ -7,7 +7,8 @@
  */
 import { debugKeysEnabled } from '../debug/debugKeys';
 import { MatchEndScreen } from '../match/matchEndScreen';
-import { addDamage, addKills, finish, newStats, summarize } from '../match/matchStats';
+import { addDamage, addKills, finish, newStats, startClock, summarize } from '../match/matchStats';
+import { onFirstInput } from '../core/firstInput';
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import type { World } from '../core/world';
@@ -18,11 +19,12 @@ import { PracticeDummies } from './dummy';
 import { CombatHud } from './hud';
 import { canFire, canReload } from './damage';
 import { zonePulseStep } from './damageRules';
-import { playerDamaged, playerHitEnemy, type DamageSource, type PlayerDamagedEvent, type PlayerHitEnemyEvent } from '../core/hitEvents';
+import { playerDamaged, playerFired, playerHitEnemy, type DamageSource, type PlayerDamagedEvent, type PlayerHitEnemyEvent } from '../core/hitEvents';
 import {
-  addIndicator, hitmarkerStyle, incomingReaction, indicatorAlpha, indicatorAngle, stepIndicators, type Indicator,
+  addIndicator, hintDue, hitmarkerStyle, incomingReaction, indicatorAlpha, indicatorAngle, stepIndicators, type Indicator,
 } from './hitFeedback';
 import { createFeedbackSound } from '../audio/feedbackSound';
+import { installAudioUnlock } from '../audio/audioContext';
 import { addBloom, coneDirection, crosshairGapPx, decayBloom, MAX_SHOTS_PER_FRAME, recoilKick, shotTime, spreadDegrees } from './gunFeel';
 import {
   addArmor, createCombatant, healCombatant, isDown, takeDirectDamage, type Combatant,
@@ -57,6 +59,8 @@ export interface CombatSquadBridge {
   applyPlayerDamage(amount: number, attackerId: string | null): { combatant: Combatant; dead: boolean };
   /** Pull the latest combatant snapshot from the squad match. */
   getCombatant(): Combatant;
+  /** Knock health while the player is downed, else null (QA-07 HUD). */
+  getKnock?(): { hp: number; max: number } | null;
   /** Write combatant back (medkit / heal-all). */
   setCombatant(c: Combatant): void;
   /**
@@ -156,6 +160,8 @@ export async function mountCombat(opts: {
   let bloom = 0;
   /** Live damage-direction wedges (CMB-04). */
   let indicators: Indicator[] = [];
+  /** When the throttled 'Teammate' hint last showed (s, performance clock). */
+  let teammateHintAt = -Infinity;
   const feedback = createFeedbackSound();
   const currentSpread = () => (opts.player ? spreadDegrees(opts.player.gunStance(), bloom) : 0);
 
@@ -173,6 +179,10 @@ export async function mountCombat(opts: {
   const now = () => performance.now() / 1000;
   // Solo match-end screen (squads have their own in the squad adapter).
   let soloStats = newStats(now());
+  // QA-01: the solo clock starts at the first input too.
+  const offClock = onFirstInput(window, () => {
+    soloStats = startClock(soloStats, now());
+  });
   // Created on first solo death only, so squad mode has a single #match-end.
   let soloEnd: MatchEndScreen | null = null;
 
@@ -198,6 +208,8 @@ export async function mountCombat(opts: {
       reloading,
       reloadLeft: reloading ? Math.max(0, reloadReadyAt - now()) : 0,
       prompt: healing ? channelLabel(healing) : near ? pickupPrompt(near.kind) : '',
+      knock: squad && playerDowned() ? squad.getKnock?.() ?? null : null,
+      hidden: !!squad && playerDead(),
     });
   };
 
@@ -349,6 +361,7 @@ export async function mountCombat(opts: {
     const kick = recoilKick(player.gunStance().aiming, Math.random);
     player.addRecoil(kick.pitch * (Math.PI / 180), kick.yaw * (Math.PI / 180));
     player.playFire();
+    playerFired.emit({ from: { x: muzzle.x, y: muzzle.y, z: muzzle.z } });
     fx.muzzle(muzzle);
     // Tracer from the barrel to where the bullet stopped (what it hit, or the crosshair point).
     const gunTip = player.getMuzzleWorld(new THREE.Vector3()) ?? null;
@@ -368,7 +381,13 @@ export async function mountCombat(opts: {
       } else {
         const bot = squad?.shootBot?.(hit.colliderHandle, hit.point.y, hit.distance, { x: dir.x, y: dir.y, z: dir.z });
         if (bot) {
-          if (bot.blocked) hud.flashHint('Teammate');
+          if (bot.blocked) {
+            // Throttled so a held trigger on a teammate does not restart the hint every shot.
+            if (hintDue(teammateHintAt, now())) {
+              teammateHintAt = now();
+              hud.flashHint('Teammate');
+            }
+          }
           else {
             playerHitEnemy.emit({
               zone: bot.zone ?? (bot.headshot ? 'head' : 'body'), damage: bot.dealt ?? 0, killed: bot.killed ?? false, distance: hit.distance,
@@ -466,6 +485,7 @@ export async function mountCombat(opts: {
   };
 
   const offs: (() => void)[] = [];
+  offs.push(offClock);
   if (opts.player) {
     offs.push(opts.player.events.on('fire', () => fire()));
     offs.push(opts.player.events.on('reload', () => reload()));
@@ -473,6 +493,8 @@ export async function mountCombat(opts: {
     offs.push(opts.player.events.on('useMedkit', () => useMedkit()));
     offs.push(opts.player.events.on('useBandage', () => useBandage()));
     offs.push(opts.player.events.on('interact', onInteract));
+    // Start the shared audio context on the first click / key so the first hit sound plays.
+    offs.push(installAudioUnlock(window));
     offs.push(playerDamaged.on(onPlayerDamaged));
     offs.push(playerHitEnemy.on(onPlayerHitEnemy));
     offs.push(opts.player.events.on('sprint', () => cancelHeal(healInterruptHint('sprint'))));

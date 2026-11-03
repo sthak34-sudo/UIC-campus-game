@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  INDICATOR, addIndicator, hitmarkerStyle, incomingReaction, indicatorAlpha, indicatorAngle, indicatorWeight,
+  INDICATOR, addIndicator, hintDue, TEAMMATE_HINT_GAP, hitmarkerStyle, incomingReaction, indicatorAlpha, indicatorAngle, indicatorWeight,
   ruleSource, stepIndicators, wrapAngle,
 } from './hitFeedback';
 
@@ -92,5 +92,22 @@ describe('hitmarkerStyle (CMB-05 / UI-05)', () => {
     expect(kill.color).not.toBe('#ffffff');
     expect(kill.life).toBeGreaterThan(hit.life);
     expect(hitmarkerStyle('head', true).kind).toBe('kill');
+  });
+});
+
+describe('hintDue (Teammate hint throttle)', () => {
+  it('lets one hint through, then holds the rest of a full-auto burst', () => {
+    let last = -Infinity;
+    let shown = 0;
+    for (let i = 0; i < 22; i++) {
+      const t = i / 11; // 2 s of full auto at 11 shots/s
+      if (hintDue(last, t)) {
+        last = t;
+        shown++;
+      }
+    }
+    expect(shown).toBe(2);
+    expect(hintDue(0, TEAMMATE_HINT_GAP)).toBe(true);
+    expect(hintDue(0, TEAMMATE_HINT_GAP - 0.01)).toBe(false);
   });
 });
