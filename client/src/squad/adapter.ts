@@ -33,7 +33,7 @@ import { createGunSound } from '../audio/gunSound';
 import { createImpacts } from '../render/impacts';
 import { createImpactSound } from '../audio/impactSound';
 import { createWallProbe } from '../player/wallProbe';
-import { applyDamage } from './downed';
+import { applyDamage, applyZoneDamage } from './downed';
 import { botZoneDamage, botZoneGoal } from './botZone';
 import { shootBot } from './botHits';
 import { checkWipe } from './elimination';
@@ -787,7 +787,8 @@ export function mountSquad(opts: {
       const zoneGoal = member.life === 'alive' ? botZoneGoal(zoneView, member.pos) : null;
       const zoneHurt = inSpawnGrace(matchElapsed) ? 0 : botZoneDamage(zoneView, member.pos, dt, DOWN.zoneDamageMult);
       if (zoneHurt > 0) {
-        const r = applyDamage(state, body.id, 'zone', takeDirectDamage(member.combatant, zoneHurt));
+        // AI-14: downed bots lose knock health in the zone too.
+        const r = applyZoneDamage(state, body.id, zoneHurt);
         state = r.state;
         eventsLog.push(...r.events);
       }

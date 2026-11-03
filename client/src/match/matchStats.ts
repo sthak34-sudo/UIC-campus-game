@@ -72,6 +72,8 @@ export function endTitle(reason: MatchEndReason): string {
 export function placementText(placement: number | null, squads: number, reason: MatchEndReason): string {
   if (reason === 'won') return `#1 of ${squads} squads`;
   if (squads <= 1 || placement == null) return 'Solo practice';
+  // AI-15: the last squads all went down together; nobody won.
+  if (reason === 'wiped' && placement === 1) return `No survivors · tied for #1 of ${squads} squads`;
   return `#${placement} of ${squads} squads`;
 }
 
