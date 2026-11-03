@@ -23,6 +23,7 @@ import {
   addIndicator, hintDue, hitmarkerStyle, incomingReaction, indicatorAlpha, indicatorAngle, stepIndicators, type Indicator,
 } from './hitFeedback';
 import { createFeedbackSound } from '../audio/feedbackSound';
+import { installAudioUnlock } from '../audio/audioContext';
 import { addBloom, coneDirection, crosshairGapPx, decayBloom, MAX_SHOTS_PER_FRAME, recoilKick, shotTime, spreadDegrees } from './gunFeel';
 import {
   addArmor, createCombatant, healCombatant, isDown, takeDirectDamage, type Combatant,
@@ -481,6 +482,8 @@ export async function mountCombat(opts: {
     offs.push(opts.player.events.on('useMedkit', () => useMedkit()));
     offs.push(opts.player.events.on('useBandage', () => useBandage()));
     offs.push(opts.player.events.on('interact', onInteract));
+    // Start the shared audio context on the first click / key so the first hit sound plays.
+    offs.push(installAudioUnlock(window));
     offs.push(playerDamaged.on(onPlayerDamaged));
     offs.push(playerHitEnemy.on(onPlayerHitEnemy));
     offs.push(opts.player.events.on('sprint', () => cancelHeal(healInterruptHint('sprint'))));

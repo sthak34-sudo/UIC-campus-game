@@ -3,8 +3,11 @@
  * - `hit`: short bright tick when your shot lands, `head`: sharper and higher,
  * - `kill`: two-note "ding" on a knock or kill,
  * - `hurt`: low thump when a bot hits you, panned toward the shooter.
- * Silent until the browser allows audio. Shares nothing with the gunshot loader.
+ * Uses the shared context (`audioContext.ts`). If it is still suspended, the cue is held and
+ * played as soon as it resumes (within `FEEDBACK_LATE_LIMIT`), so the first hit is not silent.
  */
+import { resumeAudio, sharedAudioContext } from './audioContext';
+
 export type FeedbackKind = 'hit' | 'head' | 'kill' | 'hurt';
 
 export interface Tone {
@@ -40,21 +43,27 @@ export const FEEDBACK_TONES: Record<FeedbackKind, Tone[]> = {
 /** At most this many cues per kind start per second (full auto at 11 shots/s stays readable). */
 export const FEEDBACK_MAX_PER_SECOND = 12;
 
+/** A cue that waited this long (s) for audio to unlock is dropped instead of played late. */
+export const FEEDBACK_LATE_LIMIT = 0.3;
+
 export interface FeedbackSound {
   /** `pan` -1 (left) .. 1 (right). */
   play(kind: FeedbackKind, pan?: number): void;
 }
 
 export function createFeedbackSound(): FeedbackSound {
-  let ctx: AudioContext | null = null;
   const windowStart: Partial<Record<FeedbackKind, number>> = {};
   const count: Partial<Record<FeedbackKind, number>> = {};
-  return {
+  const sound: FeedbackSound = {
     play(kind, pan = 0) {
-      if (typeof AudioContext === 'undefined') return;
-      ctx ??= new AudioContext();
+      const ctx = sharedAudioContext();
+      if (!ctx) return;
       if (ctx.state !== 'running') {
-        void ctx.resume().catch(() => {});
+        // Hold the cue until audio unlocks instead of dropping it; drop it if that takes too long.
+        const asked = performance.now();
+        void resumeAudio().then((ok) => {
+          if (ok && ctx.state === 'running' && (performance.now() - asked) / 1000 <= FEEDBACK_LATE_LIMIT) sound.play(kind, pan);
+        });
         return;
       }
       const now = ctx.currentTime;
@@ -83,4 +92,5 @@ export function createFeedbackSound(): FeedbackSound {
       }
     },
   };
+  return sound;
 }

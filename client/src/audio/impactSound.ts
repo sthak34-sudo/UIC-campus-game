@@ -3,6 +3,7 @@
  * Quieter with distance than gunshots (you hear impacts only fairly close) and panned by side.
  * Loads lazily; silent until the browser allows audio.
  */
+import { sharedAudioContext } from './audioContext';
 import { shotPan } from './gunSound';
 
 type V3 = { x: number; y: number; z: number };
@@ -39,9 +40,9 @@ export function createImpactSound(baseUrl: string): ImpactSound {
   let windowStart = 0;
   let count = 0;
   const load = () => {
-    if (loading || typeof AudioContext === 'undefined') return;
+    if (loading || !sharedAudioContext()) return;
     loading = true;
-    ctx = new AudioContext();
+    ctx = sharedAudioContext();
     for (const kind of ['wall', 'ground'] as const) {
       fetch(baseUrl + IMPACT_SOUND.urls[kind])
         .then((r) => r.arrayBuffer())
