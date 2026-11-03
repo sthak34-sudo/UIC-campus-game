@@ -34,15 +34,16 @@ export const COMBAT = {
   ammoPickup: 30,
   reserveCap: 180,
   reloadTime: 1.7,
-  medkitHeal: 50,
+  /** Med kit heals to full (PUBG: +100 over 8 s, CMB-07). */
+  medkitHeal: 100,
   medkitCap: 3,
   /** Bandage: heals this much after a short channel, but never above `bandageMaxHealth`. */
-  bandageHeal: 15,
-  bandageChannel: 3,
+  bandageHeal: 10,
+  bandageChannel: 4,
   bandageMaxHealth: 75,
   bandageCap: 10,
   /** Med kit: channelled too, so healing mid-fight is a risk. */
-  medkitChannel: 6,
+  medkitChannel: 8,
   /** Temporary H-key damage. Ignores armor so the death screen is easy to reach. */
   debugHurt: 25,
   /** Seconds a dummy stays down before standing up. */

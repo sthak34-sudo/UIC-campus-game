@@ -64,8 +64,10 @@ export function canFire(input: {
   alive: boolean;
   /** Knocked players cannot shoot (squad wiring). */
   downed?: boolean;
+  /** False while sprinting and just after (rifle still lowered, CMB-08). */
+  ready?: boolean;
 }): boolean {
-  if (input.downed) return false;
+  if (input.downed || input.ready === false) return false;
   if (!input.alive || !input.hasGun || input.reloading || input.mag <= 0) return false;
   if (input.lastShotAt < 0) return true;
   return input.now - input.lastShotAt >= COMBAT.fireInterval - 1e-6;

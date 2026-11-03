@@ -6,10 +6,22 @@
  */
 export const PLAYER_CONFIG = {
   // --- movement -----------------------------------------------------------------------------
-  /** Real human walking pace. */
+  /**
+   * Real human walking pace. The player no longer moves at this by default (see `jogSpeed`); bots,
+   * the downed crawl and the physics tests still use it as their reference pace.
+   */
   walkSpeed: 1.4,
-  /** Jog / run (Shift). */
+  /** Reference speed for acceleration scaling and the physics tests (the old Shift speed). */
   runSpeed: 4.5,
+  /** Default WASD speed, a PUBG jog (CMB-08). */
+  jogSpeed: 4.7,
+  /** Shift sprint, forward only. No firing and no aiming down sights while sprinting (CMB-08). */
+  sprintSpeed: 6.3,
+  /** Speed multipliers by direction: straight back, and pure strafe (CMB-08). */
+  backwardMult: 0.8,
+  strafeMult: 0.9,
+  /** Seconds after a sprint ends before the rifle can fire (lowering it from the sprint carry). */
+  sprintToFire: 0.15,
   /** Multiplies walk and run speed. 1 is a real human pace. */
   speedScale: 1,
   /** When false, Shift never sprints (crawl / revive). */
@@ -33,8 +45,8 @@ export const PLAYER_CONFIG = {
   height: 1.75,
   /** Capsule height while crouched (C). Must stay taller than two radii. */
   crouchHeight: 1.2,
-  /** Walk speed while crouched. Shift does not sprint in this stance. */
-  crouchSpeed: 1.15,
+  /** Move speed while crouched. Shift does not sprint in this stance (CMB-08). */
+  crouchSpeed: 2.7,
   /** Small gap Rapier keeps between the capsule and the world. */
   skin: 0.01,
   /** Max stair riser / curb the character steps up automatically. */
@@ -65,7 +77,7 @@ export const PLAYER_CONFIG = {
   /** Height of the third-person pivot above the feet. */
   camPivotHeight: 1.55,
   /** Pitch is the camera's angle ABOVE the horizontal (positive = looking down at the player). */
-  camPitchMin: (-40 * Math.PI) / 180,
+  camPitchMin: (-60 * Math.PI) / 180,
   camPitchMax: (70 * Math.PI) / 180,
   fpPitchMin: (-85 * Math.PI) / 180,
   fpPitchMax: (85 * Math.PI) / 180,
@@ -78,6 +90,11 @@ export const PLAYER_CONFIG = {
   /** Follow smoothing of the pivot (1/s, exponential). */
   camFollowRate: 18,
   mouseSensitivity: 0.0022,
+  /** Aiming down sights: FOV becomes this share of the normal FOV (60 to 48, about 1.25x zoom), over `adsZoomTime` (CMB-10). */
+  adsFovScale: 0.8,
+  adsZoomTime: 0.15,
+  /** Move speed multiplier while aiming down sights (CMB-10). */
+  adsMoveMult: 0.7,
 
   // --- simulation ----------------------------------------------------------------------------
   fixedDt: 1 / 60,

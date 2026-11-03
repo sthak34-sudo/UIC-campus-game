@@ -47,9 +47,18 @@ type V3 = { x: number; y: number; z: number };
 
 /** Where shots leave the gun: chest/eye height above the feet, a little ahead along the aim. */
 export const MUZZLE_HEIGHT = 1.4;
-export function muzzlePoint(feet: V3, aimDir: V3): V3 {
+/** Standing capsule height the muzzle height is measured against. */
+export const STANDING_HEIGHT = 1.75;
+/**
+ * Muzzle height for a body `bodyHeight` tall: 1.4 standing, ~0.96 crouched, so crouching behind
+ * waist-high cover can't shoot over what the barrel couldn't (CMB-12).
+ */
+export function muzzleHeight(bodyHeight: number = STANDING_HEIGHT): number {
+  return MUZZLE_HEIGHT * (bodyHeight / STANDING_HEIGHT);
+}
+export function muzzlePoint(feet: V3, aimDir: V3, bodyHeight: number = STANDING_HEIGHT): V3 {
   const l = Math.hypot(aimDir.x, aimDir.y, aimDir.z) || 1;
-  return { x: feet.x + (aimDir.x / l) * 0.4, y: feet.y + MUZZLE_HEIGHT + (aimDir.y / l) * 0.4, z: feet.z + (aimDir.z / l) * 0.4 };
+  return { x: feet.x + (aimDir.x / l) * 0.4, y: feet.y + muzzleHeight(bodyHeight) + (aimDir.y / l) * 0.4, z: feet.z + (aimDir.z / l) * 0.4 };
 }
 
 export interface AimedShot {

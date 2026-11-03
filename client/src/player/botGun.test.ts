@@ -2,7 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { initRapier } from './physics';
 import { createBotBodies } from './botBodies';
-import { createBotGun } from './botGun';
+import { createBotGun, playerHitZone } from './botGun';
 
 describe('bot rifle hitscan', () => {
   beforeAll(async () => { await initRapier(); });
@@ -33,5 +33,21 @@ describe('bot rifle hitscan', () => {
     world.createCollider(RAPIER.ColliderDesc.cuboid(3, 2, 0.1).setTranslation(0, 2, 5));
     world.step();
     expect(gun.fire(a, { x: 0, y: 1.55, z: 0 }, { x: 0, y: 1.2, z: 10 }, 50)).toMatchObject({ kind: 'world' });
+  });
+
+  it('a crouched player can be headshot (CMB-11, CODE-14)', () => {
+    expect(playerHitZone(1.15, 1.2)).toBe('head');
+    expect(playerHitZone(0.9, 1.2)).toBe('body');
+    expect(playerHitZone(1.55, 1.75)).toBe('head');
+    expect(playerHitZone(1.45, 1.75)).toBe('body');
+    // Real ray against a crouched capsule (1.2 m tall) with the crouch height reported.
+    const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+    const player = world.createCollider(RAPIER.ColliderDesc.capsule(0.25, 0.35).setTranslation(0, 0.6, 10));
+    const bodies = createBotBodies(world, player);
+    const gun = createBotGun(world, bodies, player, () => 0, undefined, () => 1.2);
+    const a = bodies.add(0, 0, 0);
+    world.step();
+    expect(gun.fire(a, { x: 0, y: 1.15, z: 0 }, { x: 0, y: 1.15, z: 10 }, 50)).toMatchObject({ kind: 'player', zone: 'head' });
+    expect(gun.fire(a, { x: 0, y: 0.7, z: 0 }, { x: 0, y: 0.7, z: 10 }, 50)).toMatchObject({ kind: 'player', zone: 'body' });
   });
 });

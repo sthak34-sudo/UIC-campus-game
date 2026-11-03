@@ -5,6 +5,8 @@
 export interface PlayerEvents {
   /** E pressed. `position` = feet, `facing` = unit XZ vector the camera looks along. */
   interact: { position: { x: number; y: number; z: number }; facing: { x: number; z: number } };
+  /** Started sprinting (Shift, moving forward). Combat cancels a heal on it (CMB-07). */
+  sprint: Record<string, never>;
   /** Left the ground with a jump. */
   jump: { position: { x: number; y: number; z: number } };
   /** Touched the ground after being airborne. `fallSpeed` m/s (positive). */
