@@ -48,6 +48,7 @@ import { placePing, tickPings, type Ping } from './pings';
 import { createMatch } from './roster';
 import { nextTarget, spectateCamera, spectateLabel, spectateTargets, type Vec3 } from './spectate';
 import { allowKey, debugKeysEnabled } from '../debug/debugKeys';
+import { squadHintText } from './hintText';
 import { step, type PlayerInput } from './step';
 import type { PlayerId, SquadEvent, SquadMatchState } from './types';
 import { followRoute, newRouteState, planRoute, type RouteState } from './routePlan';
@@ -656,7 +657,7 @@ export function mountSquad(opts: {
   const panel = document.createElement('div');
   panel.id = 'squad-debug';
   panel.style.cssText =
-    `position:absolute;left:12px;bottom:${SQUAD_HINT_BOTTOM_PX}px;color:#e8e8e8;font:11px/1.35 ui-monospace,monospace;` +
+    `position:absolute;left:12px;bottom:${SQUAD_HINT_BOTTOM_PX}px;color:#e8e8e8;font:12px/1.35 system-ui,sans-serif;` +
     'background:rgba(0,0,0,.4);padding:6px 8px;border-radius:6px;pointer-events:none;z-index:20;white-space:pre';
   hudParent.appendChild(panel);
 
@@ -1037,13 +1038,12 @@ export function mountSquad(opts: {
       poseBot(body, m.life, dt);
     }
 
-    const specHint = spectateId ? ` · spectate ${state.members[spectateId]?.name ?? spectateId}` : '';
-    panel.textContent =
-      (debugKeys ? `K knock/finish you · J knock Bot1 · L heal · P ping · hold F revive · O wipe` : `P ping · hold F revive`) +
-      (bleedFast ? ' · bleedFast' : '') +
-      (enemySquads ? ` · enemy×${enemySquads}` : '') +
-      (pings.length ? ` · ping×${pings.length}` : '') +
-      specHint;
+    // UI-09: public HUD shows only the key hint; counters stay behind ?debug.
+    const hint = squadHintText({
+      debug: debugKeys, bleedFast, enemySquads, pings: pings.length,
+      spectating: spectateId ? state.members[spectateId]?.name ?? spectateId : null,
+    });
+    if (panel.textContent !== hint) panel.textContent = hint;
   };
 
   const offUpdate = opts.world.onUpdate(onUpdate);

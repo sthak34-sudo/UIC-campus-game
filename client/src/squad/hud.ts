@@ -2,6 +2,7 @@
  * Squad HUD (S4): team panel, world markers, downed indicator, kill feed, ping markers.
  * DOM overlay like combat/hud.ts. Map dots are fed to the zone minimap via setSquadMarks.
  */
+import { feedTopPx } from './hintText';
 import * as THREE from 'three';
 import { DOWN } from './balance';
 import { clampToScreenEdge } from './markerMath';
@@ -65,6 +66,7 @@ export class SquadHud {
   private readonly rows: HTMLDivElement[] = [];
   private readonly markersRoot: HTMLDivElement;
   private readonly markers = new Map<PlayerId, MarkerEl>();
+  private feedMeasuredAt = -Infinity;
   private readonly feedRoot: HTMLDivElement;
   private readonly feed: FeedLine[] = [];
   private readonly pingRoot: HTMLDivElement;
@@ -209,6 +211,14 @@ export class SquadHud {
     forceMarkers?: boolean;
   }): void {
     const { state, pings, dt, nowMs } = opts;
+    // UI-17: keep the kill feed under the zone timers (measured; the zone HUD can be rebuilt).
+    // Measured twice a second, not every frame, to avoid layout reads in the hot path.
+    if (nowMs - this.feedMeasuredAt > 500 || nowMs < this.feedMeasuredAt) {
+      this.feedMeasuredAt = nowMs;
+      const zoneEl = document.getElementById('zone-hud');
+      const top = `${feedTopPx(zoneEl ? zoneEl.getBoundingClientRect().bottom : null, this.root.getBoundingClientRect().top)}px`;
+      if (this.feedRoot.style.top !== top) this.feedRoot.style.top = top;
+    }
     const squadA = state.squads.A;
     const members = (squadA?.members ?? [])
       .map((id) => state.members[id])
