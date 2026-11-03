@@ -25,6 +25,8 @@ const MIN_GAP = 3;
 const MAX_GAP = 160;
 /** Seconds a zone edge pulse takes to fade. */
 const EDGE_PULSE = 0.6;
+/** Damage wedges sit on a ring this far from the screen centre (fraction of the short side). */
+const WEDGE_RING = 0.22;
 
 export class CombatHud {
   private readonly root: HTMLDivElement;
@@ -45,6 +47,8 @@ export class CombatHud {
   private gap = -1;
   private readonly edge: HTMLDivElement;
   private edgeLeft = 0;
+  private readonly wedgeLayer: HTMLDivElement;
+  private readonly wedges: HTMLDivElement[] = [];
 
   constructor(parent: HTMLElement, onRespawn: () => void) {
     this.root = document.createElement('div');
@@ -84,6 +88,15 @@ export class CombatHud {
       boxShadow: 'inset 0 0 90px 18px rgba(200,30,30,0.55)',
     } satisfies Partial<CSSStyleDeclaration>);
     this.root.appendChild(this.edge);
+
+    // Damage direction (CMB-04 / UI-04): red wedges on a ring around the centre, one per attacker.
+    this.wedgeLayer = document.createElement('div');
+    this.wedgeLayer.id = 'damage-indicators';
+    this.wedgeLayer.setAttribute('aria-hidden', 'true');
+    Object.assign(this.wedgeLayer.style, {
+      position: 'absolute', left: '50%', top: '50%', width: '0', height: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+    this.root.appendChild(this.wedgeLayer);
 
     const stack = document.createElement('div');
     Object.assign(stack.style, {
@@ -205,6 +218,47 @@ export class CombatHud {
   pulseZoneEdge(): void {
     this.edgeLeft = EDGE_PULSE;
     this.edge.style.opacity = '1';
+  }
+
+  /**
+   * Damage wedges: `angle` radians clockwise from straight up (0 = in front of you), `alpha` 0..1.
+   * Called every frame with the live list (an empty list hides them all).
+   */
+  setDamageIndicators(list: { angle: number; alpha: number }[]): void {
+    while (this.wedges.length < list.length) {
+      const w = document.createElement('div');
+      w.className = 'damage-wedge';
+      Object.assign(w.style, {
+        // Top-middle sits on the screen centre, which is also the rotation pivot.
+        position: 'absolute', left: '-26px', top: '0', width: '0', height: '0',
+        borderLeft: '26px solid transparent', borderRight: '26px solid transparent',
+        borderBottom: '16px solid rgba(225,35,35,0.9)', filter: 'drop-shadow(0 0 3px rgba(0,0,0,0.7))',
+        transformOrigin: '50% 0', willChange: 'transform, opacity',
+      } satisfies Partial<CSSStyleDeclaration>);
+      this.wedgeLayer.appendChild(w);
+      this.wedges.push(w);
+    }
+    const parent = this.root.parentElement;
+    const short = Math.min(parent?.clientHeight || window.innerHeight, parent?.clientWidth || window.innerWidth);
+    const r = Math.round(short * WEDGE_RING);
+    this.wedges.forEach((w, i) => {
+      const d = list[i];
+      if (!d) {
+        if (w.style.display !== 'none') w.style.display = 'none';
+        return;
+      }
+      w.style.display = 'block';
+      w.style.opacity = d.alpha.toFixed(2);
+      // Push up to the ring, then rotate about the centre; the wedge points outward.
+      w.style.transform = `rotate(${d.angle.toFixed(3)}rad) translateY(${-r - 16}px)`;
+      w.dataset.angle = d.angle.toFixed(2);
+    });
+    this.wedgeLayer.dataset.count = String(list.length);
+  }
+
+  /** True while any damage wedge is still drawn. */
+  get hasDamageIndicators(): boolean {
+    return this.wedgeLayer.dataset.count !== undefined && this.wedgeLayer.dataset.count !== '0';
   }
 
   /** Crosshair fades a little while the muzzle is blocked short of the aim point. */
