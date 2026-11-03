@@ -19,7 +19,7 @@ import { PracticeDummies } from './dummy';
 import { CombatHud } from './hud';
 import { canFire, canReload } from './damage';
 import { zonePulseStep } from './damageRules';
-import { playerDamaged, playerHitEnemy, type DamageSource, type PlayerDamagedEvent, type PlayerHitEnemyEvent } from '../core/hitEvents';
+import { playerDamaged, playerFired, playerHitEnemy, type DamageSource, type PlayerDamagedEvent, type PlayerHitEnemyEvent } from '../core/hitEvents';
 import {
   addIndicator, hintDue, hitmarkerStyle, incomingReaction, indicatorAlpha, indicatorAngle, stepIndicators, type Indicator,
 } from './hitFeedback';
@@ -361,6 +361,7 @@ export async function mountCombat(opts: {
     const kick = recoilKick(player.gunStance().aiming, Math.random);
     player.addRecoil(kick.pitch * (Math.PI / 180), kick.yaw * (Math.PI / 180));
     player.playFire();
+    playerFired.emit({ from: { x: muzzle.x, y: muzzle.y, z: muzzle.z } });
     fx.muzzle(muzzle);
     // Tracer from the barrel to where the bullet stopped (what it hit, or the crosshair point).
     const gunTip = player.getMuzzleWorld(new THREE.Vector3()) ?? null;

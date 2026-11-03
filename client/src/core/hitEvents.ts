@@ -4,6 +4,7 @@
  * - Anything that damages the PLAYER (bots, zone, falls, debug) calls `playerDamaged.emit(...)`.
  *   Combat reacts (flinch, hit sound, cancel healing), the HUD draws the direction indicator.
  * - The player's shots call `playerHitEnemy.emit(...)` so the HUD can show hitmarkers and kill confirms.
+ * - Every player shot calls `playerFired.emit(...)` so bots can hear it.
  *
  * Every subscriber must keep the unsubscribe function `on()` returns and call it on dispose,
  * so "Play again" doesn't stack listeners.
@@ -57,3 +58,9 @@ export class EventBus<T> {
 
 export const playerDamaged = new EventBus<PlayerDamagedEvent>();
 export const playerHitEnemy = new EventBus<PlayerHitEnemyEvent>();
+
+/** The player fired a shot from here (world position). Bots that hear it turn to look (AI-03). */
+export interface PlayerFiredEvent {
+  from: { x: number; y: number; z: number };
+}
+export const playerFired = new EventBus<PlayerFiredEvent>();

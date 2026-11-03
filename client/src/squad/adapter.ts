@@ -35,6 +35,7 @@ import { createImpactSound } from '../audio/impactSound';
 import { createWallProbe } from '../player/wallProbe';
 import { applyDamage, applyZoneDamage } from './downed';
 import { crawlTarget, CRAWL_STOP_M, dryRetreatTarget } from './botFallback';
+import { BOT_SENSE, canNotice, newAcquire, offAxisDeg, stepAcquire, turnToward, type Acquire } from './botSense';
 import { newWatchdog, spiralFree, stepWatchdog, unstickSpot, type Watchdog } from './unstick';
 import { newSquadGoal, SQUAD_GOAL, stepSquadGoal, type SquadGoal } from './squadGoal';
 import { BOT_ZONE, botZoneDamage, botZoneGoal } from './botZone';
@@ -44,7 +45,7 @@ import { canDamage } from './friendlyFire';
 import { SquadHud } from './hud';
 import { localSquadWon, offlineRoster } from './matchSetup';
 import { MatchEndScreen } from '../match/matchEndScreen';
-import { playerDamaged } from '../core/hitEvents';
+import { playerDamaged, playerFired } from '../core/hitEvents';
 import { addDamage, addKills, damageBetween, finish, killsBy, newStats, startClock, summarize } from '../match/matchStats';
 import { onFirstInput } from '../core/firstInput';
 import { pingTarget, placePing, tickPings, type Ping } from './pings';
@@ -164,6 +165,11 @@ export function mountSquad(opts: {
   // AI-01: loot -> rotate -> hunt goal for each squad without a human leader.
   const squadGoals = new Map<string, SquadGoal>();
   const watchdogs = new Map<PlayerId, Watchdog>();
+  // AI-02 / AI-03: facing with a turn rate, reaction delay per target, alert after a hit or a heard shot.
+  const facing = new Map<PlayerId, number>();
+  const acquire = new Map<PlayerId, Acquire>();
+  const alertUntil = new Map<PlayerId, number>();
+  const senseHp = new Map<PlayerId, number>();
   const probe = physBodies?.probe ?? null;
   // Bot rifles flash at the muzzle when they fire.
   const botFlashes = createMuzzleFlashes(opts.world.scene);
@@ -184,7 +190,11 @@ export function mountSquad(opts: {
     earEuler.setFromQuaternion(opts.camera.quaternion);
     gunSound.play(from, opts.camera.position, earEuler.y);
     botFlashes.spawn(from, to);
+    heardShots.push({ x: from.x, z: from.z, t: matchElapsed });
   };
+  // AI-03: recent gunshots (bots and the player); a bot that hears one looks all around for a moment.
+  const heardShots: { x: number; z: number; t: number }[] = [];
+  const offFired = playerFired.on((e) => heardShots.push({ x: e.from.x, z: e.from.z, t: matchElapsed }));
   // Bot rifles use the same Rapier world, hitboxes and damage rules as the player's shots.
   const botGun =
     player && physBodies
@@ -772,14 +782,27 @@ export function mountSquad(opts: {
       }
       body.root.visible = true;
 
-      // Visibility: nearest living foe within 28 m that the bot has a clear line of sight to.
+      // AI-03: hurt, or heard a shot close by: look all around for a few seconds.
+      const hpSense = member.combatant.health + member.combatant.armor;
+      if (hpSense < (senseHp.get(body.id) ?? hpSense)) alertUntil.set(body.id, matchElapsed + BOT_SENSE.alertS);
+      senseHp.set(body.id, hpSense);
+      while (heardShots.length && heardShots[0]!.t < matchElapsed - BOT_SENSE.alertS) heardShots.shift();
+      for (const s of heardShots) {
+        if (Math.hypot(s.x - member.pos.x, s.z - member.pos.z) < BOT_SENSE.hearM) {
+          alertUntil.set(body.id, Math.max(alertUntil.get(body.id) ?? -1, s.t + BOT_SENSE.alertS));
+        }
+      }
+      const alert = (alertUntil.get(body.id) ?? -1) > matchElapsed;
+      const yawNow = facing.get(body.id) ?? body.root.rotation.y;
+      const tracked = acquire.get(body.id)?.target ?? null;
+      // Visibility: nearest living foe within 28 m, in the bot's view (AI-03), with a clear line of sight.
       const foes: { id: PlayerId; dist: number }[] = [];
       for (const other of Object.values(state.members)) {
         if (other.id === body.id) continue;
         if (other.life === 'dead') continue;
         if (!canDamage(state, body.id, other.id)) continue;
         const d = Math.hypot(other.pos.x - member.pos.x, other.pos.z - member.pos.z);
-        if (d < 28) foes.push({ id: other.id, dist: d });
+        if (d < BOT_SENSE.rangeM && (other.id === tracked || canNotice(yawNow, member.pos, other.pos, alert))) foes.push({ id: other.id, dist: d });
       }
       const eyeAt = { x: member.pos.x, y: member.pos.y + EYE_Y, z: member.pos.z };
       const seen = pickVisibleTarget(foes, (f) => {
@@ -798,7 +821,17 @@ export function mountSquad(opts: {
       if (memory) foeMemory.set(body.id, memory);
       else foeMemory.delete(body.id);
       const nearestEnemyId: PlayerId | null = seen?.id ?? null;
-      const nearestDist = seen?.dist ?? 28;
+      const nearestDist = seen?.dist ?? BOT_SENSE.rangeM;
+      // AI-02: a new target costs a reaction delay before the first shot.
+      const acq = stepAcquire(
+        acquire.get(body.id) ?? newAcquire(),
+        nearestEnemyId,
+        nearestDist,
+        seen ? offAxisDeg(yawNow, member.pos, state.members[seen.id]!.pos) : 0,
+        dt,
+        Math.random,
+      );
+      acquire.set(body.id, acq.a);
       // AI-16: once the human is out, the first living teammate bot leads the squad.
       const leaderId = body.enemy || state.members[playerId]?.life === 'dead'
         ? (state.squads[member.squad]!.members.find((id) => id !== playerId && state.members[id]?.life === 'alive') ?? body.id)
@@ -969,7 +1002,9 @@ export function mountSquad(opts: {
         pos = { x: stepped.x, y: pos.y, z: stepped.z };
         body.root.rotation.y = Math.atan2(foe.pos.x - pos.x, foe.pos.z - pos.z);
         const gunKit = kits.get(body.id) ?? starterKit();
-        const armed = botGun != null && botCanShoot(gunKit);
+        // AI-02 / AI-03: fire only after the reaction delay and once the body has turned to face the target.
+        const facingFoe = offAxisDeg(facing.get(body.id) ?? body.root.rotation.y, pos, foe.pos) <= BOT_SENSE.aimConeDeg;
+        const armed = botGun != null && botCanShoot(gunKit) && acq.ready && facingFoe;
         const trig = botTrigger(triggerCooldown.get(body.id) ?? 0, dt, armed, nearestDist, Math.random);
         triggerCooldown.set(body.id, trig.cooldown);
         if (trig.fire && botGun && !inSpawnGrace(matchElapsed)) {
@@ -1061,6 +1096,10 @@ export function mountSquad(opts: {
         const tz = intent.type === 'follow' ? state.members[intent.target]!.pos.z : intent.z;
         body.root.rotation.y = Math.atan2(tx - pos.x, tz - pos.z);
       }
+      // AI-03: the code above sets where the bot wants to face; the body turns there at 300 deg/s.
+      const turned = turnToward(facing.get(body.id) ?? body.root.rotation.y, body.root.rotation.y, dt);
+      facing.set(body.id, turned);
+      body.root.rotation.y = turned;
       physBodies?.setYaw(body.phys, body.root.rotation.y);
 
       state = {
@@ -1166,6 +1205,7 @@ export function mountSquad(opts: {
       // QA-04: the banner was left behind on every Play again.
       specBanner.remove();
       offClock();
+      offFired();
       botFlashes.dispose();
       physBodies?.dispose();
       tracers.dispose();
