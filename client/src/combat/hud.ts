@@ -3,6 +3,7 @@
  * Sits on the page's #hud layer (pointer-events pass through except the respawn button).
  */
 import { COMBAT } from './balance';
+import type { HitmarkerStyle } from './hitFeedback';
 
 export interface HudState {
   health: number;
@@ -25,6 +26,11 @@ const MIN_GAP = 3;
 const MAX_GAP = 160;
 /** Seconds a zone edge pulse takes to fade. */
 const EDGE_PULSE = 0.6;
+/** Damage wedges sit on a ring this far from the screen centre (fraction of the short side). */
+const WEDGE_RING = 0.22;
+/** Hitmarker: each diagonal stroke's length and its gap from the centre (px). */
+const HM_LEN = 9;
+const HM_GAP = 5;
 
 export class CombatHud {
   private readonly root: HTMLDivElement;
@@ -45,6 +51,12 @@ export class CombatHud {
   private gap = -1;
   private readonly edge: HTMLDivElement;
   private edgeLeft = 0;
+  private readonly wedgeLayer: HTMLDivElement;
+  private readonly wedges: HTMLDivElement[] = [];
+  private readonly marker: HTMLDivElement;
+  private readonly markerStrokes: HTMLDivElement[] = [];
+  private markerLeft = 0;
+  private markerLife = 0.2;
 
   constructor(parent: HTMLElement, onRespawn: () => void) {
     this.root = document.createElement('div');
@@ -84,6 +96,34 @@ export class CombatHud {
       boxShadow: 'inset 0 0 90px 18px rgba(200,30,30,0.55)',
     } satisfies Partial<CSSStyleDeclaration>);
     this.root.appendChild(this.edge);
+
+    // Damage direction (CMB-04 / UI-04): red wedges on a ring around the centre, one per attacker.
+    this.wedgeLayer = document.createElement('div');
+    this.wedgeLayer.id = 'damage-indicators';
+    this.wedgeLayer.setAttribute('aria-hidden', 'true');
+    Object.assign(this.wedgeLayer.style, {
+      position: 'absolute', left: '50%', top: '50%', width: '0', height: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+    this.root.appendChild(this.wedgeLayer);
+
+    // Hitmarker (CMB-05 / UI-05): a diagonal X over the crosshair, red on a knock or kill.
+    this.marker = document.createElement('div');
+    this.marker.id = 'hitmarker';
+    this.marker.setAttribute('aria-hidden', 'true');
+    Object.assign(this.marker.style, {
+      position: 'absolute', left: '50%', top: '50%', width: '0', height: '0', opacity: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+    for (const deg of [45, 135, 225, 315]) {
+      const d = document.createElement('div');
+      Object.assign(d.style, {
+        position: 'absolute', left: '0', top: '0', width: `${HM_LEN}px`, height: '2px', background: '#fff',
+        boxShadow: '0 0 0 1px rgba(0,0,0,0.8)', transformOrigin: '0 50%',
+        transform: `rotate(${deg}deg) translate(${HM_GAP}px, -50%)`,
+      } satisfies Partial<CSSStyleDeclaration>);
+      this.marker.appendChild(d);
+      this.markerStrokes.push(d);
+    }
+    this.root.appendChild(this.marker);
 
     const stack = document.createElement('div');
     Object.assign(stack.style, {
@@ -207,6 +247,60 @@ export class CombatHud {
     this.edge.style.opacity = '1';
   }
 
+  /**
+   * Damage wedges: `angle` radians clockwise from straight up (0 = in front of you), `alpha` 0..1.
+   * Called every frame with the live list (an empty list hides them all).
+   */
+  setDamageIndicators(list: { angle: number; alpha: number }[]): void {
+    while (this.wedges.length < list.length) {
+      const w = document.createElement('div');
+      w.className = 'damage-wedge';
+      Object.assign(w.style, {
+        // Top-middle sits on the screen centre, which is also the rotation pivot.
+        position: 'absolute', left: '-26px', top: '0', width: '0', height: '0',
+        borderLeft: '26px solid transparent', borderRight: '26px solid transparent',
+        borderBottom: '16px solid rgba(225,35,35,0.9)', filter: 'drop-shadow(0 0 3px rgba(0,0,0,0.7))',
+        transformOrigin: '50% 0', willChange: 'transform, opacity',
+      } satisfies Partial<CSSStyleDeclaration>);
+      this.wedgeLayer.appendChild(w);
+      this.wedges.push(w);
+    }
+    const parent = this.root.parentElement;
+    const short = Math.min(parent?.clientHeight || window.innerHeight, parent?.clientWidth || window.innerWidth);
+    const r = Math.round(short * WEDGE_RING);
+    this.wedges.forEach((w, i) => {
+      const d = list[i];
+      if (!d) {
+        if (w.style.display !== 'none') w.style.display = 'none';
+        return;
+      }
+      w.style.display = 'block';
+      w.style.opacity = d.alpha.toFixed(2);
+      // Push up to the ring, then rotate about the centre; the wedge points outward.
+      w.style.transform = `rotate(${d.angle.toFixed(3)}rad) translateY(${-r - 16}px)`;
+      w.dataset.angle = d.angle.toFixed(2);
+    });
+    this.wedgeLayer.dataset.count = String(list.length);
+  }
+
+  /** True while any damage wedge is still drawn. */
+  get hasDamageIndicators(): boolean {
+    return this.wedgeLayer.dataset.count !== undefined && this.wedgeLayer.dataset.count !== '0';
+  }
+
+  /** One hitmarker. A new hit restarts it (with a small pop). */
+  showHitmarker(style: HitmarkerStyle): void {
+    for (const st of this.markerStrokes) {
+      st.style.background = style.color;
+      st.style.height = `${style.thickness}px`;
+    }
+    this.markerLife = style.life;
+    this.markerLeft = style.life;
+    this.marker.dataset.kind = style.kind;
+    this.marker.style.opacity = '1';
+    this.marker.style.transform = 'scale(1.35)';
+  }
+
   /** Crosshair fades a little while the muzzle is blocked short of the aim point. */
   setMuzzleBlocked(blocked: boolean): void {
     this.cross.style.opacity = blocked ? '0.35' : '';
@@ -226,6 +320,14 @@ export class CombatHud {
     if (this.edgeLeft > 0) {
       this.edgeLeft = Math.max(0, this.edgeLeft - dt);
       this.edge.style.opacity = (this.edgeLeft / EDGE_PULSE).toFixed(2);
+    }
+    if (this.markerLeft > 0) {
+      this.markerLeft = Math.max(0, this.markerLeft - dt);
+      const t = this.markerLeft / this.markerLife;
+      this.marker.style.opacity = Math.min(1, t * 1.6).toFixed(2);
+      // Pop: 1.35 -> 1 over the first 40% of its life.
+      this.marker.style.transform = `scale(${(1 + 0.35 * Math.max(0, (t - 0.6) / 0.4)).toFixed(3)})`;
+      if (this.markerLeft === 0) this.marker.dataset.kind = '';
     }
     if (this.crossLeft > 0) {
       this.crossLeft -= dt;

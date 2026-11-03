@@ -11,7 +11,7 @@ import { Emitter, type PlayerEvents } from './events';
 import { PlayerHud } from './hud';
 import { InputController } from './input';
 import { moveDirection, yawFromDirection, type MoveInput } from './math';
-import { fireReady, moveSpeed } from './movement';
+import { fireReady, moveSpeed, stepTapBuffer, type TapBuffer } from './movement';
 import { addPerfCampusColliders } from './perfCampus';
 import type { PhysicsStats } from './physics';
 import { buildTestCourse } from './testCourse';
@@ -87,6 +87,8 @@ export interface Player {
   fireReady(): boolean;
   /** Current capsule height, feet to top of head: 1.75 standing, 1.2 crouched (CMB-11, CMB-12). */
   bodyHeight(): number;
+  /** Drop out of aim down sights now: FOV and mouse speed snap back (spectate, respawn). */
+  resetAim(): void;
   dispose(): void;
 }
 
@@ -230,6 +232,10 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
   let dead = false;
   let sprinting = false;
   let sinceSprint = Infinity;
+  /** A fire tap waiting for the rifle to come up after a sprint (never dropped). */
+  let tap: TapBuffer = { pending: false, age: 0 };
+  /** A click arrived this frame (set before simulate so it ends a sprint). */
+  let tappedNow = false;
   events.on('jump', () => {
     jumpLatch = true;
   });
@@ -250,7 +256,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
         run: inp.run,
         crouched: phys.crouching,
         aiming: input.aiming && !dead,
-        firing: armed && !dead && input.fireHeld,
+        firing: armed && !dead && (input.fireHeld || tappedNow || tap.pending),
         allowRun: cfg.allowRun,
       },
       cfg,
@@ -319,9 +325,18 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
     if (look.dx || look.dy) rig.addLook(look.dx, look.dy);
     const wheel = input.consumeWheel();
     if (wheel) rig.addZoom(wheel);
+    tappedNow = input.consumeFire();
     simulate(dt, cfg.maxSubsteps);
     present(dt);
-    if (input.consumeFire()) events.emit('fire', {});
+    if (!armed) {
+      tap = { pending: false, age: 0 };
+      if (tappedNow) events.emit('fire', {});
+    } else {
+      const t = stepTapBuffer(tap, tappedNow, fireReady(sprinting, sinceSprint, cfg), dt);
+      tap = { pending: t.pending, age: t.age };
+      if (t.fire) events.emit('fire', {});
+    }
+    tappedNow = false;
     hud.tick(dt);
     if (hud.debugVisible) {
       const s = phys.stats;
@@ -357,6 +372,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
       cfg.camPivotHeight = h;
     },
     holdingRevive: () => input.holdingRevive(),
+    resetAim: () => rig.resetAim(),
     setAllowRun: (on) => {
       cfg.allowRun = on;
     },
@@ -382,6 +398,7 @@ export async function createPlayer(world: World, camera: THREE.PerspectiveCamera
       rig.resetAim();
       sprinting = false;
       sinceSprint = Infinity;
+      tap = { pending: false, age: 0 };
       if (enabled) {
         jumpLatch = false;
         input.setCrouch(false);

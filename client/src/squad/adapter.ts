@@ -41,6 +41,7 @@ import { canDamage } from './friendlyFire';
 import { SquadHud } from './hud';
 import { localSquadWon, offlineRoster } from './matchSetup';
 import { MatchEndScreen } from '../match/matchEndScreen';
+import { playerDamaged } from '../core/hitEvents';
 import { addDamage, addKills, damageBetween, finish, killsBy, newStats, summarize } from '../match/matchStats';
 import { placePing, tickPings, type Ping } from './pings';
 import { createMatch } from './roster';
@@ -490,11 +491,13 @@ export function mountSquad(opts: {
       const r = shootBot(state, playerId, body.id, hit.zone, distance);
       if (r.result === 'blocked') return { blocked: true, headshot: false };
       const after = r.state.members[body.id]!;
-      stats = addDamage(stats, damageBetween({ ...before.combatant, downHp: before.downHp }, { ...after.combatant, downHp: after.downHp }));
+      const dealt = damageBetween({ ...before.combatant, downHp: before.downHp }, { ...after.combatant, downHp: after.downHp });
+      stats = addDamage(stats, dealt);
       state = r.state;
       eventsLog.push(...r.events);
       if (r.result === 'hit') body.avatar?.flinch(dir);
-      return { blocked: false, headshot: r.headshot };
+      // Knocks and kills both get the kill confirm (CMB-05).
+      return { blocked: false, headshot: r.headshot, zone: hit.zone, killed: r.result !== 'hit', dealt };
     },
   };
   if (player) opts.combat.setSquadBridge(bridge);
@@ -889,9 +892,21 @@ export function mountSquad(opts: {
           if (shot && shot.kind !== 'world' && victimId) {
             const r = shootBot(state, body.id, victimId, shot.zone, shot.distance, COMBAT.baseDamage * BOT_AIM.damageScale);
             if (r.result !== 'blocked') {
+              const before = state.members[victimId]!;
               state = r.state;
               eventsLog.push(...r.events);
-              if (victimId === playerId) opts.combat.setVitals(state.members[playerId]!.combatant);
+              if (victimId === playerId) {
+                const after = state.members[playerId]!;
+                opts.combat.setVitals(after.combatant);
+                // Shared hit event: combat flinches, cancels a heal and plays the hurt cue; the HUD
+                // points a wedge at the shooter (CMB-04 / UI-04).
+                playerDamaged.emit({
+                  amount: damageBetween({ ...before.combatant, downHp: before.downHp }, { ...after.combatant, downHp: after.downHp }),
+                  source: 'bot',
+                  from: { x: origin.x, y: origin.y, z: origin.z },
+                  lethal: r.result !== 'hit',
+                });
+              }
               else if (r.result === 'hit') bots.find((b) => b.id === victimId)?.avatar?.flinch();
             }
           }
@@ -960,6 +975,8 @@ export function mountSquad(opts: {
       const targets = spectateTargets(state, playerId);
       if (targets.length) {
         if (!spectateId || !targets.includes(spectateId)) {
+          // Entering spectate: drop the scope zoom so the follow camera is at the normal FOV.
+          if (!spectateId) player.resetAim();
           spectateId = targets[0]!;
         }
         const tpos = state.members[spectateId]!.pos;

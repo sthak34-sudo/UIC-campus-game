@@ -17,7 +17,12 @@ import { COMBAT } from './balance';
 import { PracticeDummies } from './dummy';
 import { CombatHud } from './hud';
 import { canFire, canReload } from './damage';
-import { damageReaction, zonePulseStep, type DamageSource } from './damageRules';
+import { zonePulseStep } from './damageRules';
+import { playerDamaged, playerHitEnemy, type DamageSource, type PlayerDamagedEvent, type PlayerHitEnemyEvent } from '../core/hitEvents';
+import {
+  addIndicator, hitmarkerStyle, incomingReaction, indicatorAlpha, indicatorAngle, stepIndicators, type Indicator,
+} from './hitFeedback';
+import { createFeedbackSound } from '../audio/feedbackSound';
 import { addBloom, coneDirection, crosshairGapPx, decayBloom, MAX_SHOTS_PER_FRAME, recoilKick, shotTime, spreadDegrees } from './gunFeel';
 import {
   addArmor, createCombatant, healCombatant, isDown, takeDirectDamage, type Combatant,
@@ -63,7 +68,7 @@ export interface CombatSquadBridge {
     hitY: number,
     distance: number,
     dir: { x: number; y: number; z: number },
-  ): { blocked: boolean; headshot: boolean } | null;
+  ): { blocked: boolean; headshot: boolean; zone?: 'head' | 'body' | 'limb'; killed?: boolean; dealt?: number } | null;
 }
 
 export interface CombatMount {
@@ -149,6 +154,9 @@ export async function mountCombat(opts: {
   let zonePulseCooldown = 0;
   /** Extra spread from recent shots, degrees (CMB-03). */
   let bloom = 0;
+  /** Live damage-direction wedges (CMB-04). */
+  let indicators: Indicator[] = [];
+  const feedback = createFeedbackSound();
   const currentSpread = () => (opts.player ? spreadDegrees(opts.player.gunStance(), bloom) : 0);
 
   const cancelHeal = (why: string) => {
@@ -228,35 +236,68 @@ export async function mountCombat(opts: {
     opts.player.flinch({ x: p.x - from.x, y: p.y - from.y, z: p.z - from.z });
   };
 
+  // Screen angle of a world point for the damage wedges: 0 = ahead, clockwise positive.
+  const camFwd = new THREE.Vector3();
+  const angleOf = (p: { x: number; y: number; z: number }) => {
+    opts.camera.getWorldDirection(camFwd);
+    const at = opts.player ? opts.player.position : opts.camera.position;
+    return indicatorAngle(camFwd, at, p);
+  };
+
+  /**
+   * Every hit on the player lands here through the shared `playerDamaged` event, whoever
+   * applied it (bot bullets from the squad adapter, the zone and H key from below).
+   */
+  const onPlayerDamaged = (e: PlayerDamagedEvent) => {
+    if (!opts.player || e.amount <= 0) return;
+    const react = incomingReaction(e.source);
+    if (react.cancelHeal) cancelHeal('Healing interrupted');
+    if (react.zoneGlow) zoneHurtThisFrame = true;
+    if (react.flinch && !e.lethal) flinchFrom(e.from ?? null);
+    if (react.indicator && e.from) indicators = addIndicator(indicators, e.from, e.amount, angleOf);
+    if (react.sound) feedback.play('hurt', e.from ? Math.sin(angleOf(e.from)) * 0.8 : 0);
+  };
+
+  /** Your shot landed (dummy or bot): crosshair tint, X hitmarker, tick or kill ding (CMB-05). */
+  const onPlayerHitEnemy = (e: PlayerHitEnemyEvent) => {
+    if (!hud) return;
+    const style = hitmarkerStyle(e.zone, e.killed);
+    hud.flashCrosshair(e.zone === 'head' ? 'head' : 'hit');
+    hud.showHitmarker(style);
+    feedback.play(style.kind);
+  };
+
+  const pointsOf = (c: Combatant) => c.health + c.armor;
   const applyLocalDamage = (
     amount: number,
     attackerId: string | null,
     from: { x: number; y: number; z: number } | null = null,
-    source: DamageSource = 'bullet',
+    source: DamageSource = 'bot',
   ) => {
     if (!opts.player || amount <= 0) return;
-    const react = damageReaction(source);
-    if (react.cancelHeal) cancelHeal('Healing interrupted');
+    // The zone glow keeps its own path so it still shows while downed (that damage is applied by the squad adapter).
     if (source === 'zone') zoneHurtThisFrame = true;
-    const flinch = (f: typeof from) => {
-      if (react.flinch) flinchFrom(f);
+    const emit = (before: Combatant, after: Combatant, lethal: boolean) => {
+      playerDamaged.emit({ amount: Math.max(0, pointsOf(before) - pointsOf(after)), source, from: from ?? undefined, lethal });
     };
     if (squad) {
       if (squad.isDead()) return;
       // While downed, zone / finish damage is handled by the squad adapter via applyDownedDamage.
       if (squad.isDowned()) return;
+      const before = squad.getCombatant();
       const r = squad.applyPlayerDamage(amount, attackerId);
       vitals = r.combatant;
+      emit(before, r.combatant, r.dead || squad.isDowned());
       if (r.dead) killPlayer();
-      else flinch(from);
       syncHud();
       return;
     }
     if (isDown(vitals)) return;
+    const before = vitals;
     const r = takeDirectDamage(vitals, amount);
     vitals = r.combatant;
+    emit(before, r.combatant, r.died);
     if (r.died) killPlayer();
-    else flinch(from);
     syncHud();
   };
 
@@ -321,13 +362,18 @@ export async function mountCombat(opts: {
       if (target) {
         const outcome = dummies.damage(target.index, target.zone, hit.distance, player.rapier.world, { x: dir.x, y: dir.y, z: dir.z });
         if (outcome) {
-          hud.flashCrosshair(outcome.headshot ? 'head' : 'hit');
+          playerHitEnemy.emit({ zone: target.zone, damage: outcome.dealt, killed: outcome.died, distance: hit.distance });
           if (!squad) soloStats = addKills(addDamage(soloStats, outcome.dealt), outcome.died ? 1 : 0);
         }
       } else {
         const bot = squad?.shootBot?.(hit.colliderHandle, hit.point.y, hit.distance, { x: dir.x, y: dir.y, z: dir.z });
         if (bot) {
-          if (!bot.blocked) hud.flashCrosshair(bot.headshot ? 'head' : 'hit');
+          if (bot.blocked) hud.flashHint('Teammate');
+          else {
+            playerHitEnemy.emit({
+              zone: bot.zone ?? (bot.headshot ? 'head' : 'body'), damage: bot.dealt ?? 0, killed: bot.killed ?? false, distance: hit.distance,
+            });
+          }
         } else {
           fx.decal(hit.point, hit.normal);
           impacts.spawn(hit.point, hit.normal);
@@ -355,12 +401,17 @@ export async function mountCombat(opts: {
   };
 
   const hurt = () => {
-    // Invent a hit coming from ahead of the camera so the procedural flinch reads clearly.
-    const from = opts.camera.position.clone();
+    // Invent a hit from 6 m ahead of the player (where the camera looks), so the flinch reads
+    // clearly and the damage wedge sits at the top. From the camera instead, a third-person
+    // camera sits behind the player and the "attacker" would land behind them.
     const ahead = new THREE.Vector3();
     opts.camera.getWorldDirection(ahead);
-    from.addScaledVector(ahead, 2);
-    applyLocalDamage(COMBAT.debugHurt, null, from);
+    ahead.y = 0;
+    if (ahead.lengthSq() < 1e-6) ahead.set(0, 0, -1);
+    ahead.normalize();
+    const base = opts.player ? opts.player.position : opts.camera.position;
+    const from = new THREE.Vector3(base.x, base.y + 1.2, base.z).addScaledVector(ahead, 6);
+    applyLocalDamage(COMBAT.debugHurt, null, from, 'debug');
   };
 
   // Q / B start a channelled heal; it lands in onUpdate when the timer runs out.
@@ -422,6 +473,8 @@ export async function mountCombat(opts: {
     offs.push(opts.player.events.on('useMedkit', () => useMedkit()));
     offs.push(opts.player.events.on('useBandage', () => useBandage()));
     offs.push(opts.player.events.on('interact', onInteract));
+    offs.push(playerDamaged.on(onPlayerDamaged));
+    offs.push(playerHitEnemy.on(onPlayerHitEnemy));
     offs.push(opts.player.events.on('sprint', () => cancelHeal(healInterruptHint('sprint'))));
     offs.push(opts.player.events.on('jump', () => cancelHeal(healInterruptHint('jump'))));
   }
@@ -445,6 +498,10 @@ export async function mountCombat(opts: {
     zonePulseCooldown = pulse.cooldown;
     zoneHurtThisFrame = false;
     if (pulse.pulse) hud?.pulseZoneEdge();
+    if (hud && (indicators.length || hud.hasDamageIndicators)) {
+      indicators = playerDead() ? [] : stepIndicators(indicators, dt);
+      hud.setDamageIndicators(indicators.map((d) => ({ angle: angleOf(d.from), alpha: indicatorAlpha(d) })));
+    }
     if (hud && opts.player) {
       hud.setSpread(crosshairGapPx(currentSpread(), opts.camera.fov, hudParent.clientHeight || window.innerHeight));
     }
@@ -485,7 +542,7 @@ export async function mountCombat(opts: {
 
   return {
     applyZoneDamage(amount: number) {
-      // Health only: no camera kick, no heal cancel (CMB-01). A red edge pulse shows it instead.
+      // Health only: no camera kick, no heal cancel, no wedge (CMB-01). The red edge glow shows it.
       applyLocalDamage(amount, null, null, 'zone');
     },
     setSquadBridge(bridge: CombatSquadBridge | null) {
