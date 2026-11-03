@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  INDICATOR, addIndicator, incomingReaction, indicatorAlpha, indicatorAngle, indicatorWeight,
+  INDICATOR, addIndicator, hitmarkerStyle, incomingReaction, indicatorAlpha, indicatorAngle, indicatorWeight,
   ruleSource, stepIndicators, wrapAngle,
 } from './hitFeedback';
 
@@ -78,5 +78,19 @@ describe('indicator list', () => {
   it('wrapAngle', () => {
     expect(wrapAngle(Math.PI * 3)).toBeCloseTo(Math.PI);
     expect(wrapAngle(-Math.PI / 2 - Math.PI * 2)).toBeCloseTo(-Math.PI / 2);
+  });
+});
+
+describe('hitmarkerStyle (CMB-05 / UI-05)', () => {
+  it('white on a hit, thicker on a head shot, red and longer on a knock or kill', () => {
+    const hit = hitmarkerStyle('body', false);
+    const head = hitmarkerStyle('head', false);
+    const kill = hitmarkerStyle('limb', true);
+    expect(hit.color).toBe('#ffffff');
+    expect(hit.life).toBeCloseTo(0.2);
+    expect(head.thickness).toBeGreaterThan(hit.thickness);
+    expect(kill.color).not.toBe('#ffffff');
+    expect(kill.life).toBeGreaterThan(hit.life);
+    expect(hitmarkerStyle('head', true).kind).toBe('kill');
   });
 });

@@ -491,11 +491,13 @@ export function mountSquad(opts: {
       const r = shootBot(state, playerId, body.id, hit.zone, distance);
       if (r.result === 'blocked') return { blocked: true, headshot: false };
       const after = r.state.members[body.id]!;
-      stats = addDamage(stats, damageBetween({ ...before.combatant, downHp: before.downHp }, { ...after.combatant, downHp: after.downHp }));
+      const dealt = damageBetween({ ...before.combatant, downHp: before.downHp }, { ...after.combatant, downHp: after.downHp });
+      stats = addDamage(stats, dealt);
       state = r.state;
       eventsLog.push(...r.events);
       if (r.result === 'hit') body.avatar?.flinch(dir);
-      return { blocked: false, headshot: r.headshot };
+      // Knocks and kills both get the kill confirm (CMB-05).
+      return { blocked: false, headshot: r.headshot, zone: hit.zone, killed: r.result !== 'hit', dealt };
     },
   };
   if (player) opts.combat.setSquadBridge(bridge);

@@ -18,9 +18,9 @@ import { PracticeDummies } from './dummy';
 import { CombatHud } from './hud';
 import { canFire, canReload } from './damage';
 import { zonePulseStep } from './damageRules';
-import { playerDamaged, type DamageSource, type PlayerDamagedEvent } from '../core/hitEvents';
+import { playerDamaged, playerHitEnemy, type DamageSource, type PlayerDamagedEvent, type PlayerHitEnemyEvent } from '../core/hitEvents';
 import {
-  addIndicator, incomingReaction, indicatorAlpha, indicatorAngle, stepIndicators, type Indicator,
+  addIndicator, hitmarkerStyle, incomingReaction, indicatorAlpha, indicatorAngle, stepIndicators, type Indicator,
 } from './hitFeedback';
 import { createFeedbackSound } from '../audio/feedbackSound';
 import { addBloom, coneDirection, crosshairGapPx, decayBloom, MAX_SHOTS_PER_FRAME, recoilKick, shotTime, spreadDegrees } from './gunFeel';
@@ -68,7 +68,7 @@ export interface CombatSquadBridge {
     hitY: number,
     distance: number,
     dir: { x: number; y: number; z: number },
-  ): { blocked: boolean; headshot: boolean } | null;
+  ): { blocked: boolean; headshot: boolean; zone?: 'head' | 'body' | 'limb'; killed?: boolean; dealt?: number } | null;
 }
 
 export interface CombatMount {
@@ -258,6 +258,15 @@ export async function mountCombat(opts: {
     if (react.sound) feedback.play('hurt', e.from ? Math.sin(angleOf(e.from)) * 0.8 : 0);
   };
 
+  /** Your shot landed (dummy or bot): crosshair tint, X hitmarker, tick or kill ding (CMB-05). */
+  const onPlayerHitEnemy = (e: PlayerHitEnemyEvent) => {
+    if (!hud) return;
+    const style = hitmarkerStyle(e.zone, e.killed);
+    hud.flashCrosshair(e.zone === 'head' ? 'head' : 'hit');
+    hud.showHitmarker(style);
+    feedback.play(style.kind);
+  };
+
   const pointsOf = (c: Combatant) => c.health + c.armor;
   const applyLocalDamage = (
     amount: number,
@@ -353,13 +362,18 @@ export async function mountCombat(opts: {
       if (target) {
         const outcome = dummies.damage(target.index, target.zone, hit.distance, player.rapier.world, { x: dir.x, y: dir.y, z: dir.z });
         if (outcome) {
-          hud.flashCrosshair(outcome.headshot ? 'head' : 'hit');
+          playerHitEnemy.emit({ zone: target.zone, damage: outcome.dealt, killed: outcome.died, distance: hit.distance });
           if (!squad) soloStats = addKills(addDamage(soloStats, outcome.dealt), outcome.died ? 1 : 0);
         }
       } else {
         const bot = squad?.shootBot?.(hit.colliderHandle, hit.point.y, hit.distance, { x: dir.x, y: dir.y, z: dir.z });
         if (bot) {
-          if (!bot.blocked) hud.flashCrosshair(bot.headshot ? 'head' : 'hit');
+          if (bot.blocked) hud.flashHint('Teammate');
+          else {
+            playerHitEnemy.emit({
+              zone: bot.zone ?? (bot.headshot ? 'head' : 'body'), damage: bot.dealt ?? 0, killed: bot.killed ?? false, distance: hit.distance,
+            });
+          }
         } else {
           fx.decal(hit.point, hit.normal);
           impacts.spawn(hit.point, hit.normal);
@@ -460,6 +474,7 @@ export async function mountCombat(opts: {
     offs.push(opts.player.events.on('useBandage', () => useBandage()));
     offs.push(opts.player.events.on('interact', onInteract));
     offs.push(playerDamaged.on(onPlayerDamaged));
+    offs.push(playerHitEnemy.on(onPlayerHitEnemy));
     offs.push(opts.player.events.on('sprint', () => cancelHeal(healInterruptHint('sprint'))));
     offs.push(opts.player.events.on('jump', () => cancelHeal(healInterruptHint('jump'))));
   }

@@ -1,11 +1,14 @@
 /**
- * Hit feedback rules (CMB-04 / UI-04). Pure, no DOM, no three.
+ * Hit feedback rules, both ways (CMB-04 / UI-04 and CMB-05 / UI-05). Pure, no DOM, no three.
  *
  * Incoming: everything that hurts the player goes through `playerDamaged` (core/hitEvents).
  * `incomingReaction` says what each source does: a bot bullet gets a direction indicator, a
  * flinch and a hurt sound; the zone keeps its edge glow only (CMB-01: no flinch, no heal cancel).
+ *
+ * Outgoing: the player's hits go through `playerHitEnemy`. `hitmarkerStyle` gives the X marker:
+ * white on a hit, thicker on a head shot, red and longer on a knock or kill.
  */
-import type { DamageSource as HitSource } from '../core/hitEvents';
+import type { DamageSource as HitSource, HitZone } from '../core/hitEvents';
 import { damageReaction, type DamageSource } from './damageRules';
 
 type V3 = { x: number; y: number; z: number };
@@ -105,4 +108,20 @@ export function indicatorAlpha(d: Indicator): number {
 
 export function wrapAngle(a: number): number {
   return Math.atan2(Math.sin(a), Math.cos(a));
+}
+
+export interface HitmarkerStyle {
+  color: string;
+  /** Line thickness in px. */
+  thickness: number;
+  /** Seconds on screen. */
+  life: number;
+  kind: 'hit' | 'head' | 'kill';
+}
+
+/** The X hitmarker for one of your hits (UI-05: white, thicker on head, red on a kill, ~0.2 s). */
+export function hitmarkerStyle(zone: HitZone, killed: boolean): HitmarkerStyle {
+  if (killed) return { color: '#ff3b3b', thickness: 3, life: 0.45, kind: 'kill' };
+  if (zone === 'head') return { color: '#ffffff', thickness: 3, life: 0.22, kind: 'head' };
+  return { color: '#ffffff', thickness: 2, life: 0.2, kind: 'hit' };
 }
