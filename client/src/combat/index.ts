@@ -20,7 +20,7 @@ import { canFire, canReload } from './damage';
 import { zonePulseStep } from './damageRules';
 import { playerDamaged, playerHitEnemy, type DamageSource, type PlayerDamagedEvent, type PlayerHitEnemyEvent } from '../core/hitEvents';
 import {
-  addIndicator, hitmarkerStyle, incomingReaction, indicatorAlpha, indicatorAngle, stepIndicators, type Indicator,
+  addIndicator, hintDue, hitmarkerStyle, incomingReaction, indicatorAlpha, indicatorAngle, stepIndicators, type Indicator,
 } from './hitFeedback';
 import { createFeedbackSound } from '../audio/feedbackSound';
 import { addBloom, coneDirection, crosshairGapPx, decayBloom, MAX_SHOTS_PER_FRAME, recoilKick, shotTime, spreadDegrees } from './gunFeel';
@@ -156,6 +156,8 @@ export async function mountCombat(opts: {
   let bloom = 0;
   /** Live damage-direction wedges (CMB-04). */
   let indicators: Indicator[] = [];
+  /** When the throttled 'Teammate' hint last showed (s, performance clock). */
+  let teammateHintAt = -Infinity;
   const feedback = createFeedbackSound();
   const currentSpread = () => (opts.player ? spreadDegrees(opts.player.gunStance(), bloom) : 0);
 
@@ -368,7 +370,13 @@ export async function mountCombat(opts: {
       } else {
         const bot = squad?.shootBot?.(hit.colliderHandle, hit.point.y, hit.distance, { x: dir.x, y: dir.y, z: dir.z });
         if (bot) {
-          if (bot.blocked) hud.flashHint('Teammate');
+          if (bot.blocked) {
+            // Throttled so a held trigger on a teammate does not restart the hint every shot.
+            if (hintDue(teammateHintAt, now())) {
+              teammateHintAt = now();
+              hud.flashHint('Teammate');
+            }
+          }
           else {
             playerHitEnemy.emit({
               zone: bot.zone ?? (bot.headshot ? 'head' : 'body'), damage: bot.dealt ?? 0, killed: bot.killed ?? false, distance: hit.distance,

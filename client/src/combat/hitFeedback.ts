@@ -125,3 +125,11 @@ export function hitmarkerStyle(zone: HitZone, killed: boolean): HitmarkerStyle {
   if (zone === 'head') return { color: '#ffffff', thickness: 3, life: 0.22, kind: 'head' };
   return { color: '#ffffff', thickness: 2, life: 0.2, kind: 'hit' };
 }
+
+/** The "Teammate" blocked-shot hint shows at most once per this many seconds (full auto is ~11 shots/s). */
+export const TEAMMATE_HINT_GAP = 1.2;
+
+/** True when a throttled hint may show again: `lastAt` is when it last showed (s), `now` the clock (s). */
+export function hintDue(lastAt: number, now: number, gap = TEAMMATE_HINT_GAP): boolean {
+  return now - lastAt >= gap;
+}

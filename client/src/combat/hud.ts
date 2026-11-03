@@ -212,6 +212,11 @@ export class CombatHud {
   }
 
   flashHint(text: string): void {
+    // Same text already on screen: just keep it up, no DOM rewrite (no flicker).
+    if (this.hintLeft > 0 && this.hint === text) {
+      this.hintLeft = 1.4;
+      return;
+    }
     this.hint = text;
     this.hintLeft = 1.4;
     this.hintEl.style.display = 'block';
