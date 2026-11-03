@@ -57,3 +57,27 @@ export function moveSpeed(i: MoveIntent, cfg: MoveCfg): { speed: number; sprinti
 export function fireReady(sprinting: boolean, sinceSprint: number, cfg: Pick<PlayerConfig, 'sprintToFire'>): boolean {
   return !sprinting && sinceSprint >= cfg.sprintToFire - 1e-9;
 }
+
+/** A fire tap is held this long (s) waiting for the rifle to come up after a sprint. */
+export const TAP_BUFFER = 0.4;
+
+export interface TapBuffer {
+  pending: boolean;
+  /** Seconds since the buffered tap. */
+  age: number;
+}
+
+/**
+ * Fire-tap buffer (CMB-08 follow-up). A tap while the rifle is lowered (sprinting, or inside the
+ * 0.15 s sprint-to-fire delay) is kept, ends the sprint like a held trigger does, and fires the
+ * moment the rifle is ready. Call once per frame after movement, with `tapped` = a click arrived
+ * this frame and `ready` = the rifle is up now. `fire` = emit the shot now.
+ */
+export function stepTapBuffer(b: TapBuffer, tapped: boolean, ready: boolean, dt: number): TapBuffer & { fire: boolean } {
+  const pending = b.pending || tapped;
+  if (!pending) return { pending: false, age: 0, fire: false };
+  if (ready) return { pending: false, age: 0, fire: true };
+  const age = tapped ? 0 : b.age + dt;
+  if (age > TAP_BUFFER) return { pending: false, age: 0, fire: false };
+  return { pending: true, age, fire: false };
+}
