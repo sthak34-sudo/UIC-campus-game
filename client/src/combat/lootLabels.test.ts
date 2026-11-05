@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { labelInRange, LOOT_LABEL_RANGE_M, LootField } from './loot';
+import { crateInRange, labelInRange, LOOT_DRAW_RANGE_M, LOOT_LABEL_RANGE_M, LootField } from './loot';
 
 // Label sprites draw on a canvas; tests run without a DOM, so give them a no-op 2D context.
 const ctx = new Proxy({}, { get: () => () => undefined, set: () => true });
@@ -15,6 +15,17 @@ describe('pickup labels only near the player', () => {
     expect(labelInRange({ x: 0, y: 0, z: 0 }, { x: 16, y: 0, z: 0 })).toBe(false);
     expect(labelInRange({ x: 0, y: 0, z: 0 }, { x: 10, y: 12, z: 0 })).toBe(false);
     expect(labelInRange(null, { x: 999, y: 0, z: 0 })).toBe(true);
+  });
+  it('hides distant crates without removing them from pickup searches', () => {
+    expect(crateInRange({ x: 0, y: 0, z: 0 }, { x: LOOT_DRAW_RANGE_M + 1, y: 0, z: 0 })).toBe(false);
+    const scene = new THREE.Scene();
+    const far = { x: 90, y: 0, z: 0 };
+    const field = new LootField(scene, [{ kind: 'ammo', position: far }]);
+    field.update(0, { x: 0, y: 0, z: 0 });
+    expect(scene.children[0]!.visible).toBe(false);
+    expect(field.nearest(far, 0)?.kind).toBe('ammo');
+    field.update(0, { x: 89, y: 0, z: 0 });
+    expect(scene.children[0]!.visible).toBe(true);
   });
   it('LootField hides far tags and shows near ones', () => {
     const scene = new THREE.Scene();

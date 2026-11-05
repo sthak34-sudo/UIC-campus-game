@@ -34,6 +34,7 @@ describe('guns as ground loot', () => {
     mesh.geometry.addEventListener('dispose', () => { disposed = true; });
     const field = new LootField(scene, [{ kind: 'gun', position: { x: 0, y: 1, z: 0 } }], tpl);
     const g = scene.getObjectByName('combat-loot-gun')!;
+    g.traverse((o) => { if ((o as THREE.Mesh).isMesh) expect((o as THREE.Mesh).castShadow).toBe(false); });
     field.update(3);
     expect(g.position.y).toBe(1);
     expect(g.rotation.y).toBe(0);

@@ -130,6 +130,7 @@ export async function mountCombat(opts: {
     ? [...startLoot, ...opts.extraLoot]
     : startLoot;
   const loot = new LootField(opts.world.scene, allLoot, bodies?.rifle ?? null);
+  loot.update(0, feet); // apply distance culling before shader warm-up and the first frame
   if (physics) physics.step();
 
   opts.world.addViewpoint('combat-range', {

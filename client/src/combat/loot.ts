@@ -119,7 +119,9 @@ export function buildGroundGun(template: THREE.Object3D, yaw: number): THREE.Obj
   holder.traverse((o) => {
     const m = o as THREE.Mesh;
     if (m.isMesh) {
-      m.castShadow = true;
+      // Ground pickups are small props. Their individual shadow draws cost far more than
+      // the shadow itself is worth, especially when many rifles are scattered on the map.
+      m.castShadow = false;
       m.receiveShadow = true;
     }
   });
@@ -136,9 +138,16 @@ const NAMES: Record<LootKind, string> = {
 
 /** Meters. Pickup name tags farther than this are hidden (each tag is its own draw call). */
 export const LOOT_LABEL_RANGE_M = 15;
+/** Beyond this distance a pickup is too small to read, but still stays available to AI. */
+export const LOOT_DRAW_RANGE_M = 70;
 
 /** True when a pickup's name tag should show for a viewer at `viewer` (null = no viewer: show). */
 export function labelInRange(viewer: Vec3 | null, at: Vec3, range = LOOT_LABEL_RANGE_M): boolean {
+  if (!viewer) return true;
+  return (viewer.x - at.x) ** 2 + (viewer.y - at.y) ** 2 + (viewer.z - at.z) ** 2 <= range * range;
+}
+
+export function crateInRange(viewer: Vec3 | null, at: Vec3, range = LOOT_DRAW_RANGE_M): boolean {
   if (!viewer) return true;
   return (viewer.x - at.x) ** 2 + (viewer.y - at.y) ** 2 + (viewer.z - at.z) ** 2 <= range * range;
 }
@@ -232,9 +241,10 @@ export class LootField {
         c.group.visible = false;
         continue;
       }
-      c.group.visible = true;
-      c.tag.visible = labelInRange(viewer, c.position);
       c.hiddenUntil = 0;
+      c.group.visible = crateInRange(viewer, c.position);
+      if (!c.group.visible) continue;
+      c.tag.visible = labelInRange(viewer, c.position);
       if (c.still) continue;
       const bob = Math.sin(now * 1.6 + i) * 0.05;
       c.group.position.y = this.baseY[i]! + bob;

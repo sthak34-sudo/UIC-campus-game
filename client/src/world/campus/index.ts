@@ -65,10 +65,9 @@ export const campusBuildings = new Map<string, CampusBuildingEntry>();
 export const TILE = 250;
 /**
  * Past this distance a tile swaps its detailed facades for a flat shell (the building prisms,
- * one material). Fog does NOT hide buildings here: FogExp2 density 0.00032 leaves a 700 m
- * building ~95% visible (1 - exp(-(0.00032*700)^2) = 4.9% fog), so tiles must never vanish here.
+ * one material). The shell stays visible because fog alone does not hide distant buildings.
  */
-export const BUILDING_FAR_M = 700;
+export const BUILDING_FAR_M = 500;
 /** Shells are hidden only past the campus diagonal (~1900 m; still ~69% visible through fog). */
 export const BUILDING_HIDE_M = 1900;
 /** Flat far-shell material shared by every tile (one cheap program, no maps). */

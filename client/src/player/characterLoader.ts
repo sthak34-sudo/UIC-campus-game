@@ -586,6 +586,19 @@ class AnimatedCharacter implements CharacterVisual {
     facing.rotation.y = Math.PI;
     const rig = assets.clone(assets.template);
     facing.add(rig);
+    // The template disables culling because animated bounds can move. Give each
+    // cloned skinned mesh a generous, fixed bound instead so characters outside
+    // the camera and shadow cascades stop submitting all of their body parts.
+    rig.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.frustumCulled = true;
+      const skinned = mesh as THREE.SkinnedMesh;
+      if (!skinned.isSkinnedMesh) return;
+      if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
+      skinned.boundingSphere = mesh.geometry.boundingSphere!.clone();
+      skinned.boundingSphere.radius += 2.5; // room for running, crouching, and falling poses
+    });
     this.root.name = 'player-character';
     this.root.add(facing);
 
